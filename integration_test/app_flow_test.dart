@@ -109,7 +109,12 @@ Future<void> waitFor(
     if (DateTime.now().isAfter(end)) fail('never appeared: $finder');
     await tester.pump(const Duration(milliseconds: 200));
   }
-  for (var i = 0; i < 8; i++) {
+  await settle(tester);
+}
+
+/// Lets page slides and the keyboard finish moving (1 s of frames).
+Future<void> settle(WidgetTester tester) async {
+  for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
 }
@@ -127,11 +132,18 @@ Future<void> until(
 }
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // The performance run (TESTING.md) records frame times with a larger
+  // file: --dart-define=PERF=true --dart-define=FILE_MB=200
+  const perf = bool.fromEnvironment('PERF');
+  const fileMb = int.fromEnvironment('FILE_MB', defaultValue: 5);
 
   testWidgets('onboarding, then text both ways and a verified file', (
     tester,
   ) async {
+    // Typing goes through the test's text input, also under flutter drive.
+    tester.testTextInput.register();
+    addTearDown(tester.testTextInput.unregister);
     final temp = await Directory.systemTemp.createTemp('linkup_it');
     final store = MemoryKeyValueStore();
     final picker = FakeFilePicker();
@@ -166,6 +178,7 @@ void main() {
     await tester.tap(find.text('Get started'));
     await waitFor(tester, find.text('Choose your name'));
     await tester.enterText(find.byType(TextField), 'Yusuf Device');
+    await settle(tester);
     await tester.tap(find.text('Continue'));
     await waitFor(
       tester,
@@ -222,32 +235,44 @@ void main() {
           MessageStatus.delivered.rank;
     });
 
-    // A 5 MB file from the app, through the worker isolate.
+    // A file from the app, through the worker isolate, written and hashed
+    // 1 MB at a time so large runs stay light.
     final random = Random(1);
     final source = File(p.join(temp.path, 'pick', 'report.pdf'));
     await source.parent.create(recursive: true);
-    await source.writeAsBytes(
-      Uint8List.fromList(List.generate(5 << 20, (_) => random.nextInt(256))),
-    );
-    final expected = sha256.convert(await source.readAsBytes()).toString();
+    final sink = source.openWrite();
+    for (var i = 0; i < fileMb; i++) {
+      sink.add(
+        Uint8List.fromList(List.generate(1 << 20, (_) => random.nextInt(256))),
+      );
+    }
+    await sink.close();
+    final expected = (await sha256.bind(source.openRead()).first).toString();
     picker.next = [
-      PickedFile(path: source.path, name: 'report.pdf', size: 5 << 20),
+      PickedFile(path: source.path, name: 'report.pdf', size: fileMb << 20),
     ];
     await tester.tap(find.byTooltip('Attach files'));
     await waitFor(tester, find.text('Send to Device Peer'));
-    await tester.tap(find.text('Send'));
-    await until(tester, () async {
-      final files = await peer.repository.watchConversation(appId).first;
-      final file = files.where((m) => m.isFile).firstOrNull;
-      if (file == null) return false;
-      final transfer = await peer.transfers.find(file.fileId!);
-      return transfer?.status == TransferStatus.completed;
-    });
+    // Frame times while the file is prepared and sent (P11.6).
+    Future<void> send() async {
+      await tester.tap(find.text('Send'));
+      await until(tester, seconds: 600, () async {
+        final files = await peer.repository.watchConversation(appId).first;
+        final file = files.where((m) => m.isFile).firstOrNull;
+        if (file == null) return false;
+        final transfer = await peer.transfers.find(file.fileId!);
+        return transfer?.status == TransferStatus.completed;
+      });
+    }
+
+    perf
+        ? await binding.watchPerformance(send, reportKey: 'file_transfer')
+        : await send();
     final got = (await peer.repository.watchConversation(appId).first)
         .firstWhere((m) => m.isFile);
     final transfer = (await peer.transfers.find(got.fileId!))!;
-    final bytes = await peer.store.file(transfer.localPath!).readAsBytes();
-    expect(sha256.convert(bytes).toString(), expected);
+    final received = peer.store.file(transfer.localPath!);
+    expect((await sha256.bind(received.openRead()).first).toString(), expected);
     await waitFor(tester, find.text('Sent'));
 
     await peer.messages.stop();

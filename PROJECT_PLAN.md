@@ -960,12 +960,12 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 **Exit:** `flutter test` and the integration tests pass; coverage target met.
 
 #### P11 · UI polish (Week 16, 14–20 Jan)
-- [ ] **P11.1** Expressive pass: shapes, type, motion, FAB menu, transitions; dark mode review
-- [ ] **P11.2** Empty, loading and error states on every screen (§10.3)
-- [ ] **P11.3** Accessibility: TalkBack, contrast, 48 dp targets, 200% text, reduced motion
-- [ ] **P11.4** Adaptive layouts: large phones, foldables, landscape (list and detail side by side at ≥ 840 dp)
-- [ ] **P11.5** About screen; final Storage and Settings
-- [ ] **P11.6** Performance pass in profile mode (§13.3)
+- [x] **P11.1** Expressive pass: shapes, type, motion, FAB menu, transitions; dark mode review *(Android's predictive-back transition, instant with Remove animations; New chat stays a sheet, which reads better than a FAB menu with three choices)*
+- [x] **P11.2** Empty, loading and error states on every screen (§10.3) *(audited; all screens already had them)*
+- [x] **P11.3** Accessibility: TalkBack, contrast, 48 dp targets, 200% text, reduced motion *(automated on 11 screens, light and dark)*
+- [x] **P11.4** Adaptive layouts: large phones, foldables, landscape (list and detail side by side at ≥ 840 dp)
+- [x] **P11.5** About screen; final Storage and Settings
+- [x] **P11.6** Performance pass in profile mode (§13.3) *(frame times during a 200 MB send; cold start; see TESTING.md)*
 
 **Exit:** the UI checklist passes on 2 phones in light and dark themes.
 
@@ -1017,7 +1017,7 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 | M3 | Persistent text chat with offline queue | 25 Nov (end of Week 8) | Done (emulator; chat on 2 phones) |
 | M4 | Large-file transfer; mid-term presentation | 16 Dec (Week 11) | Code done; 2 GB soak and slides open |
 | M5 | Feature complete: broadcast, background, security | 6 Jan (end of Week 14) | Done 10 Oct (`v0.9.0-beta`); real-phone checks for P7/P8 open |
-| M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Tests done (P10, 10 Oct); polish and device matrix open |
+| M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Tests and polish done (P10–P11, 10 Oct); UI checklist on 2 phones and device matrix open |
 | M7 | v1.0.0 released with all four documents | 3 Feb (end of Week 18) | Not started |
 | M8 | Report submitted, defense | ~17 Feb (Week 20) | Not started |
 
@@ -1222,3 +1222,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 2.0 | 10 Oct 2026 | P8 done (code): the `Application` owns a cached FlutterEngine and the bridges (screen-independent); `LanForegroundService` (`connectedDevice`) runs while files move ("Receiving video.mp4 — 62%", updated at most once a second) or with *Stay reachable* on, with Wi-Fi and partial wake locks during transfers only; *Stay reachable* in Settings, offered once on Home; battery settings link; notification taps carry an app route (chat, transfer details, Activity); Activity screen; HELLO every 15 s in the background. Emulator: 1 GB received with the screen off, Doze, swipe-away. 292 tests. |
 | 2.1 | 10 Oct 2026 | P9 done: inputs reviewed and documented (Security model); fuzz tests for codecs, frames and live connections; limits on discovery answers, half-open and per-address connections, and packet floods; logs reviewed; encryption spike (`tool/tls_spike.dart`) and decision ADR-0022 (plaintext v1.0, user's choice); Settings → Privacy; feature freeze and `v0.9.0-beta`. 302 tests. |
 | 2.2 | 10 Oct 2026 | P10 done: coverage core 82.7% and data 91.1%; on-device integration test (onboarding, text both ways, 5 MB file verified against a peer inside the test); redial backoff test; `TESTING.md` with run commands and the full device-matrix template. |
+| 2.3 | 10 Oct 2026 | P11 done (code): accessibility audit as tests (touch targets, labels, contrast in light and dark, 200% text) with one overflow fixed; navigation rail from 600 dp and chat list beside the chat from 840 dp; About screen (version, how it works, privacy, licences; 7 taps on the version unlock developer options); transitions instant with Remove animations; profile-mode frame times during a 200 MB send and cold start recorded. Exit check (UI checklist on 2 phones, light and dark) is with the user. |

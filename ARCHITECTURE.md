@@ -88,6 +88,10 @@ Callers pass IDs and sizes, never message text or file names (spec §35). Debug 
 
 `AppTheme` builds light and dark `ThemeData` from a seed colour, or from the wallpaper colours on Android 12+ through `dynamic_color`. It uses the expressive variant for icon buttons, stadium buttons, 28 dp card corners, heavier headline and title weights, and emphasised easing (`tokens.dart`). Fonts are the platform default; nothing is downloaded.
 
+Page transitions are Android's own (with predictive back), and become instant when *Remove animations* is on, like every other animation (`AppMotion.of`).
+
+**Layouts (P11.4).** Below 600 dp wide: a bottom navigation bar. From 600 dp (landscape phones, foldables): a navigation rail. From 840 dp (Material's *expanded* window class, `twoPaneWidth`): the chat list and the open chat side by side; the open chat is `selectedChatProvider`, and narrower windows push the chat as a full screen instead.
+
 ## LAN discovery (P2)
 
 ```

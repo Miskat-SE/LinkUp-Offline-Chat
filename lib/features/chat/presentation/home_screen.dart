@@ -15,6 +15,7 @@ import 'package:resqmesh/core/settings/stay_reachable.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
+import 'package:resqmesh/features/chat/presentation/chat_screen.dart';
 import 'package:resqmesh/features/chat/presentation/new_chat_sheet.dart';
 import 'package:resqmesh/shared/widgets/connection_status_card.dart';
 import 'package:resqmesh/shared/widgets/empty_state.dart';
@@ -22,6 +23,22 @@ import 'package:resqmesh/shared/widgets/name_clash_banner.dart';
 import 'package:resqmesh/shared/widgets/user_avatar.dart';
 
 /// Home: network status and the chat list (spec §6, §24).
+/// Window width from which the chat list and the open chat sit side by
+/// side (Material's expanded window class, P11.4).
+const twoPaneWidth = 840.0;
+
+/// The chat open beside the list on wide screens.
+final selectedChatProvider = NotifierProvider<SelectedChat, String?>(
+  SelectedChat.new,
+);
+
+final class SelectedChat extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String peerId) => state = peerId;
+}
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -55,7 +72,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               )
               .toList();
 
-    return Scaffold(
+    final wide = MediaQuery.sizeOf(context).width >= twoPaneWidth;
+    final selected = wide ? ref.watch(selectedChatProvider) : null;
+    void open(String peerId) => wide
+        ? ref.read(selectedChatProvider.notifier).select(peerId)
+        : context.push(Routes.chat(peerId));
+
+    final list = Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showNewChatSheet(context),
         icon: const Icon(Icons.edit_square),
@@ -152,20 +175,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 itemBuilder: (context, index) => _ConversationTile(
                   summary: shown[index],
                   online: online.contains(shown[index].peerId),
+                  selected: shown[index].peerId == selected,
+                  onTap: () => open(shown[index].peerId),
                 ),
               ),
             ),
         ],
       ),
     );
+    if (!wide) return list;
+    return Row(
+      children: [
+        SizedBox(width: 400, child: list),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: selected == null
+              ? const Scaffold(
+                  body: EmptyState(
+                    compact: true,
+                    icon: Icons.forum_outlined,
+                    title: 'Pick a chat',
+                    message: 'Your conversation opens here.',
+                  ),
+                )
+              : ChatScreen(key: ValueKey(selected), peerId: selected),
+        ),
+      ],
+    );
   }
 }
 
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({required this.summary, required this.online});
+  const _ConversationTile({
+    required this.summary,
+    required this.online,
+    required this.selected,
+    required this.onTap,
+  });
 
   final ConversationSummary summary;
   final bool online;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +226,9 @@ class _ConversationTile extends StatelessWidget {
     final unread = summary.unreadCount;
     final (statusIconData, statusText) = statusIcon(last.status);
     return ListTile(
-      onTap: () => context.push(Routes.chat(summary.peerId)),
+      selected: selected,
+      selectedTileColor: scheme.secondaryContainer,
+      onTap: onTap,
       leading: Stack(
         children: [
           if (summary.peerId == ChatMessage.everyone)

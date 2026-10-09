@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test --timeout 120s                 # 308 tests, about 40 seconds (the 200 MB transfer test takes most of it)
+flutter test --timeout 120s                 # 314 tests, about 40 seconds (the 200 MB transfer test takes most of it)
 flutter test --coverage --timeout 120s      # writes coverage/lcov.info
 flutter test integration_test -d <device>   # on a phone or emulator, about 20 seconds
 flutter analyze && dart format --set-exit-if-changed lib test integration_test
@@ -14,6 +14,21 @@ flutter analyze && dart format --set-exit-if-changed lib test integration_test
 **Coverage** (10 Oct 2026, generated `*.g.dart` excluded): `core/` 82.7%, feature `data/` 91.1%, screens 88.9%. The target is ≥ 80% for `core/` and `data/`. The least covered code is the Android-only wiring (`service_discovery.dart`, provider setup) and generated migration steps, which the device test and the migration tests exercise instead.
 
 **On a device** (`integration_test/app_flow_test.dart`). The real app runs on the phone with everything real except notifications, the file picker and the stored settings: Wi-Fi bridge, discovery, TCP connections, the transfer worker isolate and SQLite. A second phone runs inside the test (its own connection manager, transfer engine, messaging service and database) and connects to the app through the device's own Wi-Fi address. The test goes through onboarding, opens the chat from People, sends text both ways, then sends a 5 MB file and checks the copy's SHA-256 on the other side. Needs Wi-Fi on (the emulator has it).
+
+**Performance run** (P11.6). The same device test in profile mode, with a larger file, records frame times while the file is prepared and sent:
+
+```sh
+flutter drive --profile --no-dds -d <device> --driver=test_driver/perf_driver.dart \
+  --target=integration_test/app_flow_test.dart --dart-define=PERF=true --dart-define=FILE_MB=200
+# frame times → build/file_transfer_frames.json
+```
+
+Cold start: install the release APK, then `adb shell am force-stop com.resqmesh.resqmesh && adb shell am start -W -n com.resqmesh.resqmesh/.MainActivity` (*TotalTime*).
+
+| Date | Device | Build | Measure | Result |
+|---|---|---|---|---|
+| 10 Oct 2026 | Android 17 emulator | profile | Frames during a 200 MB send (28 frames) | UI thread: average 1.4 ms, 99th percentile 5.6 ms, none over 16 ms. Raster: average 7.2 ms, 1 frame at 16.6 ms (the emulator's software GPU) |
+| 10 Oct 2026 | Android 17 emulator | version 14 | Cold start to first frame, 3 runs | 3.4 s (first after install), 2.3 s, 1.9 s. Repeat on a mid-range phone for the 2 s target |
 
 | Area | File | What it proves |
 |---|---|---|
@@ -29,6 +44,7 @@ flutter analyze && dart format --set-exit-if-changed lib test integration_test
 | Nearby and REGISTER | `test/core/network/connection/nearby_and_register_test.dart` | Online means connected; unreachable state; devices only seen over TCP; renames applied and answered |
 | Message store | `test/features/chat/message_repository_test.dart` | SQLite on the real schema: round trip (Bangla, emoji, microseconds); duplicates refused; chat list query and order; live updates; unread counts; status never moves backwards; outbox order; restart recovery; owed receipts; stable stored codes; unknown codes; Clear chat history; data kept after reopening the file |
 | Schema | `test/drift/app_database/migration_test.dart` | Every schema version has a snapshot; a new install creates exactly the latest schema; v1 and v2 databases with data migrate to the latest and keep every row |
+| Accessibility and layouts (P11) | `test/accessibility/accessibility_test.dart` | 11 main screens in light and dark meet Android's 48 dp touch target, label and 4.5:1 contrast guidelines; every screen lays out at 200% text; landscape phone gets a side rail; on a tablet the chat opens beside the list; About with privacy and licences |
 | Platform wrappers | `test/core/platform/platform_wrappers_test.dart` | The Dart side of each Kotlin bridge (network monitor, notifications, background service, file actions) against a stand-in host API; the deferred transfer backend |
 | Messaging | `test/features/chat/messaging_service_test.dart` | Two phones on fake time, each with its own database: sent, delivered and read; offline outbox in order; lost ACK resends once stored once; fails after 5 tries and retry; connection lost mid-send; full attempts per connection; app killed mid-send and restarted; READ and DELIVERED queued until reconnect; late receipts; spoofed receipts and misaddressed messages ignored; replies; delete |
 | Chat UI | `test/features/chat/chat_ui_test.dart` | Whole app: send from People with ticks, new message badge and notification, reading sends READ, notification explainer, long-press Copy / Reply / Delete, waiting to send, tapping a notification opens the chat; chats and badges after a restart; Storage count, cancel and Clear chat history |
@@ -79,7 +95,7 @@ adb forward --remove tcp:28762
 
 In this mode the emulator hears the Mac, but its broadcasts can't reach the Mac; that's a limitation of the emulator's network, not of the app. The app then connects to the Mac over TCP: it dials `10.0.2.2:28771`, which the emulator maps to the Mac.
 
-**Developer screen.** In a release build, open Settings, then tap the version number 7 times. It shows the phone's IP, subnet, broadcast address, whether the app is bound to Wi-Fi, ports, peers with their source (UDP/NSD), packet counters, errors and recent logs. **Copy logs** puts the logs on the clipboard for bug reports.
+**Developer screen.** In a release build, open Settings → About LinkUp, then tap *Version* 7 times. It shows the phone's IP, subnet, broadcast address, whether the app is bound to Wi-Fi, ports, peers with their source (UDP/NSD), packet counters, errors and recent logs. **Copy logs** puts the logs on the clipboard for bug reports.
 
 ## 3. Real-device matrix
 

@@ -11,6 +11,7 @@ import 'package:resqmesh/core/platform/background.dart';
 import 'package:resqmesh/core/settings/developer_mode.dart';
 import 'package:resqmesh/core/settings/stay_reachable.dart';
 import 'package:resqmesh/core/storage/database_providers.dart';
+import 'package:resqmesh/features/settings/presentation/about_screen.dart';
 import 'package:resqmesh/features/settings/presentation/storage_screen.dart';
 import 'package:resqmesh/features/settings/presentation/theme_mode_controller.dart';
 import 'package:resqmesh/shared/widgets/connection_method_info.dart';
@@ -215,51 +216,30 @@ class _StorageCard extends ConsumerWidget {
   }
 }
 
-/// App version. Tapping it 7 times unlocks the developer screen (spec §34).
-class _AboutCard extends ConsumerStatefulWidget {
+/// About, Privacy and, once unlocked, Developer options.
+class _AboutCard extends ConsumerWidget {
   const _AboutCard();
 
   @override
-  ConsumerState<_AboutCard> createState() => _AboutCardState();
-}
-
-class _AboutCardState extends ConsumerState<_AboutCard> {
-  static const _tapsToUnlock = 7;
-  int _taps = 0;
-
-  Future<void> _onVersionTap() async {
-    if (ref.read(developerModeProvider)) return;
-    _taps++;
-    if (_taps < _tapsToUnlock) return;
-    await ref.read(developerModeProvider.notifier).unlock();
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Developer options unlocked')));
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final version = ref.watch(appInfoProvider).value?.label ?? '…';
-    final developer = ref.watch(developerModeProvider);
+    const padding = EdgeInsets.symmetric(
+      horizontal: AppSpacing.xl,
+      vertical: AppSpacing.sm,
+    );
     return Card(
       child: Column(
         children: [
           ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl,
-              vertical: AppSpacing.sm,
-            ),
+            contentPadding: padding,
             leading: const Icon(Icons.info_outline_rounded),
-            title: const Text(Brand.name),
+            title: const Text('About ${Brand.name}'),
             subtitle: Text('Version $version'),
-            onTap: _onVersionTap,
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push(Routes.about),
           ),
           ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl,
-              vertical: AppSpacing.sm,
-            ),
+            contentPadding: padding,
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('Privacy'),
             subtitle: const Text('What LinkUp keeps, and who can see it'),
@@ -267,14 +247,7 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
               context: context,
               builder: (context) => AlertDialog(
                 title: const Text('Privacy'),
-                content: const Text(
-                  '${Brand.name} works only on your local network. Nothing '
-                  'goes to the internet, and there are no accounts.\n\n'
-                  'Your chats and files are stored only on this phone.\n\n'
-                  'Messages and files are not encrypted on the network. '
-                  'People on the same Wi-Fi with special tools could see '
-                  'them, so use networks you trust, or your own hotspot.',
-                ),
+                content: const Text(privacyText),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -284,12 +257,9 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
               ),
             ),
           ),
-          if (developer)
+          if (ref.watch(developerModeProvider))
             ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xl,
-                vertical: AppSpacing.sm,
-              ),
+              contentPadding: padding,
               leading: const Icon(Icons.developer_mode_rounded),
               title: const Text('Developer options'),
               subtitle: const Text('Network, peers, packets and logs'),

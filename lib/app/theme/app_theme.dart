@@ -125,6 +125,9 @@ abstract final class AppTheme {
           ),
         ),
       ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {TargetPlatform.android: _AndroidTransitions()},
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: roundedMd,
@@ -145,4 +148,40 @@ abstract final class AppTheme {
     titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w600),
     labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w600),
   );
+}
+
+/// Android's own page transition (with predictive back), or none at all
+/// when the user turned animations off (*Remove animations*, §10.3).
+final class _AndroidTransitions extends PredictiveBackPageTransitionsBuilder {
+  const _AndroidTransitions();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => MediaQuery.disableAnimationsOf(context)
+      ? child
+      : super.buildTransitions(
+          route,
+          context,
+          animation,
+          secondaryAnimation,
+          child,
+        );
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      (context, animation, secondaryAnimation, allowSnapshotting, child) =>
+          MediaQuery.disableAnimationsOf(context)
+          ? child
+          : super.delegatedTransition?.call(
+              context,
+              animation,
+              secondaryAnimation,
+              allowSnapshotting,
+              child,
+            );
 }

@@ -15,6 +15,7 @@ import 'package:resqmesh/features/file_transfer/presentation/file_preview_screen
 import 'package:resqmesh/features/file_transfer/presentation/transfer_details_screen.dart';
 import 'package:resqmesh/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:resqmesh/features/onboarding/presentation/splash_screen.dart';
+import 'package:resqmesh/features/settings/presentation/about_screen.dart';
 import 'package:resqmesh/features/settings/presentation/change_name_screen.dart';
 import 'package:resqmesh/features/settings/presentation/connection_screen.dart';
 import 'package:resqmesh/features/settings/presentation/settings_screen.dart';
@@ -30,6 +31,7 @@ abstract final class Routes {
   static const connection = '/settings/connection';
   static const developer = '/settings/developer';
   static const storage = '/settings/storage';
+  static const about = '/settings/about';
 
   static String chat(String peerId) => '/chat/$peerId';
   static String filePreview(String fileId) => '/files/$fileId';
@@ -155,6 +157,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'storage',
                     parentNavigatorKey: rootKey,
                     builder: (context, state) => const StorageScreen(),
+                  ),
+                  GoRoute(
+                    path: 'about',
+                    parentNavigatorKey: rootKey,
+                    builder: (context, state) => const AboutScreen(),
                   ),
                   GoRoute(
                     path: 'developer',

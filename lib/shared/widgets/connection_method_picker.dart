@@ -118,9 +118,7 @@ class _MethodCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
-                        if (!enabled)
-                          const _ComingSoonBadge()
-                        else
+                        if (enabled)
                           AnimatedSwitcher(
                             duration: duration,
                             child: Icon(
@@ -138,6 +136,8 @@ class _MethodCard extends StatelessWidget {
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
                       children: [
+                        // With the traits, so it wraps at large text sizes.
+                        if (!enabled) const _ComingSoonBadge(),
                         for (final trait in info.traits)
                           _TraitChip(label: trait, selected: selected),
                       ],

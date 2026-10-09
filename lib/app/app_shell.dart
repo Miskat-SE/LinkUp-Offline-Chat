@@ -58,31 +58,57 @@ class _AppShellState extends ConsumerState<AppShell> {
       ..watch(messageAlertsProvider)
       ..watch(backgroundCoordinatorProvider);
     final shell = widget.shell;
+    // Tapping the current tab again returns to its first screen.
+    void go(int index) =>
+        shell.goBranch(index, initialLocation: index == shell.currentIndex);
+    // Landscape, foldables and tablets: a rail beside the content (P11.4).
+    if (MediaQuery.sizeOf(context).width >= 600) {
+      return Scaffold(
+        body: SafeArea(
+          right: false,
+          child: Row(
+            children: [
+              NavigationRail(
+                selectedIndex: shell.currentIndex,
+                onDestinationSelected: go,
+                labelType: NavigationRailLabelType.all,
+                groupAlignment: 0,
+                destinations: [
+                  for (final d in _destinations)
+                    NavigationRailDestination(
+                      icon: Icon(d.$1),
+                      selectedIcon: Icon(d.$2),
+                      label: Text(d.$3),
+                    ),
+                ],
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: shell),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       body: shell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
-        // Tapping the current tab again returns to its first screen.
-        onDestinationSelected: (index) =>
-            shell.goBranch(index, initialLocation: index == shell.currentIndex),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.forum_outlined),
-            selectedIcon: Icon(Icons.forum_rounded),
-            label: 'Chats',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.group_outlined),
-            selectedIcon: Icon(Icons.group_rounded),
-            label: 'People',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
-            label: 'Settings',
-          ),
+        onDestinationSelected: go,
+        destinations: [
+          for (final d in _destinations)
+            NavigationDestination(
+              icon: Icon(d.$1),
+              selectedIcon: Icon(d.$2),
+              label: d.$3,
+            ),
         ],
       ),
     );
   }
 }
+
+const _destinations = [
+  (Icons.forum_outlined, Icons.forum_rounded, 'Chats'),
+  (Icons.group_outlined, Icons.group_rounded, 'People'),
+  (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
+];
