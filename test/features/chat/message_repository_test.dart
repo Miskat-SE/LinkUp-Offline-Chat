@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resqmesh/core/storage/app_database.dart';
+import 'package:resqmesh/core/storage/file_store.dart';
 import 'package:resqmesh/core/storage/storage_manager.dart';
 import 'package:resqmesh/features/chat/data/drift_message_repository.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
@@ -281,7 +282,9 @@ void main() {
   test(
     'clearing chat history deletes everything and updates the count',
     () async {
-      final storage = StorageManager(db);
+      final dir = await Directory.systemTemp.createTemp('resqmesh_files');
+      addTearDown(() => dir.delete(recursive: true));
+      final storage = StorageManager(db, FileStore(dir));
       final counts = <int>[];
       final sub = storage.watchMessageCount().listen(counts.add);
       await repo.insertIncoming(incoming(1));

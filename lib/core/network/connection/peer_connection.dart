@@ -129,6 +129,11 @@ final class PeerConnection {
   /// Round-trip time of the last PING, for diagnostics.
   int? rttMs;
 
+  void Function()? _updated;
+
+  /// Called when the other side re-sends HELLO.
+  set onUpdated(void Function()? callback) => _updated = callback;
+
   /// The other side's HELLO (valid after [open] returns).
   HelloPacket get peerHello => _helloPacket!;
   HelloPacket? _helloPacket;
@@ -239,6 +244,13 @@ final class PeerConnection {
 
   void _onPeerPacket(Packet packet) {
     switch (packet) {
+      case HelloPacket():
+        // A fresh HELLO on an open connection updates the announcement,
+        // e.g. a new file port.
+        if (packet.announcement.compatible) {
+          _helloPacket = packet;
+          _updated?.call();
+        }
       case PingPacket(:final nonce):
         send(PongPacket(_header(), nonce: nonce));
       case PongPacket(:final nonce):

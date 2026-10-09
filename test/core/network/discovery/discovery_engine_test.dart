@@ -136,6 +136,29 @@ void main() {
     });
   });
 
+  test('a broken UDP socket is opened again and discovery recovers', () {
+    fakeAsync((async) {
+      final a = Phone(lan, id: idA, ip: '192.168.0.10', name: 'Yusuf');
+      final b = Phone(lan, id: idB, ip: '192.168.0.11', name: 'Rahim');
+      startAll(async, [a, b]);
+      async.elapse(const Duration(seconds: 1));
+      expect(a.peer(idB)?.online, isTrue);
+
+      // Android cut Yusuf's network for a moment (app in the background).
+      lan.breakSocket(a.ip);
+      async.elapse(const Duration(seconds: 1));
+      expect(a.now.stats.recentErrors.last, contains('UDP receive failed'));
+
+      // Reopened after 2 s; Rahim answers the fresh DISCOVERY at once.
+      async.elapse(const Duration(seconds: 2));
+      expect(a.peer(idB)?.online, isTrue);
+      final seenBefore = a.peer(idB)!.lastSeen;
+      async.elapse(const Duration(seconds: 30));
+      expect(a.peer(idB)?.online, isTrue, reason: 'still hearing Rahim');
+      expect(a.peer(idB)!.lastSeen.isAfter(seenBefore), isTrue);
+    });
+  });
+
   test('duplicate announcements keep a single peer entry', () {
     fakeAsync((async) {
       final a = Phone(lan, id: idA, ip: '192.168.0.10', name: 'Yusuf');

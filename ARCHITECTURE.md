@@ -24,23 +24,29 @@ Still to come: messages (P4), the drift database (P5), the transfer isolate (P6)
 
 ```
 lib/
-├── main.dart                     runApp(ProviderScope(ResQMeshApp))
+├── main.dart                     runApp(RestartableApp(ProviderScope(ResQMeshApp)))
 ├── app/
 │   ├── app.dart                  MaterialApp.router, dynamic colour, theme mode
 │   ├── app_shell.dart            bottom tabs: Chats, People, Settings
 │   ├── router.dart               routes, LaunchState, redirect rules
+│   ├── restartable_app.dart      starts the app over after Clear all local data
 │   └── theme/                    AppTheme (Material 3 + expressive tokens), tokens.dart
 ├── core/
 │   ├── bootstrap/core_services.dart   start-up: storage, log file, device ID
 │   ├── connection/               ConnectionMethod (Wi-Fi, hotspot, Wi-Fi Direct, Bluetooth), chosen-method provider
 │   ├── identity/                 Username rules, LocalIdentity, IdentityRepository, providers
 │   ├── logging/                  AppLogger, FileLogSink, DebugPrintSink
-│   └── storage/                  KeyValueStore (SharedPreferences); AppDatabase (drift), StorageManager
+│   ├── platform/                 pigeon bridge: notifications, FileActions (open, share, save, thumbnails, free space)
+│   └── storage/                  KeyValueStore; AppDatabase (drift); StorageManager; FileStore; FileNameSanitizer
 ├── features/
 │   ├── onboarding/presentation/  Splash; onboarding (welcome → name → how to connect)
 │   ├── chat/domain/              ChatMessage, MessageStatus, ConversationSummary, MessageRepository
 │   ├── chat/data/                DriftMessageRepository, MessagingService, chat providers
 │   ├── chat/presentation/        Home (chat list), Chat screen, message bubbles, New chat sheet
+│   ├── file_transfer/domain/     FileTransfer, TransferStatus, FileKind, TransferProgress, repository
+│   ├── file_transfer/data/       TransferService; engine/ (TransferEngine, DataConnection, worker isolate);
+│   │                             DriftFileTransferRepository; file picker; stored images and thumbnails
+│   ├── file_transfer/presentation/  file card, Send files sheet, File Preview, Transfer Details
 │   ├── users/presentation/       People Nearby shell
 │   └── settings/presentation/    Settings, Change name, How you connect, Storage, theme mode
 └── shared/widgets/               AppMark, UserAvatar, EmptyState, NameForm, MeshIllustration,
@@ -146,6 +152,8 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 - **`MessageRepository`** is an interface, implemented by `DriftMessageRepository`.
 - **Outbox (P5).** At start, messages left *sending* by a killed app go back to *pending*, then anyone already connected is served. A network change drops every connection and redials, so it triggers the same path. Each incoming message records the last receipt sent back (`receiptSent`); DELIVERED and READ that couldn't be sent go out when the sender reconnects.
 
+- **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
+
 ## Storage (P5)
 
 ```
@@ -160,8 +168,31 @@ lib/features/chat/data/drift_message_repository.dart   chat queries and text-cod
 - Screens watch queries: the chat list is one query (latest message and unread count per chat), and a chat is its messages in local-time order, with the row ID breaking ties.
 - Stored values are fixed text codes mapped by the repository, never Dart enum names (ADR-0020). Times are UTC microseconds.
 - **Schema changes:** bump `schemaVersion`, run `dart run drift_dev make-migrations` (it writes `drift_schemas/` and the test helpers), write the step in `AppDatabase.migration`, and add a test in `test/drift/app_database/migration_test.dart`.
-- The Storage screen lives in Settings and talks to `core/storage` directly; screens watching the database update by themselves.
-- **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
+- The Storage screen lives in Settings. It shows messages, received files, copies of sent files, unfinished downloads and thumbnails, and offers four actions, each confirmed first: *Clear cached files* and *Delete received files* (through `TransferService`, which keeps anything a running transfer needs), *Clear chat history*, and *Clear all local data* (database, files and identity, then `RestartableApp` starts over at onboarding).
+- Schema v2 (P6) added the `files` table and `kind`/`fileId` on messages.
+
+## File transfer (P6)
+
+```
+Main isolate                                          Transfer worker isolate (ADR-0010, ADR-0021)
+MessagingService ─ file MESSAGE ─▶ control connection   TransferEngine
+      │  prepare / registerIncoming / accepted           ├ ServerSocket :28762 (filePort in HELLO)
+      ▼                                                  ├ DataConnection per file: HELLO, FILE_*, chunks
+TransferService ── upload · answer · stop ─────────────▶ ├ read 64 KiB at a time, flush every 1 MiB
+  state machine, decisions, files table ◀── events ───── ├ write .part, SHA-256 as bytes arrive, fsync, rename
+  progress (≤10/s), retries, ≤3 uploads                  └ hashFile for preparing
+```
+
+- **Sending:** the picked cache copy is moved into `files/sent/<fileId>` (no second copy), recorded as *Preparing* and hashed in the worker. Then its file MESSAGE goes out like a text message. Any receipt for that message (ACK, DELIVERED or READ) makes the file *Queued*. When the person is connected and announced a `filePort`, it is sent; at most 3 files at a time.
+- **Receiving:** a file MESSAGE records the file as *Offered* before it is ACKed. The worker asks `TransferService` about each FILE_OFFER:
+  - It is refused as `invalid` unless it matches what was announced by the same sender.
+  - It is refused as `tooLarge` over 4 GiB, or `noSpace` if it would leave less than 200 MB free.
+  - It is answered with FILE_COMPLETE at once if this file, or the same content from the same person, is already here (a duplicate reuses the stored copy).
+  - Otherwise it is accepted into `partial/<fileId>.part`, continuing from the partial file's size.
+- **When things go wrong:** a dropped connection resumes by itself 3 times (2, 4, 8 s), then *Failed* with **Retry**; reconnecting gives a fresh set of tries. A checksum mismatch deletes the partial file and retries once from zero. Pause (sender) keeps the partial file; Cancel (either side) deletes it. After a restart, sends wait to be scheduled again, receives wait for the sender, and unfinished hashing starts over.
+- **UI:** each file message is a card with preview (images, video thumbnails), size, type, live status (`%`, speed averaged over 2 s, time left) and one action. Tapping opens File Preview (Open, Share, Save to Downloads) or Transfer Details.
+- **Getting files out:** `FileBridge.kt` gives other apps a hard link named like the file under `files/shared/` through a FileProvider (no copy), saves to Downloads through MediaStore (Android 10+) or with the storage permission (8–9), and makes video thumbnails with `ThumbnailUtils`. Received APKs open only in Android's installer, when the user taps them.
+- **Discovery after a network cut:** Android stops network access for a backgrounded app; the discovery socket is reopened 2 s after it fails, so the app finds people again by itself.
 
 ## Testing
 
@@ -173,5 +204,11 @@ lib/features/chat/data/drift_message_repository.dart   chat queries and text-cod
 | Router redirects | `test/app/router_test.dart` |
 | Onboarding, relaunch, Change name, theme (whole app) | `test/features/onboarding/onboarding_flow_test.dart` |
 | Layer rules | `test/architecture_test.dart` |
+| Transfer engine on loopback (200 MB, cancel, resume, corruption, memory) | `test/features/file_transfer/transfer_engine_test.dart` |
+| Transfer state machine and decisions | `test/features/file_transfer/transfer_service_test.dart` |
+| File screens (whole app) | `test/features/file_transfer/file_ui_test.dart` |
+| File messages between two phones | `test/features/chat/file_messages_test.dart` |
+| File names, storage paths, SHA-256 vectors | `test/core/storage/file_name_sanitizer_test.dart` |
+| Schema snapshots and migrations | `test/drift/app_database/migration_test.dart` |
 
 Tests use `MemoryKeyValueStore` in place of SharedPreferences and the real database schema on in-memory SQLite; everything else is the real code.

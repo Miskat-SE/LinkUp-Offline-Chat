@@ -296,6 +296,23 @@ void main() {
     tester,
   ) async {
     final s = await ChatScenario.start(tester);
+    // Storage measures folders and deletes files: real file work, which
+    // finishes in real time and continues on the next frame.
+    Future<void> work() async {
+      for (var i = 0; i < 12; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    Future<void> until(Finder finder) async {
+      for (var i = 0; i < 10 && finder.evaluate().isEmpty; i++) {
+        await work();
+      }
+    }
+
     s
       ..rahimSays('One')
       ..rahimSays('Two');
@@ -310,12 +327,15 @@ void main() {
     );
     await tester.ensureVisible(find.text('2 messages'));
     await tester.tap(find.text('2 messages'));
-    await pumpFor(tester, const Duration(milliseconds: 500));
+    await until(find.text('2 messages saved'));
     expect(find.text('2 messages saved'), findsOneWidget);
 
     await tester.tap(find.text('Clear chat history'));
     await pumpFor(tester, const Duration(milliseconds: 500));
-    expect(find.textContaining('All 2 messages on this phone'), findsOneWidget);
+    expect(
+      find.textContaining('All 2 messages and every shared file'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Cancel'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     expect(find.text('2 messages saved'), findsOneWidget);
@@ -323,7 +343,7 @@ void main() {
     await tester.tap(find.text('Clear chat history'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.tap(find.text('Clear history'));
-    await pumpFor(tester, const Duration(milliseconds: 500));
+    await until(find.text('No messages saved'));
     expect(find.text('No messages saved'), findsOneWidget);
     expect(find.text('Chat history cleared'), findsOneWidget);
 

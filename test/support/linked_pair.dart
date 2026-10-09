@@ -67,6 +67,7 @@ final class PairLink implements PeerLinks {
             direction: ConnectionDirection.outbound,
             connectedAt: clock.now(),
             rttMs: 1,
+            filePort: 28762,
           ),
       },
       unreachable: const {},
@@ -106,4 +107,10 @@ final class PairLink implements PeerLinks {
   void updateEndpoints(List<PeerEndpoint> endpoints) {}
 
   void _emit() => _snapshots.add(current);
+
+  /// The file port this device announced.
+  int? filePort;
+
+  @override
+  void setFilePort(int? port) => filePort = port;
 }

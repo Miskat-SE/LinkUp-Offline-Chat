@@ -50,7 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               .where(
                 (c) =>
                     Username.key(c.peerName).contains(query) ||
-                    c.lastMessage.text.toLowerCase().contains(query),
+                    c.lastMessage.preview.toLowerCase().contains(query),
               )
               .toList();
 
@@ -216,7 +216,7 @@ class _ConversationTile extends StatelessWidget {
           ],
           Expanded(
             child: Text(
-              last.isOutgoing ? 'You: ${last.text}' : last.text,
+              last.isOutgoing ? 'You: ${last.preview}' : last.preview,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(

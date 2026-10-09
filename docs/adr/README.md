@@ -24,3 +24,4 @@ One file per decision. Status values: Proposed, Accepted, Superseded.
 | [0018](0018-go-router-for-navigation.md) | go_router for navigation | Accepted |
 | [0019](0019-hand-written-sealed-packet-classes.md) | Hand-written sealed packet classes | Accepted |
 | [0020](0020-database-schema-grows-with-the-phases.md) | The database schema grows with the phases | Accepted |
+| [0021](0021-file-transfers-in-a-worker-isolate-on-their-own-port.md) | File transfers in a worker isolate, on their own port | Accepted |

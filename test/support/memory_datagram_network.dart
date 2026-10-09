@@ -45,6 +45,18 @@ final class MemoryDatagramNetwork {
     }
   }
 
+  /// The socket of the device at [ip] fails, as when Android cuts a
+  /// backgrounded app's network: an error, then nothing more arrives.
+  void breakSocket(String ip) {
+    for (final endpoint in _endpoints) {
+      if (endpoint.ip != ip || endpoint.closed) continue;
+      endpoint._incoming.addError(
+        const SocketException('Software caused connection abort'),
+      );
+      endpoint.closed = true;
+    }
+  }
+
   /// Delivers raw bytes as if sent by [fromIp].
   void inject(Uint8List data, {required String fromIp, required int toPort}) {
     for (final endpoint in _endpoints) {

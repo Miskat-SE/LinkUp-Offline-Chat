@@ -47,6 +47,7 @@ final class ConnectionManager implements PeerLinks {
   final Map<String, _Backoff> _backoff = {};
   final Map<String, DateTime> _waitingSince = {};
   List<PeerEndpoint> _endpoints = const [];
+  int? _filePort;
 
   final StreamController<LinksSnapshot> _snapshots =
       StreamController<LinksSnapshot>.broadcast();
@@ -117,6 +118,17 @@ final class ConnectionManager implements PeerLinks {
   void sendToAll(Packet Function(String deviceId) packetFor) {
     for (final id in _links.keys.toList()) {
       send(id, packetFor(id));
+    }
+  }
+
+  @override
+  void setFilePort(int? port) {
+    if (port == _filePort) return;
+    _filePort = port;
+    final self = _self();
+    if (!self.canAnnounce) return;
+    for (final link in _links.values) {
+      link.send(_hello(self));
     }
   }
 
@@ -263,7 +275,9 @@ final class ConnectionManager implements PeerLinks {
       'address': link.address,
       'direction': link.direction.name,
     });
-    link.packets.listen((packet) => _packets.add(PeerPacket(id, packet)));
+    link
+      ..onUpdated = _emit
+      ..packets.listen((packet) => _packets.add(PeerPacket(id, packet)));
     unawaited(
       link.closed.then((reason) {
         if (!identical(_links[id], link)) return;
@@ -286,6 +300,7 @@ final class ConnectionManager implements PeerLinks {
     PacketHeader.create(senderId: self.deviceId, senderName: self.name!),
     Announcement(
       tcpPort: _server?.port ?? _preferredPort,
+      filePort: _filePort,
       appVersion: self.appVersion,
       nameClaimedAt: self.nameClaimedAt!,
     ),
@@ -312,6 +327,7 @@ final class ConnectionManager implements PeerLinks {
             direction: link.direction,
             connectedAt: link.connectedAt,
             rttMs: link.rttMs,
+            filePort: link.peerHello.announcement.filePort,
           ),
       },
       unreachable: {

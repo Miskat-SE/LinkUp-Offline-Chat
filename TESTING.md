@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test        # 189 tests, about 15 seconds
+flutter test        # 261 tests, about 30 seconds (the 200 MB transfer test takes most of it)
 ```
 
 | Area | File | What it proves |
@@ -24,6 +24,11 @@ flutter test        # 189 tests, about 15 seconds
 | Schema | `test/drift/app_database/migration_test.dart` | Every schema version has a snapshot; a new install creates exactly the latest schema. Migration tests go here. |
 | Messaging | `test/features/chat/messaging_service_test.dart` | Two phones on fake time, each with its own database: sent, delivered and read; offline outbox in order; lost ACK resends once stored once; fails after 5 tries and retry; connection lost mid-send; full attempts per connection; app killed mid-send and restarted; READ and DELIVERED queued until reconnect; late receipts; spoofed receipts and misaddressed messages ignored; replies; delete |
 | Chat UI | `test/features/chat/chat_ui_test.dart` | Whole app: send from People with ticks, new message badge and notification, reading sends READ, notification explainer, long-press Copy / Reply / Delete, waiting to send, tapping a notification opens the chat; chats and badges after a restart; Storage count, cancel and Clear chat history |
+| Transfer engine | `test/features/file_transfer/transfer_engine_test.dart` | Real sockets on loopback: whole file verified and renamed; empty file; reject; already-have; cancel and pause from either side with partial-file rules; resume from the partial size; corruption detected and deleted; dropped connection keeps the partial file; wrong device refused; missing source; the worker isolate; **200 MB with corruption, cancel, pause and resume while memory grows less than 64 MB** |
+| Transfer service | `test/features/file_transfer/transfer_service_test.dart` | Real database and files, engine played by a stand-in: preparing (move, sanitise, hash); scheduling when connected with a file port; at most 3 at a time; pause/resume; 3 automatic resumes with backoff, then Failed and Retry; one retry after a checksum mismatch; receiver decisions (invalid, too large, no space and later accepted, duplicates by content and by ID, cancelled); interrupted downloads; restart recovery; Storage actions |
+| File messages | `test/features/chat/file_messages_test.dart` | Two phones: a file sent offline is announced on connect, recorded by the receiver, confirmed, then uploaded; names in notifications sanitised; delete removes the file; a reused file ID is ignored |
+| File screens | `test/features/file_transfer/file_ui_test.dart` | Whole app: attach → review → remove → send → Sending % → Sent; receive with progress → preview → Open, Share, Save; details with live numbers and Pause; Storage *Clear all local data* back to onboarding |
+| File names | `test/core/storage/file_name_sanitizer_test.dart` | Traversal, hidden names, control and bidi characters, reserved names, 255-byte limit on character boundaries; storage paths from IDs; SHA-256 test vectors |
 | App flows | `test/features/onboarding/onboarding_flow_test.dart` | Whole app: onboarding, relaunch, tabs, New chat sheet, Change name, connection method, theme |
 | Discovery UI | `test/features/discovery/discovery_ui_test.dart` | Whole app with a second simulated phone: status line, People Nearby, leaving, name taken during onboarding, clash banner, developer screen |
 
@@ -31,9 +36,11 @@ flutter test        # 189 tests, about 15 seconds
 
 **Timing.** Discovery tests run on fake time (`fake_async`), so "offline after 20 s" or "name free after 3 s" run instantly and exactly.
 
+**Real file work in widget tests.** Widget tests run on fake time, but moving, measuring and deleting files is real I/O. Such tests let real time pass in small steps (`tester.runAsync`, then a frame) until the screen shows the result. A widget test that fails while the app is still running can keep its test process alive, so `flutter test --timeout 120s` is a safer way to run the whole suite.
+
 ## 2. Testing with one phone: the simulated peer
 
-`tool/lan_peer_sim.py` pretends to be a second phone. It announces itself, answers DISCOVERY and NAME_CHECK, and accepts TCP connections on port 28771: the HELLO handshake, PING, REGISTER and MESSAGE (answered with ACK and DELIVERED). With `--echo` it also replies to each message with *You said: …*. It keeps the same device ID for the same `--name` across runs, like a real phone, so queued messages reach it when it comes back (`--id` sets one explicitly). It prints what it hears and needs only Python 3.
+`tool/lan_peer_sim.py` pretends to be a second phone. It announces itself, answers DISCOVERY and NAME_CHECK, and accepts TCP connections on port 28771: the HELLO handshake, PING, REGISTER and MESSAGE (answered with ACK and DELIVERED). With `--echo` it also replies to each message with *You said: …*. It also takes files: files the app sends arrive in `--save-dir` (default `./sim_received`) with the checksum verified, and `--send-file PATH` (repeatable) sends files to the app once it connects. It keeps the same device ID for the same `--name` across runs, like a real phone, so queued messages reach it when it comes back (`--id` sets one explicitly). It prints what it hears and needs only Python 3.
 
 **Real phone + Mac on the same Wi-Fi**
 
@@ -48,8 +55,12 @@ The phone should show *Mac Tester* in People Nearby within a few seconds, and th
 ```sh
 adb emu redir add udp:28760:28760
 python3 tool/lan_peer_sim.py --name "Mac Tester" --listen 28770 --tcp 28771 --target 127.0.0.1:28760 --echo
+# to send files from the Mac to the app, also:
+adb forward tcp:28762 tcp:28762
+python3 tool/lan_peer_sim.py ... --send-file ~/big.bin --app-file-addr 127.0.0.1:28762
 # when done:
 adb emu redir del udp:28760
+adb forward --remove tcp:28762
 ```
 
 In this mode the emulator hears the Mac, but its broadcasts can't reach the Mac; that's a limitation of the emulator's network, not of the app. The app then connects to the Mac over TCP: it dials `10.0.2.2:28771`, which the emulator maps to the Mac.
@@ -62,7 +73,7 @@ From PROJECT_PLAN.md §13.2. Fill in one row per run.
 
 | ID | Test | Phones / router | Build | Result | Notes |
 |---|---|---|---|---|---|
-| R1–R5 | Text (P4) and files (needs P6) | | | — | |
+| R1–R5 | Text (P4) and files (P6) | | | — | |
 | R6 | Router WAN unplugged, Wi-Fi on: discovery | | | | |
 | R7 | Mobile data on + Wi-Fi without internet | | | | |
 | R8 | Router reboot: peers rediscovered within 60 s | | | | |
@@ -80,5 +91,8 @@ From PROJECT_PLAN.md §13.2. Fill in one row per run.
 | 9 Oct 2026 | Android 17 emulator + simulator with TCP | version 5 | Version 5: app dials the simulator after the 3 s grace period; handshake; Home shows *connected · 1 nearby* only once TCP is up; rename sends REGISTER (`'Yusuf' is now 'Yusuf Ali'`); connection kept open by PING/PONG | Pass |
 | 9 Oct 2026 | Android 17 emulator + simulator with `--echo` | version 6 | First chat shows the notification explainer, then Android's permission dialog (allowed); message goes Sending → Delivered; echo reply arrives; with the app in the background the reply shows a *LinkUp · Mac Tester* notification; tapping it opens that chat | Pass |
 | 9 Oct 2026 | Android 17 emulator + simulator | version 7 | **M3 exit.** Message saved; simulator stopped; *Waiting for you* queued (clock icon); app force-stopped and reopened: chat and *Waiting to send* still there; simulator back: message delivered automatically, echo arrived with unread badge. Settings → Storage: *3 messages saved*, confirmation dialog, *Chat history cleared*. Cold start 1.7 s. | Pass |
+| 9 Oct 2026 | **Two real phones** (Yusuf and Miskat) on a router with the internet unplugged | version 7 | Text messages sent and received both ways (run by the user). A first attempt failed one way until the phones' Wi-Fi was sorted out; the cause wasn't captured. If it happens again, compare Settings → Developer options on both phones: *Bound to Wi-Fi*, *Peers*, the packet counters and the errors. | Pass |
+| 9 Oct 2026 | Android 17 emulator + simulator with files | version 8 | **1 GB Mac → app**: offered, confirmed, received, checksum verified, card shows it; 1,073.7 MB in 109 s (9.8 MB/s through `adb forward`); app memory about 80 MB PSS afterwards. File picker → Send sheet (*Send to Mac Tester · 1 file · 286 MB*). Found: after the picker put the app in the background, Android cut its network and the discovery socket never recovered (fixed in version 9). | Pass, one bug found |
+| 9 Oct 2026 | Android 17 emulator + simulator with files | version 9 | The 300 MB file queued under version 8 was hashed again after the update, announced, confirmed and sent: **300 MB app → Mac**, SHA-256 identical, 71 s (4.2 MB/s through the emulator's network); memory about 97 MB PSS. App sent to the background for 40 s: reconnected by itself. | Pass |
 
 **Still needed for M2** (plan §11.2): two real phones on a router with the internet unplugged and mobile data on. They should see each other within 10 s, go offline within 20 s of Wi-Fi off, and be rediscovered after a router reboot.

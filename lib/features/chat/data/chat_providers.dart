@@ -9,6 +9,7 @@ import 'package:resqmesh/features/chat/data/drift_message_repository.dart';
 import 'package:resqmesh/features/chat/data/messaging_service.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/domain/message_repository.dart';
+import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
 
 final messageRepositoryProvider = Provider<MessageRepository>(
   (ref) => DriftMessageRepository(ref.watch(appDatabaseProvider)),
@@ -22,6 +23,7 @@ final messagingServiceProvider = Provider<MessagingService>((ref) {
     repository: ref.watch(messageRepositoryProvider),
     self: () => engine.self,
     logger: ref.watch(appLoggerProvider),
+    transfers: ref.watch(transferServiceProvider),
   )..start();
   ref.onDispose(() => unawaited(service.stop()));
   return service;
@@ -83,7 +85,7 @@ final messageAlertsProvider = Provider<void>((ref) {
       notifications.showMessage(
         conversationId: message.peerId,
         title: message.peerName,
-        body: message.text,
+        body: message.preview,
       ),
     );
   });

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only hard links made for Open and Share are visible to other apps
+     (FileBridge); the stored files themselves never are. -->
+<paths>
+    <files-path name="shared" path="files/shared/" />
+</paths>

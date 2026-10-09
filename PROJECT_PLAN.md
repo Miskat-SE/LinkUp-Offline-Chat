@@ -8,7 +8,7 @@ Flutter Android app · works with the router's internet switched off · no cloud
 | Student | Jannatul Miskat Chowdhury (Roll 2405207), IIT, University of Dhaka |
 | Supervisor | Dr. Sumon Ahmed |
 | Product name | **LinkUp** (shown to users; ResQMesh stays the project and research name) |
-| Plan version | 1.7 · 9 Oct 2026 |
+| Plan version | 1.8 · 9 Oct 2026 |
 | Source | Build specification, 8 Oct 2026 (`docs/SPEC.md`, from `ResQMesh_prompt.txt`) |
 | Window | 1 Oct 2026 (Week 1) → ~17 Feb 2027 (Week 20) |
 
@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P5 code complete** (SQLite, outbox) · P0 spike, inventory and review still open |
+| Phase | **P6 code complete** (file transfer) · device soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P5 (planned for Weeks 3–8) passed their phase gates in Week 2; the M3 exit (messages survive restarts, queued messages delivered on return) was shown on the emulator. Verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
+| Health | Ahead of schedule: P1–P6 (planned for Weeks 3–11) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; **the 2 GB two-phone soak (M4) is still to do**. |
 | Blockers | None recorded |
 
 **This week**
@@ -157,6 +157,7 @@ Confirm by the end of Week 2, then record each one as an ADR in `docs/adr/`.
 | D19 | Packet models | Hand-written sealed classes with strict `fromJson` validation; no code generation for packets | Every field validated (spec §28); exhaustive `switch` over packet types |
 | D20 | Connection methods | The user picks one of four methods (`ConnectionMethod`). The framing and packets (§7) are the same on all of them; each method only supplies discovery and a byte stream: LAN and hotspot → UDP/NSD + TCP; Wi-Fi Direct → P2P group + TCP; Bluetooth → its own discovery and stream (D21). | One protocol and one codebase for messages and files, whatever the radio |
 | D22 | Database schema (ADR-0020) | Grows with the phases: v1 is `messages` only; `files` (P6), `message_recipients` (P7) and `peers` arrive as tested migrations. Message IDs unique on their own; stored values are fixed text codes; times in UTC microseconds. One repository, tested on in-memory SQLite. | No speculative tables; the migration path is exercised early |
+| D23 | File transfer runtime (ADR-0021) | `TransferEngine` runs in a worker isolate with its own file port (28762, announced as `filePort` in HELLO); `TransferService` on the main isolate owns state, database and decisions | ADR-0010 kept without relaying sockets between isolates |
 | D21 | Bluetooth design | Decide by spike at the start of P14: BLE advertising for discovery plus L2CAP connection-oriented channels (API 29+, no pairing) **or** classic Bluetooth RFCOMM sockets (pairing, wider support). | Bluetooth is slow (roughly 0.1–2 Mbit/s): the UI warns before large files |
 
 ---
@@ -897,21 +898,21 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 **Exit (M3):** messages survive restarts; a message sent to an offline peer is delivered automatically when the peer returns.
 
 #### P6 · File transfer (Weeks 9–11, 26 Nov–16 Dec)
-- [ ] **P6.1** Picker for one or several files; selection sheet with name, size and type; **Send**; stable copies in `sent/`
-- [ ] **P6.2** Transfer worker isolate: streamed SHA-256, progress messages, cancellation
-- [ ] **P6.3** Data connection protocol: FILE_OFFER, ACCEPT, REJECT, CHUNK, COMPLETE and CANCEL with backpressure
-- [ ] **P6.4** Receiver side: validation (§7.6), free-space check, `.part` writes, hashing as data arrives, fsync and atomic rename
-- [ ] **P6.5** Progress UI (%, bytes, speed, time left), **Cancel**, **Retry**
-- [ ] **P6.6** Pause and resume by offset; automatic resume after a dropped connection
-- [ ] **P6.7** Duplicate detection (by `fileId`, and by `sha256` + size)
-- [ ] **P6.8** `FileNameSanitizer` and storage layout (§8.2)
-- [ ] **P6.9** File cards in chat; File Preview (image, video thumbnail via the bridge, document, generic); Open, Share, Save to Downloads
-- [ ] **P6.10** File Transfer Details screen; Storage screen v1 (§8.3)
-- [ ] **P6.11** Tests:
+- [x] **P6.1** Picker for one or several files; selection sheet with name, size and type; **Send**; stable copies in `sent/`
+- [x] **P6.2** Transfer worker isolate: streamed SHA-256, progress messages, cancellation
+- [x] **P6.3** Data connection protocol: FILE_OFFER, ACCEPT, REJECT, CHUNK, COMPLETE and CANCEL with backpressure
+- [x] **P6.4** Receiver side: validation (§7.6), free-space check, `.part` writes, hashing as data arrives, fsync and atomic rename
+- [x] **P6.5** Progress UI (%, bytes, speed, time left), **Cancel**, **Retry**
+- [x] **P6.6** Pause and resume by offset; automatic resume after a dropped connection
+- [x] **P6.7** Duplicate detection (by `fileId`, and by `sha256` + size)
+- [x] **P6.8** `FileNameSanitizer` and storage layout (§8.2)
+- [x] **P6.9** File cards in chat; File Preview (image, video thumbnail via the bridge, document, generic); Open, Share, Save to Downloads
+- [x] **P6.10** File Transfer Details screen; Storage screen v1 (§8.3)
+- [x] **P6.11** Tests:
   - Sanitiser traversal cases and checksum vectors
   - Transfer state machine
   - Loopback transfer of a generated 200 MB file with cancel, resume and injected corruption, while memory stays flat
-- [ ] **P6.12** Device soak test: a 2 GB file in each direction; record throughput and memory (§13.3)
+- [ ] **P6.12** Device soak test: a 2 GB file in each direction; record throughput and memory (§13.3). *Emulator done (1 GB in, 300 MB out, TESTING.md); two real phones still to do.*
 - [ ] **P6.13** Mid-term slides and a live demo
 
 **Exit (M4):**
@@ -1216,3 +1217,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.5 | 9 Oct 2026 | P3 done: control connections (HELLO handshake, PING/PONG, idle timeout, framing limits), connection manager (lower ID dials, grace period, duplicate tie-break, backoff, network reset, port fallback), REGISTER over TCP, "Online" now means connected, new "Found X, but couldn't connect" state. Simulator speaks TCP. |
 | 1.6 | 9 Oct 2026 | P4 done: direct text messages with ACK, delivered and read receipts; resend with the same ID after 10 s, failed after 5 tries, tap to retry; duplicates stored once; outbox sent when the person connects; chat screen (day separators, ticks, reply, copy, delete, retry); unread badges; notifications through the Kotlin bridge, with `POST_NOTIFICATIONS` asked on the first chat. Messages are in memory until P5. 169 tests. Simulator answers messages (`--echo`). |
 | 1.7 | 9 Oct 2026 | P5 done: SQLite through drift (schema v1, `messages` only; D22 and ADR-0020); chats, unread counts and the outbox survive restarts; interrupted sends wait again at start; delivery and read receipts queue until the sender reconnects; each connection gets a full 5 attempts; Settings → Storage with *Clear chat history*; migration test scaffold. 189 tests. The release APK grows by about 7 MB (SQLite for three CPU types; a Play Store bundle splits it). The simulator keeps one device ID per name. |
+| 1.8 | 9 Oct 2026 | P6 done (code): file transfer in a worker isolate on its own port (D23, ADR-0021; `filePort` in HELLO), FILE_* packets, schema v2 with the `files` table, resume by offset, 3 automatic resumes then Retry, one retry after a checksum mismatch, duplicates by file ID and by content, at most 3 uploads at a time, 4 GiB and free-space checks. Attach sheet, file cards, File Preview (Open, Share, Save to Downloads), Transfer Details, Storage v1 with all four actions (Clear all local data restarts at onboarding). Kotlin `FileBridge` (FileProvider with hard links, MediaStore, thumbnails, free space); `REQUEST_INSTALL_PACKAGES` so received APKs open in the system installer. Discovery now reopens its UDP socket after Android cuts a backgrounded app's network. Simulator sends and receives files. 261 tests. |

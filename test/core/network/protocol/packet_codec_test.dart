@@ -10,6 +10,8 @@ import 'package:resqmesh/core/network/protocol/packet_codec.dart';
 
 const _id = '3f2a9c4e-1b7d-4c55-8e0a-6d2f9b1c7a33';
 const _other = 'b81d07aa-5c3e-4f19-9d26-0e7c4a8b2f61';
+const _fileId = '0a4e6c1d-2b8f-4e57-a3c9-5d1f7e2b9c80';
+const _sha = '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08';
 
 Map<String, Object?> fixture(String name) =>
     jsonDecode(File('test/fixtures/protocol/$name.json').readAsStringSync())
@@ -48,6 +50,7 @@ void main() {
       'name_check',
       'register_response',
       'goodbye',
+      'file_offer',
     ]) {
       test('$name decodes and encodes back to the same JSON', () {
         final json = fixture(name);
@@ -112,9 +115,45 @@ void main() {
         result: RegisterResult.ok,
         name: 'Yusuf',
       ),
+      HelloPacket(
+        header(),
+        Announcement(
+          tcpPort: 28761,
+          filePort: 28762,
+          appVersion: '1.0.0+8',
+          nameClaimedAt: DateTime.utc(2026, 10, 8),
+        ),
+      ),
+      FileOfferPacket(
+        header(receiver: _other),
+        fileId: _fileId,
+        chatMessageId: _id,
+        fileName: 'ছবি 01.jpg',
+        fileSize: 0,
+        mimeType: 'image/jpeg',
+        sha256: _sha,
+      ),
+      FileAcceptPacket(header(receiver: _other), fileId: _fileId, offset: 4096),
+      for (final reason in FileRejectReason.values)
+        FileRejectPacket(
+          header(receiver: _other),
+          fileId: _fileId,
+          reason: reason,
+        ),
+      FileCompletePacket(
+        header(receiver: _other),
+        fileId: _fileId,
+        sha256: _sha,
+      ),
+      for (final reason in FileCancelReason.values)
+        FileCancelPacket(
+          header(receiver: _other),
+          fileId: _fileId,
+          reason: reason,
+        ),
     ];
     for (final packet in packets) {
-      test(packet.type, () {
+      test('${packet.type} ${PacketCodec.toJson(packet)['payload']}', () {
         final again = decodedPacket(
           jsonDecode(utf8.decode(PacketCodec.encode(packet))),
         );
@@ -133,6 +172,56 @@ void main() {
 
   group('validation', () {
     Map<String, Object?> hello() => fixture('hello');
+    Map<String, Object?> offer() => fixture('file_offer');
+    Map<String, Object?> payloadOf(Map<String, Object?> json) =>
+        json['payload']! as Map<String, Object?>;
+
+    test('HELLO without a file port is from a device that cannot receive '
+        'files', () {
+      final packet = decodedPacket(hello()) as HelloPacket;
+      expect(packet.announcement.filePort, isNull);
+      final json = hello();
+      payloadOf(json)['filePort'] = 70000;
+      expect(malformedReason(json), contains('filePort'));
+    });
+
+    test('FILE_OFFER fields are checked', () {
+      final offerPacket = decodedPacket(offer()) as FileOfferPacket;
+      expect(offerPacket.fileSize, 25794560);
+      expect(offerPacket.chatMessageId, '6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10');
+
+      String? broken(String key, Object? value) {
+        final json = offer();
+        payloadOf(json)[key] = value;
+        return malformedReason(json);
+      }
+
+      expect(broken('fileId', '../x'), contains('fileId'));
+      expect(broken('fileSize', -1), contains('fileSize'));
+      expect(broken('fileSize', 1.5), contains('fileSize'));
+      expect(broken('sha256', 'ABC'), contains('sha256'));
+      expect(broken('sha256', _sha.toUpperCase()), contains('sha256'));
+      expect(broken('fileName', ''), contains('name'));
+      // 100 Bangla letters are 300 UTF-8 bytes: over the 255-byte limit.
+      expect(broken('fileName', 'ক' * 100), contains('name'));
+      expect(broken('mimeType', 'x' * 128), contains('mimeType'));
+    });
+
+    test('unknown reject and cancel reasons are refused', () {
+      final json = offer()
+        ..['type'] = 'FILE_CANCEL'
+        ..['payload'] = {'fileId': _fileId, 'reason': 'bored'};
+      expect(malformedReason(json), contains('reason'));
+      json['type'] = 'FILE_REJECT';
+      expect(malformedReason(json), contains('reason'));
+    });
+
+    test('FILE_ACCEPT offsets cannot be negative', () {
+      final json = offer()
+        ..['type'] = 'FILE_ACCEPT'
+        ..['payload'] = {'fileId': _fileId, 'offset': -5};
+      expect(malformedReason(json), contains('offset'));
+    });
 
     test('rejects a wrong protocol version', () {
       final json = hello()..['protocolVersion'] = 2;

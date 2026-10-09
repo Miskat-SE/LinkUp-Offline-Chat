@@ -29,4 +29,8 @@ abstract final class DiscoveryTiming {
   static const Duration nameCheckWait = Duration(seconds: 3);
   static const Duration maxResponseDelay = Duration(milliseconds: 300);
   static const Duration expiryCheck = Duration(seconds: 2);
+
+  /// After the UDP socket fails (for example while Android blocks a
+  /// backgrounded app's network), it is opened again this long after.
+  static const Duration udpReopenDelay = Duration(seconds: 2);
 }

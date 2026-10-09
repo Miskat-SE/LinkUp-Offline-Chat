@@ -4,7 +4,7 @@
 //
 import 'package:drift/drift.dart';
 
-class Messages extends Table with TableInfo {
+class Messages extends Table with TableInfo<Messages, MessagesData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -150,8 +150,66 @@ class Messages extends Table with TableInfo {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Never map(Map<String, dynamic> data, {String? tablePrefix}) {
-    throw UnsupportedError('TableInfo.map in schema verification code');
+  MessagesData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MessagesData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      messageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message_id'],
+      )!,
+      conversationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conversation_id'],
+      )!,
+      peerName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}peer_name'],
+      )!,
+      direction: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}direction'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      replyToId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reply_to_id'],
+      ),
+      sentAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sent_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      isRead: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}is_read'],
+      )!,
+      receiptSent: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}receipt_sent'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      lastAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_attempt_at'],
+      ),
+    );
   }
 
   @override
@@ -161,6 +219,435 @@ class Messages extends Table with TableInfo {
 
   @override
   bool get dontWriteConstraints => true;
+}
+
+class MessagesData extends DataClass implements Insertable<MessagesData> {
+  final int id;
+  final String messageId;
+  final String conversationId;
+  final String peerName;
+  final String direction;
+  final String body;
+  final String? replyToId;
+  final int sentAt;
+  final int createdAt;
+  final String status;
+  final int isRead;
+  final String receiptSent;
+  final int attempts;
+  final int? lastAttemptAt;
+  const MessagesData({
+    required this.id,
+    required this.messageId,
+    required this.conversationId,
+    required this.peerName,
+    required this.direction,
+    required this.body,
+    this.replyToId,
+    required this.sentAt,
+    required this.createdAt,
+    required this.status,
+    required this.isRead,
+    required this.receiptSent,
+    required this.attempts,
+    this.lastAttemptAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['message_id'] = Variable<String>(messageId);
+    map['conversation_id'] = Variable<String>(conversationId);
+    map['peer_name'] = Variable<String>(peerName);
+    map['direction'] = Variable<String>(direction);
+    map['body'] = Variable<String>(body);
+    if (!nullToAbsent || replyToId != null) {
+      map['reply_to_id'] = Variable<String>(replyToId);
+    }
+    map['sent_at'] = Variable<int>(sentAt);
+    map['created_at'] = Variable<int>(createdAt);
+    map['status'] = Variable<String>(status);
+    map['is_read'] = Variable<int>(isRead);
+    map['receipt_sent'] = Variable<String>(receiptSent);
+    map['attempts'] = Variable<int>(attempts);
+    if (!nullToAbsent || lastAttemptAt != null) {
+      map['last_attempt_at'] = Variable<int>(lastAttemptAt);
+    }
+    return map;
+  }
+
+  MessagesCompanion toCompanion(bool nullToAbsent) {
+    return MessagesCompanion(
+      id: Value(id),
+      messageId: Value(messageId),
+      conversationId: Value(conversationId),
+      peerName: Value(peerName),
+      direction: Value(direction),
+      body: Value(body),
+      replyToId: replyToId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replyToId),
+      sentAt: Value(sentAt),
+      createdAt: Value(createdAt),
+      status: Value(status),
+      isRead: Value(isRead),
+      receiptSent: Value(receiptSent),
+      attempts: Value(attempts),
+      lastAttemptAt: lastAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAttemptAt),
+    );
+  }
+
+  factory MessagesData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MessagesData(
+      id: serializer.fromJson<int>(json['id']),
+      messageId: serializer.fromJson<String>(json['messageId']),
+      conversationId: serializer.fromJson<String>(json['conversationId']),
+      peerName: serializer.fromJson<String>(json['peerName']),
+      direction: serializer.fromJson<String>(json['direction']),
+      body: serializer.fromJson<String>(json['body']),
+      replyToId: serializer.fromJson<String?>(json['replyToId']),
+      sentAt: serializer.fromJson<int>(json['sentAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      status: serializer.fromJson<String>(json['status']),
+      isRead: serializer.fromJson<int>(json['isRead']),
+      receiptSent: serializer.fromJson<String>(json['receiptSent']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      lastAttemptAt: serializer.fromJson<int?>(json['lastAttemptAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'messageId': serializer.toJson<String>(messageId),
+      'conversationId': serializer.toJson<String>(conversationId),
+      'peerName': serializer.toJson<String>(peerName),
+      'direction': serializer.toJson<String>(direction),
+      'body': serializer.toJson<String>(body),
+      'replyToId': serializer.toJson<String?>(replyToId),
+      'sentAt': serializer.toJson<int>(sentAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'status': serializer.toJson<String>(status),
+      'isRead': serializer.toJson<int>(isRead),
+      'receiptSent': serializer.toJson<String>(receiptSent),
+      'attempts': serializer.toJson<int>(attempts),
+      'lastAttemptAt': serializer.toJson<int?>(lastAttemptAt),
+    };
+  }
+
+  MessagesData copyWith({
+    int? id,
+    String? messageId,
+    String? conversationId,
+    String? peerName,
+    String? direction,
+    String? body,
+    Value<String?> replyToId = const Value.absent(),
+    int? sentAt,
+    int? createdAt,
+    String? status,
+    int? isRead,
+    String? receiptSent,
+    int? attempts,
+    Value<int?> lastAttemptAt = const Value.absent(),
+  }) => MessagesData(
+    id: id ?? this.id,
+    messageId: messageId ?? this.messageId,
+    conversationId: conversationId ?? this.conversationId,
+    peerName: peerName ?? this.peerName,
+    direction: direction ?? this.direction,
+    body: body ?? this.body,
+    replyToId: replyToId.present ? replyToId.value : this.replyToId,
+    sentAt: sentAt ?? this.sentAt,
+    createdAt: createdAt ?? this.createdAt,
+    status: status ?? this.status,
+    isRead: isRead ?? this.isRead,
+    receiptSent: receiptSent ?? this.receiptSent,
+    attempts: attempts ?? this.attempts,
+    lastAttemptAt: lastAttemptAt.present
+        ? lastAttemptAt.value
+        : this.lastAttemptAt,
+  );
+  MessagesData copyWithCompanion(MessagesCompanion data) {
+    return MessagesData(
+      id: data.id.present ? data.id.value : this.id,
+      messageId: data.messageId.present ? data.messageId.value : this.messageId,
+      conversationId: data.conversationId.present
+          ? data.conversationId.value
+          : this.conversationId,
+      peerName: data.peerName.present ? data.peerName.value : this.peerName,
+      direction: data.direction.present ? data.direction.value : this.direction,
+      body: data.body.present ? data.body.value : this.body,
+      replyToId: data.replyToId.present ? data.replyToId.value : this.replyToId,
+      sentAt: data.sentAt.present ? data.sentAt.value : this.sentAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      status: data.status.present ? data.status.value : this.status,
+      isRead: data.isRead.present ? data.isRead.value : this.isRead,
+      receiptSent: data.receiptSent.present
+          ? data.receiptSent.value
+          : this.receiptSent,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      lastAttemptAt: data.lastAttemptAt.present
+          ? data.lastAttemptAt.value
+          : this.lastAttemptAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MessagesData(')
+          ..write('id: $id, ')
+          ..write('messageId: $messageId, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('peerName: $peerName, ')
+          ..write('direction: $direction, ')
+          ..write('body: $body, ')
+          ..write('replyToId: $replyToId, ')
+          ..write('sentAt: $sentAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('status: $status, ')
+          ..write('isRead: $isRead, ')
+          ..write('receiptSent: $receiptSent, ')
+          ..write('attempts: $attempts, ')
+          ..write('lastAttemptAt: $lastAttemptAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    messageId,
+    conversationId,
+    peerName,
+    direction,
+    body,
+    replyToId,
+    sentAt,
+    createdAt,
+    status,
+    isRead,
+    receiptSent,
+    attempts,
+    lastAttemptAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MessagesData &&
+          other.id == this.id &&
+          other.messageId == this.messageId &&
+          other.conversationId == this.conversationId &&
+          other.peerName == this.peerName &&
+          other.direction == this.direction &&
+          other.body == this.body &&
+          other.replyToId == this.replyToId &&
+          other.sentAt == this.sentAt &&
+          other.createdAt == this.createdAt &&
+          other.status == this.status &&
+          other.isRead == this.isRead &&
+          other.receiptSent == this.receiptSent &&
+          other.attempts == this.attempts &&
+          other.lastAttemptAt == this.lastAttemptAt);
+}
+
+class MessagesCompanion extends UpdateCompanion<MessagesData> {
+  final Value<int> id;
+  final Value<String> messageId;
+  final Value<String> conversationId;
+  final Value<String> peerName;
+  final Value<String> direction;
+  final Value<String> body;
+  final Value<String?> replyToId;
+  final Value<int> sentAt;
+  final Value<int> createdAt;
+  final Value<String> status;
+  final Value<int> isRead;
+  final Value<String> receiptSent;
+  final Value<int> attempts;
+  final Value<int?> lastAttemptAt;
+  const MessagesCompanion({
+    this.id = const Value.absent(),
+    this.messageId = const Value.absent(),
+    this.conversationId = const Value.absent(),
+    this.peerName = const Value.absent(),
+    this.direction = const Value.absent(),
+    this.body = const Value.absent(),
+    this.replyToId = const Value.absent(),
+    this.sentAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.isRead = const Value.absent(),
+    this.receiptSent = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+  });
+  MessagesCompanion.insert({
+    this.id = const Value.absent(),
+    required String messageId,
+    required String conversationId,
+    required String peerName,
+    required String direction,
+    required String body,
+    this.replyToId = const Value.absent(),
+    required int sentAt,
+    required int createdAt,
+    required String status,
+    this.isRead = const Value.absent(),
+    this.receiptSent = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+  }) : messageId = Value(messageId),
+       conversationId = Value(conversationId),
+       peerName = Value(peerName),
+       direction = Value(direction),
+       body = Value(body),
+       sentAt = Value(sentAt),
+       createdAt = Value(createdAt),
+       status = Value(status);
+  static Insertable<MessagesData> custom({
+    Expression<int>? id,
+    Expression<String>? messageId,
+    Expression<String>? conversationId,
+    Expression<String>? peerName,
+    Expression<String>? direction,
+    Expression<String>? body,
+    Expression<String>? replyToId,
+    Expression<int>? sentAt,
+    Expression<int>? createdAt,
+    Expression<String>? status,
+    Expression<int>? isRead,
+    Expression<String>? receiptSent,
+    Expression<int>? attempts,
+    Expression<int>? lastAttemptAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (messageId != null) 'message_id': messageId,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (peerName != null) 'peer_name': peerName,
+      if (direction != null) 'direction': direction,
+      if (body != null) 'body': body,
+      if (replyToId != null) 'reply_to_id': replyToId,
+      if (sentAt != null) 'sent_at': sentAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (status != null) 'status': status,
+      if (isRead != null) 'is_read': isRead,
+      if (receiptSent != null) 'receipt_sent': receiptSent,
+      if (attempts != null) 'attempts': attempts,
+      if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+    });
+  }
+
+  MessagesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? messageId,
+    Value<String>? conversationId,
+    Value<String>? peerName,
+    Value<String>? direction,
+    Value<String>? body,
+    Value<String?>? replyToId,
+    Value<int>? sentAt,
+    Value<int>? createdAt,
+    Value<String>? status,
+    Value<int>? isRead,
+    Value<String>? receiptSent,
+    Value<int>? attempts,
+    Value<int?>? lastAttemptAt,
+  }) {
+    return MessagesCompanion(
+      id: id ?? this.id,
+      messageId: messageId ?? this.messageId,
+      conversationId: conversationId ?? this.conversationId,
+      peerName: peerName ?? this.peerName,
+      direction: direction ?? this.direction,
+      body: body ?? this.body,
+      replyToId: replyToId ?? this.replyToId,
+      sentAt: sentAt ?? this.sentAt,
+      createdAt: createdAt ?? this.createdAt,
+      status: status ?? this.status,
+      isRead: isRead ?? this.isRead,
+      receiptSent: receiptSent ?? this.receiptSent,
+      attempts: attempts ?? this.attempts,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (messageId.present) {
+      map['message_id'] = Variable<String>(messageId.value);
+    }
+    if (conversationId.present) {
+      map['conversation_id'] = Variable<String>(conversationId.value);
+    }
+    if (peerName.present) {
+      map['peer_name'] = Variable<String>(peerName.value);
+    }
+    if (direction.present) {
+      map['direction'] = Variable<String>(direction.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (replyToId.present) {
+      map['reply_to_id'] = Variable<String>(replyToId.value);
+    }
+    if (sentAt.present) {
+      map['sent_at'] = Variable<int>(sentAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (isRead.present) {
+      map['is_read'] = Variable<int>(isRead.value);
+    }
+    if (receiptSent.present) {
+      map['receipt_sent'] = Variable<String>(receiptSent.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (lastAttemptAt.present) {
+      map['last_attempt_at'] = Variable<int>(lastAttemptAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('messageId: $messageId, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('peerName: $peerName, ')
+          ..write('direction: $direction, ')
+          ..write('body: $body, ')
+          ..write('replyToId: $replyToId, ')
+          ..write('sentAt: $sentAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('status: $status, ')
+          ..write('isRead: $isRead, ')
+          ..write('receiptSent: $receiptSent, ')
+          ..write('attempts: $attempts, ')
+          ..write('lastAttemptAt: $lastAttemptAt')
+          ..write(')'))
+        .toString();
+  }
 }
 
 class DatabaseAtV1 extends GeneratedDatabase {

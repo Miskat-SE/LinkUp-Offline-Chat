@@ -54,3 +54,4 @@ app.*.map.json
 
 # Built APKs (tool/build_apk.sh)
 /releases/
+sim_received/

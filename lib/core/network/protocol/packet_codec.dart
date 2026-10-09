@@ -136,7 +136,19 @@ abstract final class PacketCodec {
     PacketType.messageAck,
     PacketType.messageDelivered,
     PacketType.messageRead,
+    PacketType.fileOffer,
+    PacketType.fileAccept,
+    PacketType.fileReject,
+    PacketType.fileComplete,
+    PacketType.fileCancel,
   };
+
+  /// Largest file size accepted on the wire (1 PiB); real limits come from
+  /// free space and settings.
+  static const maxFileSize = 1 << 50;
+
+  /// Longest file name, in UTF-8 bytes (PROTOCOL.md §5).
+  static const maxFileNameBytes = 255;
 
   /// Longest message text, in UTF-8 bytes (PROTOCOL.md §5).
   static const maxTextBytes = 16 * 1024;
@@ -202,6 +214,40 @@ abstract final class PacketCodec {
         return MessageDeliveredPacket(header, messageIds: _ids(p));
       case PacketType.messageRead:
         return MessageReadPacket(header, messageIds: _ids(p));
+      case PacketType.fileOffer:
+        return FileOfferPacket(
+          header,
+          fileId: p.id('fileId'),
+          chatMessageId: p.id('chatMessageId'),
+          fileName: _fileName(p.string('fileName', maxLength: 255), 'payload'),
+          fileSize: p.integer('fileSize', min: 0, max: maxFileSize),
+          mimeType: p.string('mimeType', maxLength: 127),
+          sha256: _hash(p.string('sha256', maxLength: 64), 'payload.sha256'),
+        );
+      case PacketType.fileAccept:
+        return FileAcceptPacket(
+          header,
+          fileId: p.id('fileId'),
+          offset: p.integer('offset', min: 0, max: maxFileSize),
+        );
+      case PacketType.fileReject:
+        return FileRejectPacket(
+          header,
+          fileId: p.id('fileId'),
+          reason: _enum(FileRejectReason.values, p, 'reason'),
+        );
+      case PacketType.fileComplete:
+        return FileCompletePacket(
+          header,
+          fileId: p.id('fileId'),
+          sha256: _hash(p.string('sha256', maxLength: 64), 'payload.sha256'),
+        );
+      case PacketType.fileCancel:
+        return FileCancelPacket(
+          header,
+          fileId: p.id('fileId'),
+          reason: _enum(FileCancelReason.values, p, 'reason'),
+        );
     }
     throw _Invalid('unhandled type $type');
   }
@@ -228,16 +274,12 @@ abstract final class PacketCodec {
     FileRef? file;
     if (kind == MessageKind.file) {
       final f = _Reader(p.map('file'), prefix: 'payload.file.');
-      final sha256 = f.string('sha256', maxLength: 64);
-      if (!_sha256.hasMatch(sha256)) {
-        throw const _Invalid('payload.file.sha256 is not a SHA-256 hash');
-      }
       file = FileRef(
         fileId: f.id('fileId'),
-        name: f.string('name', maxLength: 255),
-        size: f.integer('size', min: 0, max: 1 << 50),
+        name: _fileName(f.string('name', maxLength: 255), 'payload.file'),
+        size: f.integer('size', min: 0, max: maxFileSize),
         mimeType: f.string('mimeType', maxLength: 127),
-        sha256: sha256,
+        sha256: _hash(f.string('sha256', maxLength: 64), 'payload.file.sha256'),
       );
     }
     return MessagePacket(
@@ -251,6 +293,31 @@ abstract final class PacketCodec {
   }
 
   static final _sha256 = RegExp(r'^[0-9a-f]{64}$');
+
+  static String _hash(String value, String field) {
+    if (!_sha256.hasMatch(value)) {
+      throw _Invalid('$field is not a SHA-256 hash');
+    }
+    return value;
+  }
+
+  /// Names are sanitised before use; here they only need to be present and
+  /// short (PROTOCOL.md §4.3).
+  static String _fileName(String name, String prefix) {
+    if (name.isEmpty) throw _Invalid('$prefix name is empty');
+    if (utf8.encode(name).length > maxFileNameBytes) {
+      throw _Invalid('$prefix name is too long');
+    }
+    return name;
+  }
+
+  static T _enum<T extends Enum>(List<T> values, _Reader p, String key) {
+    final value = p.string(key, maxLength: 32);
+    for (final v in values) {
+      if (v.name == value) return v;
+    }
+    throw _Invalid('payload.$key "$value" is unknown');
+  }
 
   static List<String> _ids(_Reader p) {
     final ids = p.list('messageIds', maxLength: maxReceiptIds);
@@ -271,6 +338,7 @@ abstract final class PacketCodec {
     final capabilities = p.list('capabilities', maxLength: 16);
     return Announcement(
       tcpPort: p.integer('tcpPort', min: 1, max: 65535),
+      filePort: p.optionalInteger('filePort', min: 1, max: 65535),
       appVersion: p.string('appVersion', maxLength: 32),
       nameClaimedAt: p.time('nameClaimedAt'),
       minProtocol: min,
@@ -304,6 +372,7 @@ abstract final class PacketCodec {
       'maxProtocol': announcement.maxProtocol,
       'nameClaimedAt': _time(announcement.nameClaimedAt),
       'capabilities': announcement.capabilities,
+      if (announcement.filePort != null) 'filePort': announcement.filePort,
     },
     GoodbyePacket(:final reason) => {'reason': reason},
     NameCheckPacket(:final candidateName) => {'candidateName': candidateName},
@@ -329,6 +398,30 @@ abstract final class PacketCodec {
     MessageAckPacket(:final ackFor) => {'ackFor': ackFor},
     MessageDeliveredPacket(:final messageIds) ||
     MessageReadPacket(:final messageIds) => {'messageIds': messageIds},
+    FileOfferPacket() => {
+      'fileId': packet.fileId,
+      'chatMessageId': packet.chatMessageId,
+      'fileName': packet.fileName,
+      'fileSize': packet.fileSize,
+      'mimeType': packet.mimeType,
+      'sha256': packet.sha256,
+    },
+    FileAcceptPacket(:final fileId, :final offset) => {
+      'fileId': fileId,
+      'offset': offset,
+    },
+    FileRejectPacket(:final fileId, :final reason) => {
+      'fileId': fileId,
+      'reason': reason.name,
+    },
+    FileCompletePacket(:final fileId, :final sha256) => {
+      'fileId': fileId,
+      'sha256': sha256,
+    },
+    FileCancelPacket(:final fileId, :final reason) => {
+      'fileId': fileId,
+      'reason': reason.name,
+    },
     RegisterResponsePacket() => {
       'result': packet.result.name,
       'name': packet.name,
@@ -385,6 +478,9 @@ final class _Reader {
   }
 
   String? optionalId(String key) => _json[key] == null ? null : id(key);
+
+  int? optionalInteger(String key, {required int min, required int max}) =>
+      _json[key] == null ? null : integer(key, min: min, max: max);
 
   DateTime time(String key) {
     final parsed = DateTime.tryParse(string(key, maxLength: 40));

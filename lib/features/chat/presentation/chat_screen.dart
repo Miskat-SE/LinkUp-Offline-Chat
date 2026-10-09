@@ -16,6 +16,10 @@ import 'package:resqmesh/features/chat/data/chat_providers.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
 import 'package:resqmesh/features/chat/presentation/message_bubble.dart';
+import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
+import 'package:resqmesh/features/file_transfer/data/transfer_service.dart';
+import 'package:resqmesh/features/file_transfer/presentation/file_message_card.dart';
+import 'package:resqmesh/features/file_transfer/presentation/send_files_sheet.dart';
 import 'package:resqmesh/shared/widgets/empty_state.dart';
 import 'package:resqmesh/shared/widgets/user_avatar.dart';
 
@@ -33,6 +37,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _text = TextEditingController();
   late final ActiveChat _activeChat = ref.read(activeChatProvider.notifier);
   ChatMessage? _replyingTo;
+
+  /// Android is copying picked files into the app (large picks take a
+  /// moment).
+  bool _gettingFiles = false;
 
   String get _peerId => widget.peerId;
 
@@ -93,6 +101,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           text: text,
           replyToId: replyTo?.id,
         );
+  }
+
+  /// Attach: pick files, confirm them in a sheet, send one message each.
+  Future<void> _attach(String peerName) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final List<PickedFile> picked;
+    try {
+      picked = await ref
+          .read(filePickerProvider)
+          .pick(
+            onBusy: (busy) {
+              if (mounted) setState(() => _gettingFiles = busy);
+            },
+          );
+    } on Object {
+      if (mounted) setState(() => _gettingFiles = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Couldn't open those files")),
+      );
+      return;
+    }
+    if (!mounted || picked.isEmpty) return;
+    final files = await showSendFilesSheet(
+      context,
+      files: picked,
+      peerName: peerName,
+    );
+    if (files == null || files.isEmpty) return;
+    await ref
+        .read(messagingServiceProvider)
+        .sendFiles(peerId: _peerId, peerName: peerName, files: files);
   }
 
   Future<void> _showActions(ChatMessage message) async {
@@ -230,7 +269,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 author: _replyingTo!.isOutgoing ? 'You' : name,
                 onClose: () => setState(() => _replyingTo = null),
               ),
-            _Composer(controller: _text, onSend: () => _send(name)),
+            if (_gettingFiles) const LinearProgressIndicator(),
+            _Composer(
+              controller: _text,
+              onSend: () => _send(name),
+              onAttach: _gettingFiles ? null : () => _attach(name),
+            ),
           ],
         ),
       ),
@@ -298,6 +342,13 @@ class _MessageList extends StatelessWidget {
           groupedWithPrevious: previous != null && grouped(previous, message),
           groupedWithNext: next != null && grouped(message, next),
           onLongPress: () => onLongPress(message),
+          attachment: message.fileId == null
+              ? null
+              : (foreground) => FileMessageCard(
+                  fileId: message.fileId!,
+                  peerName: peerName,
+                  foreground: foreground,
+                ),
           onTapFailed: () => onRetry(message),
         ),
       );
@@ -429,7 +480,7 @@ class _ReplyBar extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  message.text,
+                  message.preview,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall,
@@ -449,10 +500,15 @@ class _ReplyBar extends StatelessWidget {
 }
 
 class _Composer extends StatefulWidget {
-  const _Composer({required this.controller, required this.onSend});
+  const _Composer({
+    required this.controller,
+    required this.onSend,
+    required this.onAttach,
+  });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback? onAttach;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -486,6 +542,12 @@ class _ComposerState extends State<_Composer> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          IconButton(
+            tooltip: 'Attach files',
+            onPressed: widget.onAttach,
+            style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
+            icon: const Icon(Icons.attach_file_rounded),
+          ),
           Expanded(
             child: TextField(
               controller: widget.controller,
@@ -554,11 +616,12 @@ class _MessageActions extends StatelessWidget {
             title: const Text('Reply'),
             onTap: () => Navigator.pop(context, _Action.reply),
           ),
-          ListTile(
-            leading: const Icon(Icons.copy_rounded),
-            title: const Text('Copy'),
-            onTap: () => Navigator.pop(context, _Action.copy),
-          ),
+          if (!message.isFile)
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('Copy'),
+              onTap: () => Navigator.pop(context, _Action.copy),
+            ),
           if (message.status == MessageStatus.failed)
             ListTile(
               leading: const Icon(Icons.refresh_rounded),

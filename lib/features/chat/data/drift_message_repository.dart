@@ -29,24 +29,28 @@ final class DriftMessageRepository implements MessageRepository {
   Stream<List<ConversationSummary>> watchConversations() => _db
       .customSelect(
         '''
-        SELECT m.*,
+        SELECT m.*, f.name AS file_name,
           (SELECT COUNT(*) FROM messages u
             WHERE u.conversation_id = m.conversation_id
               AND u.direction = '$_in' AND u.is_read = 0) AS unread
         FROM messages m
+        LEFT JOIN files f ON f.file_id = m.file_id
         WHERE m.id = (SELECT x.id FROM messages x
             WHERE x.conversation_id = m.conversation_id
             ORDER BY x.created_at DESC, x.id DESC LIMIT 1)
         ORDER BY m.created_at DESC, m.id DESC
         ''',
-        readsFrom: {_messages},
+        readsFrom: {_messages, _db.files},
       )
       .watch()
       .map(
         (rows) => [
           for (final row in rows)
             () {
-              final last = _toMessage(_messages.map(row.data));
+              final last = _toMessage(
+                _messages.map(row.data),
+                fileName: row.readNullable<String>('file_name'),
+              );
               return ConversationSummary(
                 peerId: last.peerId,
                 // The latest name seen in this conversation.
@@ -212,6 +216,7 @@ final class DriftMessageRepository implements MessageRepository {
   // migration.
   static const _in = 'in';
   static const _out = 'out';
+  static const _file = 'file';
 
   static const _statusCodes = {
     MessageStatus.pending: 'pending',
@@ -233,23 +238,27 @@ final class DriftMessageRepository implements MessageRepository {
     for (final e in _statusCodes.entries) e.value: e.key,
   };
 
-  static ChatMessage _toMessage(MessageRow row) => ChatMessage(
-    id: row.messageId,
-    peerId: row.conversationId,
-    peerName: row.peerName,
-    direction: row.direction == _out
-        ? MessageDirection.outgoing
-        : MessageDirection.incoming,
-    text: row.body,
-    sentAt: row.sentAt,
-    createdAt: row.createdAt,
-    // An unknown code (from a newer version) is shown as failed, so it can
-    // be retried or deleted rather than crash the chat.
-    status: _statusByCode[row.status] ?? MessageStatus.failed,
-    replyToId: row.replyToId,
-    isRead: row.isRead,
-    attempts: row.attempts,
-  );
+  static ChatMessage _toMessage(MessageRow row, {String? fileName}) =>
+      ChatMessage(
+        id: row.messageId,
+        peerId: row.conversationId,
+        peerName: row.peerName,
+        direction: row.direction == _out
+            ? MessageDirection.outgoing
+            : MessageDirection.incoming,
+        text: row.body,
+        sentAt: row.sentAt,
+        createdAt: row.createdAt,
+        // An unknown code (from a newer version) is shown as failed, so it can
+        // be retried or deleted rather than crash the chat.
+        status: _statusByCode[row.status] ?? MessageStatus.failed,
+        replyToId: row.replyToId,
+        isRead: row.isRead,
+        attempts: row.attempts,
+        content: row.kind == _file ? MessageContent.file : MessageContent.text,
+        fileId: row.fileId,
+        fileName: fileName,
+      );
 
   static MessagesCompanion _toRow(ChatMessage message) =>
       MessagesCompanion.insert(
@@ -264,5 +273,7 @@ final class DriftMessageRepository implements MessageRepository {
         status: _statusCodes[message.status]!,
         isRead: Value(message.isRead),
         attempts: Value(message.attempts),
+        kind: Value(message.isFile ? _file : 'text'),
+        fileId: Value(message.fileId),
       );
 }

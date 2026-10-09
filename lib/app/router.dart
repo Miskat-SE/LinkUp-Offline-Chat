@@ -9,6 +9,8 @@ import 'package:resqmesh/features/chat/presentation/chat_screen.dart';
 import 'package:resqmesh/features/chat/presentation/home_screen.dart';
 import 'package:resqmesh/features/developer/presentation/developer_screen.dart';
 import 'package:resqmesh/features/discovery/presentation/people_screen.dart';
+import 'package:resqmesh/features/file_transfer/presentation/file_preview_screen.dart';
+import 'package:resqmesh/features/file_transfer/presentation/transfer_details_screen.dart';
 import 'package:resqmesh/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:resqmesh/features/onboarding/presentation/splash_screen.dart';
 import 'package:resqmesh/features/settings/presentation/change_name_screen.dart';
@@ -28,6 +30,8 @@ abstract final class Routes {
   static const storage = '/settings/storage';
 
   static String chat(String peerId) => '/chat/$peerId';
+  static String filePreview(String fileId) => '/files/$fileId';
+  static String fileDetails(String fileId) => '/files/$fileId/details';
 }
 
 /// Where start-up has got to; decides which screens may be shown.
@@ -84,6 +88,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/:peerId',
         builder: (context, state) =>
             ChatScreen(peerId: state.pathParameters['peerId']!),
+      ),
+      GoRoute(
+        path: '/files/:fileId',
+        builder: (context, state) =>
+            FilePreviewScreen(fileId: state.pathParameters['fileId']!),
+        routes: [
+          GoRoute(
+            path: 'details',
+            builder: (context, state) =>
+                TransferDetailsScreen(fileId: state.pathParameters['fileId']!),
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),

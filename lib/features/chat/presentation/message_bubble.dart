@@ -17,6 +17,7 @@ class MessageBubble extends StatelessWidget {
     this.repliedToIsMine = false,
     this.peerName = '',
     this.onTapFailed,
+    this.attachment,
   });
 
   final ChatMessage message;
@@ -33,6 +34,9 @@ class MessageBubble extends StatelessWidget {
   final ChatMessage? repliedTo;
   final bool repliedToIsMine;
   final String peerName;
+
+  /// File messages: the file card, drawn in the bubble's text colour.
+  final Widget Function(Color foreground)? attachment;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +67,11 @@ class MessageBubble extends StatelessWidget {
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
         child: Semantics(
           label:
-              '${mine ? 'You' : peerName}: ${message.text}. $time'
+              '${mine ? 'You' : peerName}: '
+              '${message.isFile ? 'file' : message.text}. $time'
               '${mine ? '. $statusText' : ''}',
-          excludeSemantics: true,
+          // A file card keeps its own buttons reachable.
+          excludeSemantics: !message.isFile,
           child: Material(
             color: failed ? scheme.errorContainer : background,
             borderRadius: radius,
@@ -85,12 +91,15 @@ class MessageBubble extends StatelessWidget {
                         author: repliedToIsMine ? 'You' : peerName,
                         color: failed ? scheme.onErrorContainer : foreground,
                       ),
-                    Text(
-                      message.text,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: failed ? scheme.onErrorContainer : foreground,
+                    if (message.isFile && attachment != null)
+                      attachment!(failed ? scheme.onErrorContainer : foreground)
+                    else
+                      Text(
+                        message.text,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: failed ? scheme.onErrorContainer : foreground,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -157,7 +166,7 @@ class _Quote extends StatelessWidget {
             style: theme.textTheme.labelMedium?.copyWith(color: color),
           ),
           Text(
-            message.text,
+            message.preview,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(

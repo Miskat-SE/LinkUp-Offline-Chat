@@ -738,3 +738,138 @@ class NotificationFlutterApi(private val binaryMessenger: BinaryMessenger, priva
     }
   }
 }
+/**
+ * Getting shared files out of the app (PROJECT_PLAN.md §8.2): files stay
+ * in app-internal storage and leave only through these calls.
+ *
+ * Generated interface from Pigeon that represents a handler of messages from Flutter.
+ */
+interface FileHostApi {
+  /** Free bytes on the storage that holds the app's files. */
+  fun freeBytes(): Long
+  /**
+   * Opens the file in another app, shown as [displayName]; false if no
+   * installed app can open it.
+   */
+  fun openFile(path: String, displayName: String, mimeType: String): Boolean
+  /** Opens Android's share sheet for the file. */
+  fun shareFile(path: String, displayName: String, mimeType: String)
+  /**
+   * Copies the file into Downloads (asking for permission on Android 8–9)
+   * and returns the name it was saved under, or null if that failed or
+   * was not allowed.
+   */
+  suspend fun saveToDownloads(path: String, displayName: String, mimeType: String): String?
+  /**
+   * Writes a JPEG thumbnail of a video to [outPath]; false if Android
+   * can't read the video.
+   */
+  suspend fun videoThumbnail(path: String, outPath: String): Boolean
+
+  companion object {
+    /** The codec used by FileHostApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+    /** Sets up an instance of `FileHostApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: FileHostApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.FileHostApi.freeBytes$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.freeBytes())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.FileHostApi.openFile$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val pathArg = args[0] as String
+            val displayNameArg = args[1] as String
+            val mimeTypeArg = args[2] as String
+            val wrapped: List<Any?> = try {
+              listOf(api.openFile(pathArg, displayNameArg, mimeTypeArg))
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.FileHostApi.shareFile$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val pathArg = args[0] as String
+            val displayNameArg = args[1] as String
+            val mimeTypeArg = args[2] as String
+            val wrapped: List<Any?> = try {
+              api.shareFile(pathArg, displayNameArg, mimeTypeArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.FileHostApi.saveToDownloads$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val pathArg = args[0] as String
+            val displayNameArg = args[1] as String
+            val mimeTypeArg = args[2] as String
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.saveToDownloads(pathArg, displayNameArg, mimeTypeArg))
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.FileHostApi.videoThumbnail$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val pathArg = args[0] as String
+            val outPathArg = args[1] as String
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.videoThumbnail(pathArg, outPathArg))
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}

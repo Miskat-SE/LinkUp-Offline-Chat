@@ -179,6 +179,7 @@ final class DiscoveryEngine {
   StreamSubscription<NetworkSnapshot>? _networkSubscription;
   StreamSubscription<ServiceCandidate>? _nsdSubscription;
   Timer? _helloTimer;
+  Timer? _udpReopen;
   Timer? _expiryTimer;
   bool _started = false;
   bool _blocked = false;
@@ -223,6 +224,8 @@ final class DiscoveryEngine {
     _started = false;
     _helloTimer?.cancel();
     _expiryTimer?.cancel();
+    _udpReopen?.cancel();
+    _udpReopen = null;
     await _serial(() async {
       if (_self.canAnnounce) _broadcast(_goodbye('appStopped'));
       await _closeUdp();
@@ -390,11 +393,37 @@ final class DiscoveryEngine {
       _blocked = false;
       _udpSubscription = udp.incoming.listen(
         _onDatagram,
-        onError: (Object e) => _error('UDP receive failed: ${e.runtimeType}'),
+        onError: (Object e) =>
+            _udpFailed('UDP receive failed: ${e.runtimeType}'),
+        onDone: () {
+          if (identical(_udp, udp)) _udpFailed('UDP socket closed');
+        },
       );
     } on SocketException catch (e) {
       _handleSocketError('UDP bind', e);
     }
+  }
+
+  /// The socket broke (e.g. Android cut a backgrounded app's network): open
+  /// a new one shortly, instead of staying deaf until the network changes.
+  void _udpFailed(String reason) {
+    _error(reason);
+    if (_udpReopen != null || !_started) return;
+    _udpReopen = Timer(DiscoveryTiming.udpReopenDelay, () {
+      _udpReopen = null;
+      unawaited(
+        _serial(() async {
+          if (!_started || !_net.hasLan) return;
+          _logger.info(LogTag.network, 'Reopening UDP after a socket error');
+          await _closeUdp();
+          await _openUdp();
+          if (_udp == null) return;
+          _broadcast(DiscoveryPacket(_header()));
+          _scheduleHello(immediately: true);
+          _emit();
+        }),
+      );
+    });
   }
 
   Future<void> _closeUdp() async {
@@ -548,7 +577,12 @@ final class DiscoveryEngine {
           MessagePacket() ||
           MessageAckPacket() ||
           MessageDeliveredPacket() ||
-          MessageReadPacket():
+          MessageReadPacket() ||
+          FileOfferPacket() ||
+          FileAcceptPacket() ||
+          FileRejectPacket() ||
+          FileCompletePacket() ||
+          FileCancelPacket():
         // TCP-only packets; ignored if they arrive over UDP.
         break;
     }

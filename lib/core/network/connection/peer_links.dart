@@ -23,6 +23,7 @@ final class LinkInfo {
     required this.direction,
     required this.connectedAt,
     required this.rttMs,
+    this.filePort,
   });
 
   final String peerId;
@@ -31,6 +32,10 @@ final class LinkInfo {
   final ConnectionDirection direction;
   final DateTime connectedAt;
   final int? rttMs;
+
+  /// Where the device accepts file data connections, from its HELLO; null
+  /// if it can't receive files.
+  final int? filePort;
 }
 
 final class LinkStats {
@@ -111,4 +116,8 @@ abstract interface class PeerLinks {
 
   /// Sends to every connected device.
   void sendToAll(Packet Function(String deviceId) packetFor);
+
+  /// This device's file port, announced in HELLO. A change is sent to
+  /// every open connection as a fresh HELLO (PROTOCOL.md §4.1).
+  void setFilePort(int? port);
 }

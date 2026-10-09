@@ -13,9 +13,9 @@ This document is the contract between two ResQMesh devices on the same Wi-Fi net
 | Discovery | UDP broadcast / unicast | **28760** (fixed) | DISCOVERY, DISCOVERY_RESPONSE, HELLO, GOODBYE, NAME_CHECK, REGISTER_RESPONSE (to a NAME_CHECK) |
 | NSD (mDNS) | Android `NsdManager` | — | Service type `_resqmesh._tcp`, instance name = device ID, TXT `id`, `v` |
 | Control | TCP, one long-lived connection per pair of peers | **28761** preferred, otherwise ephemeral (advertised) | HELLO, REGISTER, REGISTER_RESPONSE, MESSAGE*, PING/PONG, GOODBYE |
-| Data | TCP, one short-lived connection per file transfer | same listening port as control | HELLO, FILE_* and binary FILE_CHUNK frames |
+| Data | TCP, one short-lived connection per file transfer | **28762** preferred, otherwise ephemeral; advertised as `filePort` in HELLO | HELLO, FILE_* and binary FILE_CHUNK frames |
 
-Ports 28760–28761 are in an unassigned IANA block and below Android's ephemeral range (32768+).
+Ports 28760–28762 are in an unassigned IANA block and below Android's ephemeral range (32768+). Data connections have their own port because the receiving side runs in a separate worker isolate (ADR-0010, ADR-0021); a device without `filePort` can't receive files.
 
 ---
 
@@ -102,19 +102,21 @@ Sent after a random 0–300 ms delay. Payload is the same as HELLO.
   "minProtocol": 1,
   "maxProtocol": 1,
   "nameClaimedAt": "2026-10-08T19:02:44.120Z",
-  "capabilities": []
+  "capabilities": [],
+  "filePort": 28762
 }
 ```
 
 | Field | Rules |
 |---|---|
 | `tcpPort` | 1–65535; the port the sender actually listens on |
+| `filePort` | Optional, 1–65535: where the sender accepts file data connections (§4.4). Absent: it can't receive files. |
 | `appVersion` | ≤ 32 characters |
 | `minProtocol`, `maxProtocol` | ints, `1 ≤ min ≤ max` |
 | `nameClaimedAt` | ISO 8601 UTC; when the sender claimed its current name |
 | `capabilities` | Array of strings (≤ 16 items, each ≤ 32 characters). Reserved for future features such as `tls1`. |
 
-On TCP, both sides send HELLO as their first frame within 5 s of connecting, or the connection is closed.
+On TCP, both sides send HELLO as their first frame within 5 s of connecting, or the connection is closed. A device may send HELLO again on an open control connection when its announcement changes (for example, its file port after a network change); the receiver replaces the earlier one. The sender ID must stay the same.
 
 #### GOODBYE — UDP broadcast and TCP
 The sender is leaving: the app is stopping or Wi-Fi is going down. Receivers mark it offline at once.
@@ -226,7 +228,12 @@ The recipient opened the chat. The sender marks the messages **Read**.
 
 ### 4.4 File transfer (data connection)
 
-A transfer runs on its own TCP connection, opened by the sender to the receiver's listening port after the file MESSAGE was ACKed.
+A transfer runs on its own TCP connection, opened by the sender to the receiver's `filePort` after the file MESSAGE was confirmed (any of MESSAGE_ACK, MESSAGE_DELIVERED or MESSAGE_READ). The receiver only accepts an offer for a file it was told about in a MESSAGE from the same sender, with the same size and SHA-256. The data connection's HELLO uses the same identity as the control connection; the sender checks that the expected device answered.
+
+- **Flow control:** the receiver stops reading while it writes to disk, so TCP slows the sender; the sender waits for its socket every 1 MiB. Neither side holds more than a few chunks in memory.
+- **Resume:** the receiver answers FILE_ACCEPT with the size of its partial file, after hashing that partial file again.
+- **At most 3** files are sent at a time per device; the others wait in order.
+- A data connection is closed after 2 minutes without any frame.
 
 ```
 Sender                                            Receiver

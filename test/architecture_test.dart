@@ -80,8 +80,17 @@ void main() {
         final match = RegExp(
           r'^package:resqmesh/features/([^/]+)/(data|presentation)/',
         ).firstMatch(i);
-        // The app shell (router) may wire up every screen.
-        return from != null && match != null && match.group(1) != from;
+        // The app shell (router) may wire up every screen. Chat (file
+        // messages) and Settings (Storage) build on file sharing; file
+        // sharing depends on neither.
+        const allowed = {
+          ('chat', 'file_transfer'),
+          ('settings', 'file_transfer'),
+        };
+        return from != null &&
+            match != null &&
+            match.group(1) != from &&
+            !allowed.contains((from, match.group(1)));
       }),
       isEmpty,
     );

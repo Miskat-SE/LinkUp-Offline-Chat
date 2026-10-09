@@ -17,6 +17,11 @@ abstract final class PacketType {
   static const messageAck = 'MESSAGE_ACK';
   static const messageDelivered = 'MESSAGE_DELIVERED';
   static const messageRead = 'MESSAGE_READ';
+  static const fileOffer = 'FILE_OFFER';
+  static const fileAccept = 'FILE_ACCEPT';
+  static const fileReject = 'FILE_REJECT';
+  static const fileComplete = 'FILE_COMPLETE';
+  static const fileCancel = 'FILE_CANCEL';
 }
 
 /// Envelope fields shared by every control packet (PROTOCOL.md §3).
@@ -92,9 +97,14 @@ final class Announcement {
     this.minProtocol = ProtocolConstants.version,
     this.maxProtocol = ProtocolConstants.version,
     this.capabilities = const [],
+    this.filePort,
   });
 
   final int tcpPort;
+
+  /// Where this device accepts file data connections (PROTOCOL.md §4.4);
+  /// null if it can't receive files.
+  final int? filePort;
   final String appVersion;
   final DateTime nameClaimedAt;
   final int minProtocol;
@@ -114,6 +124,7 @@ final class Announcement {
       other.nameClaimedAt == nameClaimedAt &&
       other.minProtocol == minProtocol &&
       other.maxProtocol == maxProtocol &&
+      other.filePort == filePort &&
       _listEquals(other.capabilities, capabilities);
 
   @override
@@ -123,6 +134,7 @@ final class Announcement {
     nameClaimedAt,
     minProtocol,
     maxProtocol,
+    filePort,
     Object.hashAll(capabilities),
   );
 }
@@ -309,6 +321,105 @@ final class MessageReadPacket extends Packet {
 
   @override
   String get type => PacketType.messageRead;
+}
+
+// ----------------------------------------------------- file data connection
+
+/// First control frame on a data connection: the file that follows
+/// (PROTOCOL.md §4.4).
+final class FileOfferPacket extends Packet {
+  const FileOfferPacket(
+    super.header, {
+    required this.fileId,
+    required this.chatMessageId,
+    required this.fileName,
+    required this.fileSize,
+    required this.mimeType,
+    required this.sha256,
+  });
+
+  final String fileId;
+
+  /// The file MESSAGE this transfer belongs to.
+  final String chatMessageId;
+  final String fileName;
+  final int fileSize;
+  final String mimeType;
+  final String sha256;
+
+  @override
+  String get type => PacketType.fileOffer;
+}
+
+/// Send from [offset]; more than 0 resumes a partial file.
+final class FileAcceptPacket extends Packet {
+  const FileAcceptPacket(super.header, {required this.fileId, this.offset = 0});
+
+  final String fileId;
+  final int offset;
+
+  @override
+  String get type => PacketType.fileAccept;
+}
+
+enum FileRejectReason { declined, noSpace, tooLarge, invalid }
+
+final class FileRejectPacket extends Packet {
+  const FileRejectPacket(
+    super.header, {
+    required this.fileId,
+    required this.reason,
+  });
+
+  final String fileId;
+  final FileRejectReason reason;
+
+  @override
+  String get type => PacketType.fileReject;
+}
+
+/// The file is verified, synced and in place (or the receiver already had
+/// it).
+final class FileCompletePacket extends Packet {
+  const FileCompletePacket(
+    super.header, {
+    required this.fileId,
+    required this.sha256,
+  });
+
+  final String fileId;
+  final String sha256;
+
+  @override
+  String get type => PacketType.fileComplete;
+}
+
+enum FileCancelReason {
+  /// Ended for good; the receiver deletes the partial file.
+  cancelled,
+
+  /// Ended for now; the partial file is kept for resuming.
+  paused,
+
+  /// Something failed; the partial file is kept and the sender may retry.
+  error,
+
+  /// The received bytes didn't match; the receiver deleted them.
+  checksumMismatch,
+}
+
+final class FileCancelPacket extends Packet {
+  const FileCancelPacket(
+    super.header, {
+    required this.fileId,
+    required this.reason,
+  });
+
+  final String fileId;
+  final FileCancelReason reason;
+
+  @override
+  String get type => PacketType.fileCancel;
 }
 
 bool _listEquals(List<String> a, List<String> b) {

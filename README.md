@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: phase P5 done (saved chats).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. Chats are saved on the phone, and messages to someone offline wait, even across restarts, and go when they come back. Names are unique on the network. File sharing arrives in P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
+> **Status: phase P6 done (file sharing).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. They share files of any type and size up to 4 GB: photos, videos, documents, apps. Progress, pause, resume and cancel are shown, and every file is checked with SHA-256. Chats and files are saved on the phone, and anything sent to someone offline goes when they come back. Names are unique on the network. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
 
 ## Documents
 
@@ -67,7 +67,7 @@ keyPassword=…
 
 ## Permissions
 
-The only runtime permission is notifications (`POST_NOTIFICATIONS`), asked the first time you open a chat, after a short explanation. The app also declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
+Runtime permissions: notifications (`POST_NOTIFICATIONS`), asked the first time you open a chat, after a short explanation; and on Android 8–9 only, storage, the first time you use *Save to Downloads*. Opening a received app (APK) hands it to Android's installer, which asks you to allow installs from LinkUp first (`REQUEST_INSTALL_PACKAGES`); nothing is installed without you. The app also declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
 
 ## Router isolation
 
@@ -75,7 +75,9 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 
 ## Known limitations (so far)
 
-- File sharing arrives in P6.
+- Transfers run while the app is open. In the background Android cuts the app's network; transfers resume when you come back, and background receiving arrives in P8.
+- Very large files take a moment to appear in the Send sheet: Android's file picker copies them into the app first.
+- Only the sender can pause. Cancelling a file that is still waiting (the other person is offline) isn't announced to them; their card keeps waiting.
 - Group chat (*Everyone*, selected people) is *Coming soon* (P7).
 - Wi-Fi Direct and Bluetooth are shown as *Coming soon* (P13–P14).
 - Discovery and messages work while the app is open; background reachability arrives in P8.

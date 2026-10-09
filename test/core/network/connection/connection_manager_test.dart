@@ -358,4 +358,20 @@ void main() {
     expect(a.port, isNot(blocker.port));
     expect(a.port, greaterThan(0));
   });
+
+  test('a new file port reaches connected devices in a fresh HELLO', () async {
+    final a = await Node(idA, 'Yusuf').start();
+    final b = await Node(idB, 'Rahim').start();
+    a.links.updateEndpoints([b.endpoint]);
+    await eventually(() => a.linkTo(b) != null && b.linkTo(a) != null);
+    expect(
+      b.linkTo(a)!.filePort,
+      isNull,
+      reason: 'not listening for files yet',
+    );
+
+    a.links.setFilePort(28799);
+    await eventually(() => b.linkTo(a)?.filePort == 28799);
+    expect(a.linkTo(b)!.filePort, isNull);
+  });
 }

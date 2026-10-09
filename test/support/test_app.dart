@@ -4,18 +4,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/app.dart';
+import 'package:resqmesh/app/restartable_app.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/identity/identity_repository.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
+import 'package:resqmesh/core/platform/file_actions.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
 import 'package:resqmesh/core/platform/platform_api.g.dart';
 import 'package:resqmesh/core/storage/app_database.dart';
 import 'package:resqmesh/core/storage/database_providers.dart';
+import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
+import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
 
+import 'fake_file_actions.dart';
+import 'fake_file_picker.dart';
 import 'fake_network_monitor.dart';
 import 'fake_notifications.dart';
 import 'fake_peer_links.dart';
+import 'fake_transfer_backend.dart';
 import 'memory_datagram_network.dart';
 import 'memory_key_value_store.dart';
 import 'test_database.dart';
@@ -33,10 +40,20 @@ Future<void> launchApp(
   FakePeerLinks? links,
   FakeNotifications? notifications,
   AppDatabase? database,
+  FakeTransferBackend? transfers,
+  FakeFileActions? fileActions,
+  FakeFilePicker? picker,
+  Directory? supportDirectory,
   bool settle = true,
 }) async {
   final db = database ?? testDatabase();
   if (database == null) addTearDown(db.close);
+  // Each launch gets its own app storage unless a restart is simulated.
+  final support =
+      supportDirectory ?? Directory.systemTemp.createTempSync('resqmesh_app');
+  if (supportDirectory == null) {
+    addTearDown(() => support.deleteSync(recursive: true));
+  }
   // A tall phone screen, so onboarding cards fit without scrolling.
   tester.view
     ..physicalSize = const Size(1080, 2400)
@@ -49,37 +66,45 @@ Future<void> launchApp(
   addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
 
   await tester.pumpWidget(
-    ProviderScope(
-      // A fresh scope is a fresh app launch.
+    // A fresh scope is a fresh app launch; RestartableApp starts it over
+    // after Clear all local data, as in the app.
+    RestartableApp(
       key: UniqueKey(),
-      overrides: [
-        coreServicesProvider.overrideWith((ref) async {
-          await IdentityRepository(store).ensureDeviceId();
-          return CoreServices(
-            store: store,
-            supportDirectory: Directory.systemTemp,
-          );
-        }),
-        appInfoProvider.overrideWith(
-          (ref) async => AppInfo(versionName: '1.0.0', versionCode: 3),
-        ),
-        networkMonitorProvider.overrideWithValue(
-          network ?? FakeNetworkMonitor(),
-        ),
-        datagramBinderProvider.overrideWithValue(
-          (lan ?? MemoryDatagramNetwork()).binderFor(ip),
-        ),
-        serviceDiscoveryProvider.overrideWithValue(null),
-        // Not closed with the app, so a test can launch it again.
-        appDatabaseProvider.overrideWithValue(db),
-        appNotificationsProvider.overrideWithValue(
-          notifications ?? FakeNotifications(),
-        ),
-        peerLinksFactoryProvider.overrideWithValue(
-          (self, logger) => links ?? FakePeerLinks(),
-        ),
-      ],
-      child: const ResQMeshApp(),
+      builder: (key) => ProviderScope(
+        key: key,
+        overrides: [
+          coreServicesProvider.overrideWith((ref) async {
+            await IdentityRepository(store).ensureDeviceId();
+            return CoreServices(store: store, supportDirectory: support);
+          }),
+          appInfoProvider.overrideWith(
+            (ref) async => AppInfo(versionName: '1.0.0', versionCode: 3),
+          ),
+          networkMonitorProvider.overrideWithValue(
+            network ?? FakeNetworkMonitor(),
+          ),
+          datagramBinderProvider.overrideWithValue(
+            (lan ?? MemoryDatagramNetwork()).binderFor(ip),
+          ),
+          serviceDiscoveryProvider.overrideWithValue(null),
+          // Not closed with the app, so a test can launch it again.
+          appDatabaseProvider.overrideWithValue(db),
+          transferBackendProvider.overrideWithValue(
+            transfers ?? FakeTransferBackend(),
+          ),
+          fileActionsProvider.overrideWithValue(
+            fileActions ?? FakeFileActions(),
+          ),
+          filePickerProvider.overrideWithValue(picker ?? FakeFilePicker()),
+          appNotificationsProvider.overrideWithValue(
+            notifications ?? FakeNotifications(),
+          ),
+          peerLinksFactoryProvider.overrideWithValue(
+            (self, logger) => links ?? FakePeerLinks(),
+          ),
+        ],
+        child: const ResQMeshApp(),
+      ),
     ),
   );
   if (settle) {

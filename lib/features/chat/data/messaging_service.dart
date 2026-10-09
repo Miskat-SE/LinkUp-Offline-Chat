@@ -5,8 +5,10 @@ import 'package:resqmesh/core/logging/app_logger.dart';
 import 'package:resqmesh/core/network/connection/peer_links.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
+import 'package:resqmesh/core/storage/file_name_sanitizer.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/domain/message_repository.dart';
+import 'package:resqmesh/features/file_transfer/data/transfer_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// One-to-one text messaging over the control connections (PROTOCOL.md
@@ -22,12 +24,16 @@ import 'package:uuid/uuid.dart';
 /// - Outbox (§7.4): runs at start, whenever someone connects (which
 ///   includes after a network change), and on retry. Receipts that
 ///   couldn't be sent wait in the database and go out on reconnect too.
+/// - Files (§7.5): a file MESSAGE goes out once the file is prepared; its
+///   confirmation lets the data follow. The bytes are [TransferService]'s
+///   job.
 final class MessagingService {
   MessagingService({
     required this._links,
     required this._repository,
     required this._self,
     required this._logger,
+    this._transfers,
     this.ackTimeout = const Duration(seconds: 10),
     this.maxAttempts = 5,
   });
@@ -36,6 +42,7 @@ final class MessagingService {
   final MessageRepository _repository;
   final SelfInfo Function() _self;
   final AppLogger _logger;
+  final TransferService? _transfers;
   final Duration ackTimeout;
   final int maxAttempts;
 
@@ -49,6 +56,7 @@ final class MessagingService {
   final Map<String, Timer> _ackTimers = {};
   StreamSubscription<PeerPacket>? _packets;
   StreamSubscription<LinksSnapshot>? _linkChanges;
+  StreamSubscription<String>? _filesReady;
   Set<String> _connected = {};
   Future<void> _queue = Future.value();
 
@@ -61,6 +69,9 @@ final class MessagingService {
     if (_packets != null) return;
     _packets = _links.packets.listen((p) => _serial(() => _onPacket(p)));
     _linkChanges = _links.snapshots.listen((s) => _serial(() => _onLinks(s)));
+    _filesReady = _transfers?.ready.listen(
+      (fileId) => _serial(() => _fileReady(fileId)),
+    );
     unawaited(_serial(_recover));
   }
 
@@ -79,8 +90,10 @@ final class MessagingService {
   Future<void> stop() async {
     unawaited(_packets?.cancel());
     unawaited(_linkChanges?.cancel());
+    unawaited(_filesReady?.cancel());
     _packets = null;
     _linkChanges = null;
+    _filesReady = null;
     for (final timer in _ackTimers.values) {
       timer.cancel();
     }
@@ -117,6 +130,54 @@ final class MessagingService {
     return await _repository.find(message.id) ?? message;
   }
 
+  /// Sends files to [peerId], one message each. Each appears at once as
+  /// Preparing, and goes out when it is copied and hashed.
+  Future<List<ChatMessage>> sendFiles({
+    required String peerId,
+    required String peerName,
+    required List<PickedFile> files,
+  }) => _serial(() async {
+    final transfers = _transfers;
+    if (transfers == null) throw StateError('file sharing is not set up');
+    final sent = <ChatMessage>[];
+    for (final picked in files) {
+      final now = clock.now();
+      final messageId = _uuid.v4();
+      final fileId = _uuid.v4();
+      final transfer = await transfers.prepareOutgoing(
+        picked,
+        fileId: fileId,
+        messageId: messageId,
+        peerId: peerId,
+      );
+      final message = ChatMessage(
+        id: messageId,
+        peerId: peerId,
+        peerName: peerName,
+        direction: MessageDirection.outgoing,
+        text: '',
+        sentAt: now,
+        createdAt: now,
+        status: MessageStatus.pending,
+        content: MessageContent.file,
+        fileId: fileId,
+        fileName: transfer.name,
+      );
+      await _repository.insertOutgoing(message);
+      sent.add(message);
+    }
+    return sent;
+  });
+
+  /// A file finished preparing: its message can go out.
+  Future<void> _fileReady(String fileId) async {
+    final transfer = await _transfers?.find(fileId);
+    if (transfer == null) return;
+    final message = await _repository.find(transfer.messageId);
+    if (message == null || message.status != MessageStatus.pending) return;
+    await _transmit(message);
+  }
+
   /// Sends a Failed message again.
   Future<void> retry(String messageId) => _serial(() async {
     final message = await _repository.find(messageId);
@@ -132,16 +193,22 @@ final class MessagingService {
     if (ids.isNotEmpty) await _sendReceipts(peerId, ids, Receipt.read);
   });
 
-  /// Deletes on this phone only.
+  /// Deletes on this phone only, with its file if it has one.
   Future<void> delete(String messageId) async {
     _ackTimers.remove(messageId)?.cancel();
+    final message = await _repository.find(messageId);
     await _repository.delete(messageId);
+    final fileId = message?.fileId;
+    if (fileId != null) await _transfers?.discard(fileId);
   }
 
   // ----------------------------------------------------------------- sending
 
   Future<void> _transmit(ChatMessage message) async {
-    if (!isConnected(message.peerId)) {
+    // A file message waits until its file is prepared.
+    final fileId = message.fileId;
+    final file = fileId == null ? null : await _transfers?.fileRef(fileId);
+    if (!isConnected(message.peerId) || (message.isFile && file == null)) {
       await _repository.updateStatus(
         message.id,
         MessageStatus.pending,
@@ -166,10 +233,11 @@ final class MessagingService {
           receiverId: message.peerId,
           timestamp: PacketHeader.wireTime(message.sentAt),
         ),
-        kind: MessageKind.text,
+        kind: message.isFile ? MessageKind.file : MessageKind.text,
         audience: MessageAudience.direct,
-        text: message.text,
+        text: message.isFile ? null : message.text,
         replyToId: message.replyToId,
+        file: file,
       ),
     );
     _logger.info(LogTag.message, 'Sent', {
@@ -272,8 +340,23 @@ final class MessagingService {
       });
       return;
     }
-    if (packet.kind != MessageKind.text || packet.text == null) {
-      // File messages arrive with file sharing (P6).
+    final file = packet.file;
+    if (packet.kind == MessageKind.file) {
+      final transfers = _transfers;
+      if (file == null || transfers == null) return;
+      // Recorded before the ACK, so the file's data is expected.
+      final accepted = await transfers.registerIncoming(
+        file,
+        peerId: from,
+        messageId: header.messageId,
+      );
+      if (!accepted) {
+        _logger.warning(LogTag.message, 'File message with a used ID', {
+          'from': _short(from),
+        });
+        return;
+      }
+    } else if (packet.text == null) {
       return;
     }
     final message = ChatMessage(
@@ -281,11 +364,14 @@ final class MessagingService {
       peerId: from,
       peerName: header.senderName,
       direction: MessageDirection.incoming,
-      text: packet.text!,
+      text: file == null ? packet.text! : '',
       sentAt: header.timestamp,
       createdAt: clock.now(),
       status: MessageStatus.received,
       replyToId: packet.replyToId,
+      content: file == null ? MessageContent.text : MessageContent.file,
+      fileId: file?.fileId,
+      fileName: file == null ? null : FileNameSanitizer.sanitize(file.name),
     );
     final isNew = await _repository.insertIncoming(message);
     // Always confirm, so a resend after a lost ACK stops.
@@ -347,6 +433,9 @@ final class MessagingService {
         continue;
       }
       await _repository.updateStatus(id, status);
+      // Any receipt means the file message was stored: send the data.
+      final fileId = message.fileId;
+      if (fileId != null) await _transfers?.onFileMessageAccepted(fileId);
     }
   }
 

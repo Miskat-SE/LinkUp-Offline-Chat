@@ -1,0 +1,17 @@
+{
+  "protocolVersion": 1,
+  "type": "FILE_OFFER",
+  "messageId": "5b2e8c1f-7d3a-4e9b-b4c6-1a0f2e3d4c5b",
+  "senderId": "3f2a9c4e-1b7d-4c55-8e0a-6d2f9b1c7a33",
+  "senderName": "Yusuf",
+  "receiverId": "b81d07aa-5c3e-4f19-9d26-0e7c4a8b2f61",
+  "timestamp": "2026-10-08T20:45:01.004Z",
+  "payload": {
+    "fileId": "0a4e6c1d-2b8f-4e57-a3c9-5d1f7e2b9c80",
+    "chatMessageId": "6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10",
+    "fileName": "project.zip",
+    "fileSize": 25794560,
+    "mimeType": "application/zip",
+    "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+}

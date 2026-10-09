@@ -10,6 +10,9 @@ import 'package:resqmesh/core/network/protocol/packet.dart';
 /// tested separately on loopback sockets.
 final class FakePeerLinks implements PeerLinks {
   final Set<String> refused = {};
+
+  /// The file port other devices announce (null: they can't receive).
+  int? peerFilePort = 28762;
   final List<(String, Packet)> sent = [];
   final StreamController<LinksSnapshot> _snapshots =
       StreamController<LinksSnapshot>.broadcast();
@@ -56,6 +59,7 @@ final class FakePeerLinks implements PeerLinks {
               direction: ConnectionDirection.outbound,
               connectedAt: clock.now(),
               rttMs: 3,
+              filePort: peerFilePort,
             ),
       },
       unreachable: {
@@ -79,6 +83,25 @@ final class FakePeerLinks implements PeerLinks {
     }
   }
 
+  /// Connects [deviceId] directly (for tests without discovery).
+  void connect(String deviceId, {String address = '192.168.0.20'}) => _set(
+    links: {
+      ..._current.links,
+      deviceId: LinkInfo(
+        peerId: deviceId,
+        peerName: '',
+        address: address,
+        direction: ConnectionDirection.outbound,
+        connectedAt: clock.now(),
+        rttMs: 3,
+        filePort: peerFilePort,
+      ),
+    },
+  );
+
+  void disconnect(String deviceId) =>
+      _set(links: {..._current.links}..remove(deviceId));
+
   void _set({
     int? listeningPort,
     Map<String, LinkInfo>? links,
@@ -92,4 +115,10 @@ final class FakePeerLinks implements PeerLinks {
     );
     _snapshots.add(_current);
   }
+
+  /// The file port this device announced.
+  int? filePort;
+
+  @override
+  void setFilePort(int? port) => filePort = port;
 }

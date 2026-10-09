@@ -120,3 +120,29 @@ abstract class NotificationFlutterApi {
   /// A notification was tapped while the app was running.
   void onNotificationOpened(String conversationId);
 }
+
+/// Getting shared files out of the app (PROJECT_PLAN.md §8.2): files stay
+/// in app-internal storage and leave only through these calls.
+@HostApi()
+abstract class FileHostApi {
+  /// Free bytes on the storage that holds the app's files.
+  int freeBytes();
+
+  /// Opens the file in another app, shown as [displayName]; false if no
+  /// installed app can open it.
+  bool openFile(String path, String displayName, String mimeType);
+
+  /// Opens Android's share sheet for the file.
+  void shareFile(String path, String displayName, String mimeType);
+
+  /// Copies the file into Downloads (asking for permission on Android 8–9)
+  /// and returns the name it was saved under, or null if that failed or
+  /// was not allowed.
+  @async
+  String? saveToDownloads(String path, String displayName, String mimeType);
+
+  /// Writes a JPEG thumbnail of a video to [outPath]; false if Android
+  /// can't read the video.
+  @async
+  bool videoThumbnail(String path, String outPath);
+}

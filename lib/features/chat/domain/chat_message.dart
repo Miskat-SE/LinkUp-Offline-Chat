@@ -1,6 +1,9 @@
 /// Whether this device sent or received a message.
 enum MessageDirection { incoming, outgoing }
 
+/// What a message carries.
+enum MessageContent { text, file }
+
 /// Delivery state of a message (spec §8, PROTOCOL.md §4.3).
 ///
 /// Outgoing messages move forward only:
@@ -63,6 +66,9 @@ final class ChatMessage {
     this.replyToId,
     this.isRead = false,
     this.attempts = 0,
+    this.content = MessageContent.text,
+    this.fileId,
+    this.fileName,
   });
 
   /// Message ID; the same on both phones.
@@ -91,8 +97,19 @@ final class ChatMessage {
 
   /// Outgoing only: how many times it has been sent.
   final int attempts;
+  final MessageContent content;
+
+  /// File messages: the shared file, and its name where a query includes
+  /// it (the chat list, new-message notifications).
+  final String? fileId;
+  final String? fileName;
 
   bool get isOutgoing => direction == MessageDirection.outgoing;
+
+  bool get isFile => content == MessageContent.file;
+
+  /// One line for the chat list and notifications.
+  String get preview => isFile ? '📎 ${fileName ?? 'File'}' : text;
 
   ChatMessage copyWith({
     String? peerName,
@@ -111,6 +128,9 @@ final class ChatMessage {
     replyToId: replyToId,
     isRead: isRead ?? this.isRead,
     attempts: attempts ?? this.attempts,
+    content: content,
+    fileId: fileId,
+    fileName: fileName,
   );
 }
 

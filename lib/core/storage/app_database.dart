@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:resqmesh/core/storage/app_database.steps.dart';
 
 part 'app_database.g.dart';
 
@@ -23,7 +24,15 @@ class Messages extends Table {
 
   /// `in` or `out`.
   TextColumn get direction => text()();
+
+  /// `text` or `file` (schema v2).
+  TextColumn get kind => text().withDefault(const Constant('text'))();
+
+  /// The text; empty for a file message.
   TextColumn get body => text()();
+
+  /// File messages only: the row in [Files] (schema v2).
+  TextColumn get fileId => text().nullable()();
   TextColumn get replyToId => text().nullable()();
 
   /// The sender's clock; shown, never used for ordering.
@@ -48,6 +57,53 @@ class Messages extends Table {
   IntColumn get lastAttemptAt => integer().map(const UtcMicros()).nullable()();
 }
 
+/// Shared files and their transfer state (PROJECT_PLAN.md §8.1, schema v2).
+/// The contents live on disk (FileStore); never in SQLite.
+@DataClassName('FileRow')
+@TableIndex(name: 'files_by_content', columns: {#sha256, #size})
+@TableIndex(name: 'files_by_status', columns: {#status})
+@TableIndex(name: 'files_by_message', columns: {#messageId})
+class Files extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// The ID on the wire; also the file's name on disk.
+  TextColumn get fileId => text().unique()();
+
+  /// The chat message that carries it.
+  TextColumn get messageId => text()();
+
+  /// The other person's device ID.
+  TextColumn get peerId => text()();
+
+  /// `in` or `out`.
+  TextColumn get direction => text()();
+
+  /// Display name, already sanitised.
+  TextColumn get name => text()();
+  TextColumn get mimeType => text()();
+  IntColumn get size => integer()();
+  IntColumn get bytesTransferred => integer().withDefault(const Constant(0))();
+
+  /// Transfer state: `preparing`, `offered`, `queued`, `inProgress`,
+  /// `paused`, `completed`, `failed`, `cancelled` or `rejected`.
+  TextColumn get status => text()();
+
+  /// Lowercase hex SHA-256; null while the sender is still hashing.
+  TextColumn get sha256 => text().nullable()();
+
+  /// Where the bytes are, relative to the files directory; null when there
+  /// is no copy on this phone (not received yet, or deleted).
+  TextColumn get localPath => text().nullable()();
+
+  /// Why it failed or was rejected (a fixed code).
+  TextColumn get error => text().nullable()();
+
+  /// Automatic resume attempts since the last success or manual retry.
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+  IntColumn get createdAt => integer().map(const UtcMicros())();
+  IntColumn get updatedAt => integer().map(const UtcMicros())();
+}
+
 /// Times are stored as UTC microseconds: exact, and they sort correctly.
 final class UtcMicros extends TypeConverter<DateTime, int> {
   const UtcMicros();
@@ -63,16 +119,31 @@ final class UtcMicros extends TypeConverter<DateTime, int> {
 /// The app's SQLite database. Every schema change needs a new
 /// [schemaVersion], a migration step and a schema snapshot
 /// (`dart run drift_dev make-migrations`; see TESTING.md).
-@DriftDatabase(tables: [Messages])
+@DriftDatabase(tables: [Messages, Files])
 final class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
+    onUpgrade: stepByStep(
+      // v2 (P6): file messages and the files table.
+      from1To2: (m, schema) async {
+        await m.addColumn(schema.messages, schema.messages.kind);
+        await m.addColumn(schema.messages, schema.messages.fileId);
+        await m.createTable(schema.files);
+        for (final index in [
+          schema.filesByContent,
+          schema.filesByStatus,
+          schema.filesByMessage,
+        ]) {
+          await m.createIndex(index);
+        }
+      },
+    ),
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),
   );
 }
