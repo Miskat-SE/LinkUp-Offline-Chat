@@ -951,11 +951,11 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 **Exit (M5):** all inbound validation in place and fuzzed; encryption decision recorded; feature complete.
 
 #### P10 · Automated tests (Week 15, 7–13 Jan)
-- [ ] **P10.1** Fill gaps against §13.1; coverage target ≥ 80% for `core/` and `data/`
-- [ ] **P10.2** `integration_test` on a device: onboarding, sending text and a file to an in-process test peer over loopback
-- [ ] **P10.3** Reconnect, timeout and retry tests with `fake_async`
-- [ ] **P10.4** Migration tests from schema v1
-- [ ] **P10.5** `TESTING.md`: how to run everything; device-matrix template
+- [x] **P10.1** Fill gaps against §13.1; coverage target ≥ 80% for `core/` and `data/` *(core 82.7%, data 91.1%; platform wrapper tests added)*
+- [x] **P10.2** `integration_test` on a device: onboarding, sending text and a file to an in-process test peer *(over the device's Wi-Fi address; 5 MB file, SHA-256 checked)*
+- [x] **P10.3** Reconnect, timeout and retry tests with `fake_async` *(already covered in P3–P8; redial backoff curve added)*
+- [x] **P10.4** Migration tests from schema v1
+- [x] **P10.5** `TESTING.md`: how to run everything; device-matrix template
 
 **Exit:** `flutter test` and the integration tests pass; coverage target met.
 
@@ -1017,7 +1017,7 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 | M3 | Persistent text chat with offline queue | 25 Nov (end of Week 8) | Done (emulator; chat on 2 phones) |
 | M4 | Large-file transfer; mid-term presentation | 16 Dec (Week 11) | Code done; 2 GB soak and slides open |
 | M5 | Feature complete: broadcast, background, security | 6 Jan (end of Week 14) | Done 10 Oct (`v0.9.0-beta`); real-phone checks for P7/P8 open |
-| M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Not started |
+| M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Tests done (P10, 10 Oct); polish and device matrix open |
 | M7 | v1.0.0 released with all four documents | 3 Feb (end of Week 18) | Not started |
 | M8 | Report submitted, defense | ~17 Feb (Week 20) | Not started |
 
@@ -1219,5 +1219,6 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.7 | 9 Oct 2026 | P5 done: SQLite through drift (schema v1, `messages` only; D22 and ADR-0020); chats, unread counts and the outbox survive restarts; interrupted sends wait again at start; delivery and read receipts queue until the sender reconnects; each connection gets a full 5 attempts; Settings → Storage with *Clear chat history*; migration test scaffold. 189 tests. The release APK grows by about 7 MB (SQLite for three CPU types; a Play Store bundle splits it). The simulator keeps one device ID per name. |
 | 1.8 | 9 Oct 2026 | P6 done (code): file transfer in a worker isolate on its own port (D23, ADR-0021; `filePort` in HELLO), FILE_* packets, schema v2 with the `files` table, resume by offset, 3 automatic resumes then Retry, one retry after a checksum mismatch, duplicates by file ID and by content, at most 3 uploads at a time, 4 GiB and free-space checks. Attach sheet, file cards, File Preview (Open, Share, Save to Downloads), Transfer Details, Storage v1 with all four actions (Clear all local data restarts at onboarding). Kotlin `FileBridge` (FileProvider with hard links, MediaStore, thumbnails, free space); `REQUEST_INSTALL_PACKAGES` so received APKs open in the system installer. Discovery now reopens its UDP socket after Android cuts a backgrounded app's network. Simulator sends and receives files. 261 tests. |
 | 1.9 | 10 Oct 2026 | P7 done (code): Everyone thread (one message to the people online at that moment, `message_recipients` with per-person status, "Delivered to 2 of 3", per-person retry and receipts, sender names, notifications "Rahim · Everyone"); selected people as one direct message each, queued for anyone offline; files fanned out with one copy and one hash. Schema v3 (`audience`, `senderId`, `message_recipients`). New chat options and People Nearby → Select people. 3-phone loopback test with real sockets. Milestone table updated. 284 tests. |
-| 2.1 | 10 Oct 2026 | P9 done: inputs reviewed and documented (Security model); fuzz tests for codecs, frames and live connections; limits on discovery answers, half-open and per-address connections, and packet floods; logs reviewed; encryption spike (`tool/tls_spike.dart`) and decision ADR-0022 (plaintext v1.0, user's choice); Settings → Privacy; feature freeze and `v0.9.0-beta`. 302 tests. |
 | 2.0 | 10 Oct 2026 | P8 done (code): the `Application` owns a cached FlutterEngine and the bridges (screen-independent); `LanForegroundService` (`connectedDevice`) runs while files move ("Receiving video.mp4 — 62%", updated at most once a second) or with *Stay reachable* on, with Wi-Fi and partial wake locks during transfers only; *Stay reachable* in Settings, offered once on Home; battery settings link; notification taps carry an app route (chat, transfer details, Activity); Activity screen; HELLO every 15 s in the background. Emulator: 1 GB received with the screen off, Doze, swipe-away. 292 tests. |
+| 2.1 | 10 Oct 2026 | P9 done: inputs reviewed and documented (Security model); fuzz tests for codecs, frames and live connections; limits on discovery answers, half-open and per-address connections, and packet floods; logs reviewed; encryption spike (`tool/tls_spike.dart`) and decision ADR-0022 (plaintext v1.0, user's choice); Settings → Privacy; feature freeze and `v0.9.0-beta`. 302 tests. |
+| 2.2 | 10 Oct 2026 | P10 done: coverage core 82.7% and data 91.1%; on-device integration test (onboarding, text both ways, 5 MB file verified against a peer inside the test); redial backoff test; `TESTING.md` with run commands and the full device-matrix template. |

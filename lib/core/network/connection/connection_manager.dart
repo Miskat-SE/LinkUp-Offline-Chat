@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:resqmesh/core/constants/protocol_constants.dart';
@@ -375,7 +374,7 @@ final class ConnectionManager implements PeerLinks {
   }
 }
 
-/// Exponential backoff: base, 2×, 4× … up to the maximum (§5.5 rule 9).
+/// When a lost device may be dialled again ([ConnectionTiming.reconnectDelay]).
 final class _Backoff {
   _Backoff(this._timing);
 
@@ -385,11 +384,7 @@ final class _Backoff {
 
   void failed(DateTime now) {
     failures++;
-    final ms = min(
-      _timing.reconnectBase.inMilliseconds * pow(2, failures - 1),
-      _timing.reconnectMax.inMilliseconds,
-    ).toInt();
-    _next = now.add(Duration(milliseconds: ms));
+    _next = now.add(_timing.reconnectDelay(failures));
   }
 
   bool due(DateTime now) => _next == null || !now.isBefore(_next!);

@@ -284,6 +284,14 @@ void main() {
     expect(a.links.current.links, isEmpty);
   });
 
+  test('redial waits double each time, up to the maximum', () {
+    const timing = ConnectionTiming();
+    expect(
+      [for (var n = 1; n <= 7; n++) timing.reconnectDelay(n).inSeconds],
+      [1, 2, 4, 8, 16, 30, 30],
+    );
+  });
+
   test('a lost connection is redialled when the peer is back', () async {
     final a = await Node(idA, 'Yusuf').start();
     var b = await Node(idB, 'Rahim').start();

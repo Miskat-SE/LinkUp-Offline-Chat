@@ -5,8 +5,15 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test        # 302 tests, about 30 seconds (the 200 MB transfer test takes most of it)
+flutter test --timeout 120s                 # 308 tests, about 40 seconds (the 200 MB transfer test takes most of it)
+flutter test --coverage --timeout 120s      # writes coverage/lcov.info
+flutter test integration_test -d <device>   # on a phone or emulator, about 20 seconds
+flutter analyze && dart format --set-exit-if-changed lib test integration_test
 ```
+
+**Coverage** (10 Oct 2026, generated `*.g.dart` excluded): `core/` 82.7%, feature `data/` 91.1%, screens 88.9%. The target is ≥ 80% for `core/` and `data/`. The least covered code is the Android-only wiring (`service_discovery.dart`, provider setup) and generated migration steps, which the device test and the migration tests exercise instead.
+
+**On a device** (`integration_test/app_flow_test.dart`). The real app runs on the phone with everything real except notifications, the file picker and the stored settings: Wi-Fi bridge, discovery, TCP connections, the transfer worker isolate and SQLite. A second phone runs inside the test (its own connection manager, transfer engine, messaging service and database) and connects to the app through the device's own Wi-Fi address. The test goes through onboarding, opens the chat from People, sends text both ways, then sends a 5 MB file and checks the copy's SHA-256 on the other side. Needs Wi-Fi on (the emulator has it).
 
 | Area | File | What it proves |
 |---|---|---|
@@ -18,10 +25,11 @@ flutter test        # 302 tests, about 30 seconds (the 200 MB transfer test take
 | Peer list | `test/core/network/discovery/peer_registry_test.dart` | Merge by device ID, expiry after 20 s, GOODBYE, name holders, clash rule |
 | Discovery | `test/core/network/discovery/discovery_engine_test.dart` | Two to three engines on an in-memory LAN: find each other, leave, come back, IP change, Wi-Fi lost and back, name check (taken, free, no network), name clash, blocked access, isolation hint, malformed packets, NSD when broadcasts are dropped |
 | Sockets | `test/core/network/network_test.dart` | Real UDP sockets on loopback; subnet and broadcast maths; display names; "last seen" text |
-| TCP connections | `test/core/network/connection/connection_manager_test.dart` | Real sockets on loopback: lower ID dials, grace period, duplicate tie-break, keep-alive and round-trip time, idle timeout, no HELLO, packets before HELLO, malformed and oversized frames, self-connection, wrong device at an address, reconnect, network reset, port fallback |
+| TCP connections | `test/core/network/connection/connection_manager_test.dart` | Real sockets on loopback: lower ID dials, grace period, duplicate tie-break, keep-alive and round-trip time, idle timeout, no HELLO, packets before HELLO, malformed and oversized frames, self-connection, wrong device at an address, reconnect, redial backoff (1, 2, 4 … 30 s), network reset, port fallback |
 | Nearby and REGISTER | `test/core/network/connection/nearby_and_register_test.dart` | Online means connected; unreachable state; devices only seen over TCP; renames applied and answered |
 | Message store | `test/features/chat/message_repository_test.dart` | SQLite on the real schema: round trip (Bangla, emoji, microseconds); duplicates refused; chat list query and order; live updates; unread counts; status never moves backwards; outbox order; restart recovery; owed receipts; stable stored codes; unknown codes; Clear chat history; data kept after reopening the file |
-| Schema | `test/drift/app_database/migration_test.dart` | Every schema version has a snapshot; a new install creates exactly the latest schema. Migration tests go here. |
+| Schema | `test/drift/app_database/migration_test.dart` | Every schema version has a snapshot; a new install creates exactly the latest schema; v1 and v2 databases with data migrate to the latest and keep every row |
+| Platform wrappers | `test/core/platform/platform_wrappers_test.dart` | The Dart side of each Kotlin bridge (network monitor, notifications, background service, file actions) against a stand-in host API; the deferred transfer backend |
 | Messaging | `test/features/chat/messaging_service_test.dart` | Two phones on fake time, each with its own database: sent, delivered and read; offline outbox in order; lost ACK resends once stored once; fails after 5 tries and retry; connection lost mid-send; full attempts per connection; app killed mid-send and restarted; READ and DELIVERED queued until reconnect; late receipts; spoofed receipts and misaddressed messages ignored; replies; delete |
 | Chat UI | `test/features/chat/chat_ui_test.dart` | Whole app: send from People with ticks, new message badge and notification, reading sends READ, notification explainer, long-press Copy / Reply / Delete, waiting to send, tapping a notification opens the chat; chats and badges after a restart; Storage count, cancel and Clear chat history |
 | Transfer engine | `test/features/file_transfer/transfer_engine_test.dart` | Real sockets on loopback: whole file verified and renamed; empty file; reject; already-have; cancel and pause from either side with partial-file rules; resume from the partial size; corruption detected and deleted; dropped connection keeps the partial file; wrong device refused; missing source; the worker isolate; **200 MB with corruption, cancel, pause and resume while memory grows less than 64 MB** |
@@ -75,18 +83,30 @@ In this mode the emulator hears the Mac, but its broadcasts can't reach the Mac;
 
 ## 3. Real-device matrix
 
-From PROJECT_PLAN.md §13.2. Fill in one row per run.
+From PROJECT_PLAN.md §13.2. Copy this table for each release candidate, name the phones (model, Android version, battery saver) and the router, and fill in one row per test. *Result* is Pass, Fail (with a link to the issue) or N/A.
 
-| ID | Test | Phones / router | Build | Result | Notes |
-|---|---|---|---|---|---|
-| R1–R5 | Text (P4) and files (P6) | | | — | |
-| R6 | Router WAN unplugged, Wi-Fi on: discovery | | | | |
-| R7 | Mobile data on + Wi-Fi without internet | | | | |
-| R8 | Router reboot: peers rediscovered within 60 s | | | | |
-| R9 | IP change: reconnected within 30 s | | | | |
-| R10 | Airplane mode on, Wi-Fi re-enabled | | | | |
-| R16 | Two phones choose the same name | | | | |
-| R17 | Router with client isolation: hint shown | | | | |
+**Setup:** phones A = … , B = … , C = … ; router … ; build `LINKUP_version-N.apk` ; date … .
+
+| ID | Test | Expected | A / B (/ C) | Build | Result | Notes |
+|---|---|---|---|---|---|---|
+| R1 | A → B text | Arrives within 1 s; shows ✓✓ | | | | |
+| R2 | B → A text | Same | | | | |
+| R3 | A → B image | Preview shows; checksum verified | | | | |
+| R4 | A → B large file (≥ 1 GB, 2 GB stretch) | Completes; memory flat; UI smooth | | | | |
+| R5 | B → A large file | Same | | | | |
+| R6 | Router WAN unplugged, Wi-Fi on | R1–R5 still pass | | | | |
+| R7 | Mobile data on, Wi-Fi without internet | Traffic stays on Wi-Fi | | | | |
+| R8 | Router reboot | Peers back within 60 s, no app restart | | | | |
+| R9 | IP change (rejoin or new DHCP lease) | Reconnected within 30 s; pending messages delivered | | | | |
+| R10 | Airplane mode on, then Wi-Fi re-enabled | Everything works | | | | |
+| R11 | Peer offline → message waiting → peer returns | Delivered automatically | | | | |
+| R12 | Wi-Fi off in the middle of a transfer | Resumes from the offset | | | | |
+| R13 | Screen off, *Stay reachable* on | Message and file received; progress notification | | | | |
+| R14 | Swiped from Recents / force-stopped | Matches plan §5.6 | | | | |
+| R15 | Everyone to 3 phones (text and file) | All receive it; per-person status correct | | | | |
+| R16 | Two phones choose the same name | The second is refused | | | | |
+| R17 | Router with client isolation (guest network) | Isolation hint; no crash | | | | |
+| R18 | Local network permission denied (Android 17) | *Local network access is off* with a Settings link | | | | |
 
 ### Runs so far
 

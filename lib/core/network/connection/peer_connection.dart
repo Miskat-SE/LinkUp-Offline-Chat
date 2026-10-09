@@ -37,6 +37,15 @@ final class ConnectionTiming {
   /// How long the device with the higher ID waits for the other side to
   /// dial before dialling itself (§5.5 rule 7).
   final Duration dialGrace;
+
+  /// The wait before the next dial after [failures] failed ones:
+  /// base, 2×, 4× … up to the maximum (§5.5 rule 9).
+  Duration reconnectDelay(int failures) => Duration(
+    milliseconds: min(
+      reconnectBase.inMilliseconds * pow(2, max(failures - 1, 0)),
+      reconnectMax.inMilliseconds,
+    ).toInt(),
+  );
 }
 
 /// The other side broke the handshake rules.
