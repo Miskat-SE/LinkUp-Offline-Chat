@@ -13,6 +13,10 @@ abstract final class PacketType {
   static const registerResponse = 'REGISTER_RESPONSE';
   static const ping = 'PING';
   static const pong = 'PONG';
+  static const message = 'MESSAGE';
+  static const messageAck = 'MESSAGE_ACK';
+  static const messageDelivered = 'MESSAGE_DELIVERED';
+  static const messageRead = 'MESSAGE_READ';
 }
 
 /// Envelope fields shared by every control packet (PROTOCOL.md §3).
@@ -222,6 +226,89 @@ final class PongPacket extends Packet {
 
   @override
   String get type => PacketType.pong;
+}
+
+enum MessageKind { text, file }
+
+/// Who a chat message was sent to (PROTOCOL.md §4.3).
+enum MessageAudience {
+  /// One person.
+  direct,
+
+  /// Everyone online at the time.
+  broadcast,
+
+  /// Several selected people.
+  multi,
+}
+
+/// The file a `file` message announces; the data follows separately (P6).
+final class FileRef {
+  const FileRef({
+    required this.fileId,
+    required this.name,
+    required this.size,
+    required this.mimeType,
+    required this.sha256,
+  });
+
+  final String fileId;
+  final String name;
+  final int size;
+  final String mimeType;
+  final String sha256;
+}
+
+/// A chat message. The envelope's message ID is the chat message's ID and
+/// stays the same when it is resent.
+final class MessagePacket extends Packet {
+  const MessagePacket(
+    super.header, {
+    required this.kind,
+    required this.audience,
+    this.text,
+    this.replyToId,
+    this.file,
+  });
+
+  final MessageKind kind;
+  final MessageAudience audience;
+  final String? text;
+  final String? replyToId;
+  final FileRef? file;
+
+  @override
+  String get type => PacketType.message;
+}
+
+/// The receiver validated and stored [ackFor]: the sender shows it as Sent.
+final class MessageAckPacket extends Packet {
+  const MessageAckPacket(super.header, {required this.ackFor});
+
+  final String ackFor;
+
+  @override
+  String get type => PacketType.messageAck;
+}
+
+/// The messages were shown to the recipient: Delivered.
+final class MessageDeliveredPacket extends Packet {
+  const MessageDeliveredPacket(super.header, {required this.messageIds});
+
+  final List<String> messageIds;
+
+  @override
+  String get type => PacketType.messageDelivered;
+}
+
+/// The recipient opened the chat: Read.
+final class MessageReadPacket extends Packet {
+  const MessageReadPacket(super.header, {required this.messageIds});
+
+  final List<String> messageIds;
+
+  @override
+  String get type => PacketType.messageRead;
 }
 
 bool _listEquals(List<String> a, List<String> b) {

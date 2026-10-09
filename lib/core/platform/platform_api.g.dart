@@ -278,6 +278,62 @@ class AppInfo {
   }
 }
 
+/// A new-message notification.
+class MessageNotification {
+  MessageNotification({
+    required this.conversationId,
+    required this.title,
+    required this.body,
+  });
+
+  /// The other person's device ID; tapping opens this chat.
+  String conversationId;
+
+  String title;
+
+  String body;
+
+  List<Object?> _toList() {
+    return <Object?>[conversationId, title, body];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static MessageNotification decode(Object result) {
+    result as List<Object?>;
+    return MessageNotification(
+      conversationId: result[0]! as String,
+      title: result[1]! as String,
+      body: result[2]! as String,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! MessageNotification || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(conversationId, other.conversationId) &&
+        _deepEquals(title, other.title) &&
+        _deepEquals(body, other.body);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'MessageNotification(conversationId: $conversationId, title: $title, body: $body)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -294,6 +350,9 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is AppInfo) {
       buffer.putUint8(131);
       writeValue(buffer, value.encode());
+    } else if (value is MessageNotification) {
+      buffer.putUint8(132);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -308,6 +367,8 @@ class _PigeonCodec extends StandardMessageCodec {
         return LanSnapshot.decode(readValue(buffer)!);
       case 131:
         return AppInfo.decode(readValue(buffer)!);
+      case 132:
+        return MessageNotification.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -472,6 +533,168 @@ abstract class LanFlutterApi {
           final LanSnapshot arg_snapshot = args[0]! as LanSnapshot;
           try {
             api.onLanChanged(arg_snapshot);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+  }
+}
+
+class NotificationHostApi {
+  /// Constructor for [NotificationHostApi]. The [binaryMessenger] named argument is
+  /// available for dependency injection. If it is left null, the default
+  /// BinaryMessenger will be used which routes to the host platform.
+  NotificationHostApi({
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) : pigeonVar_binaryMessenger = binaryMessenger,
+       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
+           ? '.$messageChannelSuffix'
+           : '';
+
+  final BinaryMessenger? pigeonVar_binaryMessenger;
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  final String pigeonVar_messageChannelSuffix;
+
+  /// Whether notifications can be shown (permission on Android 13+, and the
+  /// user hasn't turned them off).
+  Future<bool> notificationsAllowed() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.NotificationHostApi.notificationsAllowed$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
+  /// Shows Android's permission prompt on Android 13+; true if allowed.
+  Future<bool> requestNotificationPermission() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.NotificationHostApi.requestNotificationPermission$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
+  Future<void> showMessageNotification(MessageNotification notification) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.NotificationHostApi.showMessageNotification$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[notification],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Removes this chat's notification (the chat was opened).
+  Future<void> cancelConversation(String conversationId) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.NotificationHostApi.cancelConversation$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[conversationId],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// The chat a notification tap launched the app with, once.
+  Future<String?> takeLaunchConversation() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.NotificationHostApi.takeLaunchConversation$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+    return pigeonVar_replyValue as String?;
+  }
+}
+
+abstract class NotificationFlutterApi {
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  /// A notification was tapped while the app was running.
+  void onNotificationOpened(String conversationId);
+
+  static void setUp(
+    NotificationFlutterApi? api, {
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) {
+    messageChannelSuffix = messageChannelSuffix.isNotEmpty
+        ? '.$messageChannelSuffix'
+        : '';
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.resqmesh.NotificationFlutterApi.onNotificationOpened$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_conversationId = args[0]! as String;
+          try {
+            api.onNotificationOpened(arg_conversationId);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

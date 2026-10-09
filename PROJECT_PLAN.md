@@ -8,7 +8,7 @@ Flutter Android app · works with the router's internet switched off · no cloud
 | Student | Jannatul Miskat Chowdhury (Roll 2405207), IIT, University of Dhaka |
 | Supervisor | Dr. Sumon Ahmed |
 | Product name | **LinkUp** (shown to users; ResQMesh stays the project and research name) |
-| Plan version | 1.0 · 8 Oct 2026 |
+| Plan version | 1.6 · 9 Oct 2026 |
 | Source | Build specification, 8 Oct 2026 (`docs/SPEC.md`, from `ResQMesh_prompt.txt`) |
 | Window | 1 Oct 2026 (Week 1) → ~17 Feb 2027 (Week 20) |
 
@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P3 code complete** (TCP connections) · P0 spike, inventory and review still open |
+| Phase | **P4 code complete** (text messaging) · P0 spike, inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P3 (planned for Weeks 3–6) passed their phase gates in Week 2. Verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
+| Health | Ahead of schedule: P1–P4 (planned for Weeks 3–7) passed their phase gates in Week 2. Verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
 | Blockers | None recorded |
 
 **This week**
@@ -875,13 +875,13 @@ P3 then tightens "online" to require a TCP HELLO.
 *Result (9 Oct):* gate passed (format, analyze, 138 tests, release build). On the Android 17 emulator the app connected to `tool/lan_peer_sim.py` over TCP, kept the connection alive with PING/PONG, and sent REGISTER on a rename. Two-phone run still needed.
 
 #### P4 · Text messaging (Week 7, 12–18 Nov)
-- [ ] **P4.1** MESSAGE, MESSAGE_ACK, MESSAGE_DELIVERED and MESSAGE_READ handlers; de-duplication on (`senderId`, `messageId`)
-- [ ] **P4.2** Send use case and status machine (§7.4); resend when the ACK is missing
-- [ ] **P4.3** Chat screen: bubbles, day separators, times, status ticks, reply, copy, delete, retry
-- [ ] **P4.4** Notification for an incoming message when its chat isn't open
-- [ ] **P4.5** Tests: status transitions, duplicate delivery, receipts arriving out of order, end-to-end text over loopback
+- [x] **P4.1** MESSAGE, MESSAGE_ACK, MESSAGE_DELIVERED and MESSAGE_READ handlers; de-duplication on (`senderId`, `messageId`)
+- [x] **P4.2** Send use case and status machine (§7.4); resend when the ACK is missing
+- [x] **P4.3** Chat screen: bubbles, day separators, times, status ticks, reply, copy, delete, retry
+- [x] **P4.4** Notification for an incoming message when its chat isn't open; `POST_NOTIFICATIONS` asked on the first chat, after a short explainer
+- [x] **P4.5** Tests: status transitions, duplicate delivery, receipts arriving out of order, end-to-end text over loopback
 
-Repositories are interfaces from P4 on. The in-memory version used here is replaced by drift in P5 and stays in use for tests.
+Repositories are interfaces from P4 on. The in-memory version used here is replaced by drift in P5 and stays in use for tests. Until then, chats are lost when Android closes the app.
 
 **Exit:** text works both ways between A and B, with Sent, Delivered and Read.
 
@@ -1213,3 +1213,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.3 | 8 Oct 2026 | P2 done: Kotlin bridge (Wi-Fi binding, hotspot detection, multicast lock), protocol codec and framing, UDP + NSD discovery engine, network-wide unique names, live status, People Nearby, developer screen; 112 tests; `tool/lan_peer_sim.py` for one-phone testing; `TESTING.md` started. `POST_NOTIFICATIONS` request moved to P4. |
 | 1.4 | 9 Oct 2026 | Product renamed **LinkUp** (user's choice; non-technical, single word). Name kept in one constant (`Brand.name`); internal identifiers unchanged. APKs now `LINKUP_version-N.apk`. |
 | 1.5 | 9 Oct 2026 | P3 done: control connections (HELLO handshake, PING/PONG, idle timeout, framing limits), connection manager (lower ID dials, grace period, duplicate tie-break, backoff, network reset, port fallback), REGISTER over TCP, "Online" now means connected, new "Found X, but couldn't connect" state. Simulator speaks TCP. |
+| 1.6 | 9 Oct 2026 | P4 done: direct text messages with ACK, delivered and read receipts; resend with the same ID after 10 s, failed after 5 tries, tap to retry; duplicates stored once; outbox sent when the person connects; chat screen (day separators, ticks, reply, copy, delete, retry); unread badges; notifications through the Kotlin bridge, with `POST_NOTIFICATIONS` asked on the first chat. Messages are in memory until P5. 169 tests. Simulator answers messages (`--echo`). |

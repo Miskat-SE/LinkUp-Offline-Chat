@@ -351,6 +351,56 @@ data class AppInfo (
     return "AppInfo(versionName=$versionName, versionCode=$versionCode)"
   }
 }
+
+/**
+ * A new-message notification.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class MessageNotification (
+  /** The other person's device ID; tapping opens this chat. */
+  val conversationId: String,
+  val title: String,
+  val body: String
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): MessageNotification {
+      val conversationId = pigeonVar_list[0] as String
+      val title = pigeonVar_list[1] as String
+      val body = pigeonVar_list[2] as String
+      return MessageNotification(conversationId, title, body)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      conversationId,
+      title,
+      body,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as MessageNotification
+    return PlatformApiPigeonUtils.deepEquals(this.conversationId, other.conversationId) && PlatformApiPigeonUtils.deepEquals(this.title, other.title) && PlatformApiPigeonUtils.deepEquals(this.body, other.body)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.conversationId)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.title)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.body)
+    return result
+  }
+  override fun toString(): String {
+    return "MessageNotification(conversationId=$conversationId, title=$title, body=$body)"
+  }
+}
 private open class PlatformApiPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -367,6 +417,11 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
       131.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
           AppInfo.fromList(it)
+        }
+      }
+      132.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          MessageNotification.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -386,10 +441,15 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
         stream.write(131)
         writeValue(stream, value.toList())
       }
+      is MessageNotification -> {
+        stream.write(132)
+        writeValue(stream, value.toList())
+      }
       else -> super.writeValue(stream, value)
     }
   }
 }
+
 
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface LanHostApi {
@@ -526,6 +586,145 @@ class LanFlutterApi(private val binaryMessenger: BinaryMessenger, private val me
       val channelName = "dev.flutter.pigeon.resqmesh.LanFlutterApi.onLanChanged$separatedMessageChannelSuffix"
       val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
       channel.send(listOf(snapshotArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+}
+/** Generated interface from Pigeon that represents a handler of messages from Flutter. */
+interface NotificationHostApi {
+  /**
+   * Whether notifications can be shown (permission on Android 13+, and the
+   * user hasn't turned them off).
+   */
+  fun notificationsAllowed(): Boolean
+  /** Shows Android's permission prompt on Android 13+; true if allowed. */
+  suspend fun requestNotificationPermission(): Boolean
+  fun showMessageNotification(notification: MessageNotification)
+  /** Removes this chat's notification (the chat was opened). */
+  fun cancelConversation(conversationId: String)
+  /** The chat a notification tap launched the app with, once. */
+  fun takeLaunchConversation(): String?
+
+  companion object {
+    /** The codec used by NotificationHostApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+    /** Sets up an instance of `NotificationHostApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: NotificationHostApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.notificationsAllowed$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.notificationsAllowed())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.requestNotificationPermission$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.requestNotificationPermission())
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.showMessageNotification$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val notificationArg = args[0] as MessageNotification
+            val wrapped: List<Any?> = try {
+              api.showMessageNotification(notificationArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.cancelConversation$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val conversationIdArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              api.cancelConversation(conversationIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.takeLaunchConversation$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.takeLaunchConversation())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}
+/** Generated class from Pigeon that represents Flutter messages that can be called from Kotlin. */
+class NotificationFlutterApi(private val binaryMessenger: BinaryMessenger, private val messageChannelSuffix: String = "") {
+  companion object {
+    /** The codec used by NotificationFlutterApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+  }
+  /** A notification was tapped while the app was running. */
+  suspend fun onNotificationOpened(conversationIdArg: String)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.NotificationFlutterApi.onNotificationOpened$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(conversationIdArg)) {
         if (it is List<*>) {
           if (it.size > 1) {
             continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))

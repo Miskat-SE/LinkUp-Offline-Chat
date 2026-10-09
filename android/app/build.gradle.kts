@@ -71,4 +71,6 @@ flutter {
 dependencies {
     // Needed by the pigeon-generated bridge code (FlutterApi callbacks).
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // NotificationCompat for message notifications (NotificationBridge.kt).
+    implementation("androidx.core:core-ktx:1.17.0")
 }

@@ -5,6 +5,7 @@ import 'package:resqmesh/app/app_shell.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/connection/connection_providers.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
+import 'package:resqmesh/features/chat/presentation/chat_screen.dart';
 import 'package:resqmesh/features/chat/presentation/home_screen.dart';
 import 'package:resqmesh/features/developer/presentation/developer_screen.dart';
 import 'package:resqmesh/features/discovery/presentation/people_screen.dart';
@@ -23,6 +24,8 @@ abstract final class Routes {
   static const changeName = '/settings/name';
   static const connection = '/settings/connection';
   static const developer = '/settings/developer';
+
+  static String chat(String peerId) => '/chat/$peerId';
 }
 
 /// Where start-up has got to; decides which screens may be shown.
@@ -74,6 +77,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.welcome,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/chat/:peerId',
+        builder: (context, state) =>
+            ChatScreen(peerId: state.pathParameters['peerId']!),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),

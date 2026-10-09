@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: phase P3 done (connections).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and keep a live connection to each other. Names are unique on the network. People Nearby shows who is online, and a hidden developer screen shows the network details. Chat and file transfer arrive in phases P4–P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
+> **Status: phase P4 done (text messaging).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. Messages to someone offline wait and go when they connect. Names are unique on the network. Saved chat history arrives in P5 and file sharing in P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
 
 ## Documents
 
@@ -65,7 +65,7 @@ keyPassword=…
 
 ## Permissions
 
-The app asks for no runtime permissions yet. It declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
+The only runtime permission is notifications (`POST_NOTIFICATIONS`), asked the first time you open a chat, after a short explanation. The app also declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
 
 ## Router isolation
 
@@ -73,7 +73,8 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 
 ## Known limitations (so far)
 
-- Discovery only; chat (P4) and file sharing (P6) are not built yet.
+- Chats are kept in memory: they are lost when Android closes the app. Saved history arrives in P5, file sharing in P6.
+- Group chat (*Everyone*, selected people) is *Coming soon* (P7).
 - Wi-Fi Direct and Bluetooth are shown as *Coming soon* (P13–P14).
-- Discovery runs while the app is open; background reachability arrives in P8.
+- Discovery and messages work while the app is open; background reachability arrives in P8.
 - Android only. iOS, desktop and web are out of scope.

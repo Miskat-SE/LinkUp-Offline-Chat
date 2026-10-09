@@ -233,7 +233,7 @@ class _PersonCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.tonalIcon(
-                    onPressed: null,
+                    onPressed: () => context.push(Routes.chat(peer.deviceId)),
                     icon: const Icon(Icons.chat_rounded),
                     label: const Text('Chat'),
                   ),
@@ -250,7 +250,7 @@ class _PersonCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Chat and file sharing are coming in the next updates.',
+              'File sharing is coming in a next update.',
               textAlign: TextAlign.center,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,

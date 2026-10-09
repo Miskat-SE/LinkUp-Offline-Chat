@@ -3,8 +3,9 @@
 
 Speaks the protocol from PROTOCOL.md: announces itself with HELLO every 5 s,
 answers DISCOVERY and NAME_CHECK, accepts TCP control connections (HELLO
-handshake, PING/PONG, REGISTER), and prints what it hears. Standard library
-only.
+handshake, PING/PONG, REGISTER), receives chat messages (MESSAGE_ACK and
+MESSAGE_DELIVERED back) and, with --echo, answers each one. Prints what it
+hears. Standard library only.
 
 Same Wi-Fi as a real phone (Mac and phone on one network):
     python3 tool/lan_peer_sim.py --name "Mac Tester"
@@ -36,7 +37,7 @@ def now():
 
 
 class Peer:
-    def __init__(self, name, listen, targets, tcp_port):
+    def __init__(self, name, listen, targets, tcp_port, echo=False):
         self.id = str(uuid.uuid4())
         self.name = name
         self.claimed_at = now()
@@ -52,6 +53,8 @@ class Peer:
         self.tcp.listen(8)
         self.tcp_port = self.tcp.getsockname()[1]
         self.conns = {}  # socket -> {"buf": bytes, "peer": name or None}
+        self.echo = echo
+        self.echoes = []  # (due time, socket, receiver id, text)
 
     def body(self, kind, payload, receiver="*"):
         return {
@@ -165,6 +168,15 @@ class Peer:
             elif kind_name == "PING":
                 nonce = p["payload"]["nonce"]
                 conn.sendall(self.frame("PONG", {"nonce": nonce}, sender))
+            elif kind_name == "MESSAGE":
+                mid, text = p["messageId"], p["payload"].get("text")
+                print(f"✉ {state['peer']}: {text!r}")
+                conn.sendall(self.frame("MESSAGE_ACK", {"ackFor": mid}, sender))
+                conn.sendall(self.frame("MESSAGE_DELIVERED", {"messageIds": [mid]}, sender))
+                if self.echo and text:
+                    self.echoes.append((time.monotonic() + 1.5, conn, sender, text))
+            elif kind_name in ("MESSAGE_ACK", "MESSAGE_DELIVERED", "MESSAGE_READ"):
+                print(f"  {kind_name} from {state['peer']!r}")
             elif kind_name == "REGISTER":
                 new = p["payload"]["name"]
                 print(f"~ REGISTER: {state['peer']!r} is now {new!r}")
@@ -172,6 +184,18 @@ class Peer:
                 conn.sendall(self.frame("REGISTER_RESPONSE", {"result": "ok", "name": new}, sender))
             else:
                 print(f"  TCP {kind_name} from {state['peer']!r}")
+
+    def send_echoes(self):
+        now = time.monotonic()
+        for item in [e for e in self.echoes if e[0] <= now]:
+            self.echoes.remove(item)
+            _, conn, receiver, text = item
+            if conn not in self.conns:
+                continue
+            payload = {"messageType": "text", "audience": "direct",
+                       "text": f"You said: {text}", "replyToId": None}
+            conn.sendall(self.frame("MESSAGE", payload, receiver))
+            print(f"✉ echo sent to {self.conns[conn]['peer']!r}")
 
     def run(self):
         print(f"Simulated phone {self.name!r} ({self.id[:4]}), sending to {self.targets}, TCP on {self.tcp_port}")
@@ -191,6 +215,7 @@ class Peer:
                         self.accept()
                     else:
                         self.on_tcp(r)
+                self.send_echoes()
         except KeyboardInterrupt:
             for target in self.targets:
                 self.send(self.packet("GOODBYE", {"reason": "appStopped"}), target)
@@ -202,6 +227,7 @@ def main():
     parser.add_argument("--name", default="Mac Tester", help="name to announce (2-30 characters)")
     parser.add_argument("--listen", type=int, default=PORT, help=f"UDP port to listen on (default {PORT})")
     parser.add_argument("--tcp", type=int, default=28771, help="TCP port to accept connections on (default 28771)")
+    parser.add_argument("--echo", action="store_true", help="answer every chat message")
     parser.add_argument(
         "--target",
         action="append",
@@ -212,7 +238,7 @@ def main():
     for t in args.target or [f"255.255.255.255:{PORT}"]:
         host, port = t.rsplit(":", 1)
         targets.append((host, int(port)))
-    Peer(args.name, args.listen, targets, args.tcp).run()
+    Peer(args.name, args.listen, targets, args.tcp, args.echo).run()
 
 
 if __name__ == "__main__":

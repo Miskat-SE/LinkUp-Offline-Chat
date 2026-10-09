@@ -8,9 +8,11 @@ import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/identity/identity_repository.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
+import 'package:resqmesh/core/platform/notifications.dart';
 import 'package:resqmesh/core/platform/platform_api.g.dart';
 
 import 'fake_network_monitor.dart';
+import 'fake_notifications.dart';
 import 'fake_peer_links.dart';
 import 'memory_datagram_network.dart';
 import 'memory_key_value_store.dart';
@@ -25,6 +27,7 @@ Future<void> launchApp(
   MemoryDatagramNetwork? lan,
   String ip = '192.168.0.10',
   FakePeerLinks? links,
+  FakeNotifications? notifications,
   bool settle = true,
 }) async {
   // A tall phone screen, so onboarding cards fit without scrolling.
@@ -60,6 +63,9 @@ Future<void> launchApp(
           (lan ?? MemoryDatagramNetwork()).binderFor(ip),
         ),
         serviceDiscoveryProvider.overrideWithValue(null),
+        appNotificationsProvider.overrideWithValue(
+          notifications ?? FakeNotifications(),
+        ),
         peerLinksFactoryProvider.overrideWithValue(
           (self, logger) => links ?? FakePeerLinks(),
         ),

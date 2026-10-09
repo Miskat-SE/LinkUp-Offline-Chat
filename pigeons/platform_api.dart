@@ -81,3 +81,42 @@ abstract class LanHostApi {
 abstract class LanFlutterApi {
   void onLanChanged(LanSnapshot snapshot);
 }
+
+/// A new-message notification.
+class MessageNotification {
+  MessageNotification({
+    required this.conversationId,
+    required this.title,
+    required this.body,
+  });
+
+  /// The other person's device ID; tapping opens this chat.
+  String conversationId;
+  String title;
+  String body;
+}
+
+@HostApi()
+abstract class NotificationHostApi {
+  /// Whether notifications can be shown (permission on Android 13+, and the
+  /// user hasn't turned them off).
+  bool notificationsAllowed();
+
+  /// Shows Android's permission prompt on Android 13+; true if allowed.
+  @async
+  bool requestNotificationPermission();
+
+  void showMessageNotification(MessageNotification notification);
+
+  /// Removes this chat's notification (the chat was opened).
+  void cancelConversation(String conversationId);
+
+  /// The chat a notification tap launched the app with, once.
+  String? takeLaunchConversation();
+}
+
+@FlutterApi()
+abstract class NotificationFlutterApi {
+  /// A notification was tapped while the app was running.
+  void onNotificationOpened(String conversationId);
+}

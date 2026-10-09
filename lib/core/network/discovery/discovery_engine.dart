@@ -542,7 +542,13 @@ final class DiscoveryEngine {
         );
       case RegisterResponsePacket(:final result, :final name):
         if (result == RegisterResult.nameTaken) _nameTaken(name);
-      case RegisterPacket() || PingPacket() || PongPacket():
+      case RegisterPacket() ||
+          PingPacket() ||
+          PongPacket() ||
+          MessagePacket() ||
+          MessageAckPacket() ||
+          MessageDeliveredPacket() ||
+          MessageReadPacket():
         // TCP-only packets; ignored if they arrive over UDP.
         break;
     }

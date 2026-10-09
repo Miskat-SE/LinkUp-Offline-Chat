@@ -81,6 +81,31 @@ void main() {
         nameClaimedAt: DateTime.utc(2026, 10, 8),
       ),
       PingPacket(header(receiver: _other), nonce: 42),
+      MessagePacket(
+        header(receiver: _other),
+        kind: MessageKind.text,
+        audience: MessageAudience.direct,
+        text: 'Are you coming? 👋',
+        replyToId: '9c8b7a65-4321-4fed-8cba-0987654321ab',
+      ),
+      MessagePacket(
+        header(receiver: _other),
+        kind: MessageKind.file,
+        audience: MessageAudience.broadcast,
+        file: const FileRef(
+          fileId: '0a4e6c1d-2b8f-4e57-a3c9-5d1f7e2b9c80',
+          name: 'project.zip',
+          size: 25794560,
+          mimeType: 'application/zip',
+          sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+        ),
+      ),
+      MessageAckPacket(header(receiver: _other), ackFor: _id),
+      MessageDeliveredPacket(header(receiver: _other), messageIds: const [_id]),
+      MessageReadPacket(
+        header(receiver: _other),
+        messageIds: const [_id, _other],
+      ),
       PongPacket(header(receiver: _other), nonce: 42),
       RegisterResponsePacket(
         header(),
@@ -192,6 +217,84 @@ void main() {
         contains('capabilities'),
       );
       expect(malformedReason(hello()..['payload'] = 'x'), contains('payload'));
+    });
+
+    test('chat messages are validated', () {
+      Map<String, Object?> message(Map<String, Object?> payload) =>
+          PacketCodec.toJson(
+            MessagePacket(
+              header(receiver: _other),
+              kind: MessageKind.text,
+              audience: MessageAudience.direct,
+              text: 'x',
+            ),
+          )..['payload'] = payload;
+
+      expect(
+        malformedReason(message({'messageType': 'text', 'audience': 'direct'})),
+        contains('text'),
+      );
+      expect(
+        malformedReason(
+          message({'messageType': 'text', 'audience': 'direct', 'text': '   '}),
+        ),
+        contains('text'),
+      );
+      expect(
+        malformedReason(
+          message({
+            'messageType': 'text',
+            'audience': 'direct',
+            'text': 'a' * (16 * 1024 + 1),
+          }),
+        ),
+        contains('text'),
+      );
+      expect(
+        malformedReason(
+          message({'messageType': 'text', 'audience': 'everyone', 'text': 'x'}),
+        ),
+        contains('audience'),
+      );
+      expect(
+        malformedReason(
+          message({
+            'messageType': 'text',
+            'audience': 'direct',
+            'text': 'x',
+            'replyToId': 'nope',
+          }),
+        ),
+        contains('replyToId'),
+      );
+      expect(
+        malformedReason(
+          message({
+            'messageType': 'file',
+            'audience': 'direct',
+            'file': {
+              'fileId': _id,
+              'name': 'a.zip',
+              'size': 1,
+              'mimeType': 'application/zip',
+              'sha256': 'not-a-hash',
+            },
+          }),
+        ),
+        contains('sha256'),
+      );
+    });
+
+    test('receipts carry 1 to 100 message IDs', () {
+      Map<String, Object?> read(List<Object?> ids) => PacketCodec.toJson(
+        MessageReadPacket(header(receiver: _other), messageIds: const [_id]),
+      )..['payload'] = {'messageIds': ids};
+      expect(malformedReason(read([])), contains('empty'));
+      expect(
+        malformedReason(read(List.filled(101, _id))),
+        contains('too long'),
+      );
+      expect(malformedReason(read(['x'])), contains('IDs'));
     });
 
     test('nameTaken must say who holds the name', () {

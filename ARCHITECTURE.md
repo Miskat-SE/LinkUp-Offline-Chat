@@ -38,7 +38,9 @@ lib/
 │   └── storage/key_value_store.dart   KeyValueStore over SharedPreferencesWithCache
 ├── features/
 │   ├── onboarding/presentation/  Splash; onboarding (welcome → name → how to connect)
-│   ├── chat/presentation/        Home (greeting, connection card, chat list shell), New chat sheet
+│   ├── chat/domain/              ChatMessage, MessageStatus, ConversationSummary, MessageRepository
+│   ├── chat/data/                InMemoryMessageRepository, MessagingService, chat providers
+│   ├── chat/presentation/        Home (chat list), Chat screen, message bubbles, New chat sheet
 │   ├── users/presentation/       People Nearby shell
 │   └── settings/presentation/    Settings, Change name, How you connect, theme mode
 └── shared/widgets/               AppMark, UserAvatar, EmptyState, NameForm, MeshIllustration,
@@ -124,6 +126,25 @@ DiscoveryEngine ──online peers──▶ ConnectionManager (PeerLinks) ──
 - **`RegisterHandler`** sends REGISTER to every connection when the name changes. It applies renames from others, and answers `nameTaken` if this device holds the name under the clash rule.
 - **`NearbySnapshot`** combines discovery and connections. *Online* means a live connection. Other people show as *Connecting…*, *Can't connect*, or *Last seen*. A device that connected to us but was never discovered still appears.
 - **`PeerLinks`** is an interface: widget tests use a stand-in, while `ConnectionManager` is tested on real loopback sockets.
+
+## Messaging (P4)
+
+```
+ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──▶ other phone
+     ▲                   │  ▲                                        │
+     │ watchConversation │  └──── ACK · DELIVERED · READ ◀───────────┘
+     └──── MessageRepository (in memory now, drift in P5)
+```
+
+- **`MessagingService`** (`lib/features/chat/data/messaging_service.dart`) owns the status machine:
+  - Every message is stored first as *pending*, then sent if the person is connected (*sending*).
+  - ACK → *sent*, DELIVERED → *delivered*, READ → *read*. Status never moves backwards, so late receipts are harmless.
+  - No ACK within 10 s: resend with the same message ID. After 5 attempts: *failed*, and the user can tap to retry.
+  - Losing the connection puts *sending* messages back to *pending*. When a person connects, their pending messages go out in the order they were written.
+  - Incoming messages must be addressed to this device. Duplicates are stored once and answered with ACK and DELIVERED again (and READ if already read), so a sender whose receipts were lost catches up.
+  - Receipts only count when they come from the message's recipient.
+- **`MessageRepository`** is an interface. P4 keeps messages in memory; P5 swaps in drift and keeps the in-memory one for tests.
+- **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
 
 ## Testing
 

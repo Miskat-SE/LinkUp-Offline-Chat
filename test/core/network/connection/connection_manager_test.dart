@@ -93,6 +93,9 @@ final class RawClient {
       onDone: _markClosed,
       onError: (Object _) => _markClosed(),
     );
+    // Writing to a socket the server already reset fails here; that is
+    // expected in refusal tests, not an error.
+    unawaited(socket.done.then((_) {}, onError: (Object _) {}));
   }
 
   void _markClosed() {

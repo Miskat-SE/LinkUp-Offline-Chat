@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test        # 138 tests, about 10 seconds
+flutter test        # 169 tests, about 15 seconds
 ```
 
 | Area | File | What it proves |
@@ -20,16 +20,19 @@ flutter test        # 138 tests, about 10 seconds
 | Sockets | `test/core/network/network_test.dart` | Real UDP sockets on loopback; subnet and broadcast maths; display names; "last seen" text |
 | TCP connections | `test/core/network/connection/connection_manager_test.dart` | Real sockets on loopback: lower ID dials, grace period, duplicate tie-break, keep-alive and round-trip time, idle timeout, no HELLO, packets before HELLO, malformed and oversized frames, self-connection, wrong device at an address, reconnect, network reset, port fallback |
 | Nearby and REGISTER | `test/core/network/connection/nearby_and_register_test.dart` | Online means connected; unreachable state; devices only seen over TCP; renames applied and answered |
+| Message store | `test/features/chat/message_repository_test.dart` | Duplicates refused; chat order; unread counts; status never moves backwards; outbox order |
+| Messaging | `test/features/chat/messaging_service_test.dart` | Two phones on fake time: sent, delivered and read; offline outbox in order; lost ACK resends once stored once; fails after 5 tries and retry; connection lost mid-send; late receipts; spoofed receipts and misaddressed messages ignored; replies; delete |
+| Chat UI | `test/features/chat/chat_ui_test.dart` | Whole app: send from People with ticks, new message badge and notification, reading sends READ, notification explainer, long-press Copy / Reply / Delete, waiting to send, tapping a notification opens the chat |
 | App flows | `test/features/onboarding/onboarding_flow_test.dart` | Whole app: onboarding, relaunch, tabs, New chat sheet, Change name, connection method, theme |
 | Discovery UI | `test/features/discovery/discovery_ui_test.dart` | Whole app with a second simulated phone: status line, People Nearby, leaving, name taken during onboarding, clash banner, developer screen |
 
-**Stand-ins.** Tests replace only what needs a phone: SharedPreferences (`MemoryKeyValueStore`), the Wi-Fi bridge (`FakeNetworkMonitor`) and UDP (`MemoryDatagramNetwork`, which behaves like a LAN: broadcast, unicast, unreachable phones, routers that drop broadcasts). The discovery engine, codec and UI under test are the real code. Socket code is also tested on real loopback sockets.
+**Stand-ins.** Tests replace only what needs a phone: SharedPreferences (`MemoryKeyValueStore`), the Wi-Fi bridge (`FakeNetworkMonitor`), notifications (`FakeNotifications`), TCP links in widget and messaging tests (`FakePeerLinks`, `LinkedPair`, which can cut the connection or lose packets) and UDP (`MemoryDatagramNetwork`, which behaves like a LAN: broadcast, unicast, unreachable phones, routers that drop broadcasts). The discovery engine, codec and UI under test are the real code. Socket code is also tested on real loopback sockets.
 
 **Timing.** Discovery tests run on fake time (`fake_async`), so "offline after 20 s" or "name free after 3 s" run instantly and exactly.
 
 ## 2. Testing with one phone: the simulated peer
 
-`tool/lan_peer_sim.py` pretends to be a second phone. It announces itself, answers DISCOVERY and NAME_CHECK, and accepts TCP connections on port 28771: the HELLO handshake, PING and REGISTER. It prints what it hears and needs only Python 3.
+`tool/lan_peer_sim.py` pretends to be a second phone. It announces itself, answers DISCOVERY and NAME_CHECK, and accepts TCP connections on port 28771: the HELLO handshake, PING, REGISTER and MESSAGE (answered with ACK and DELIVERED). With `--echo` it also replies to each message with *You said: …*. It prints what it hears and needs only Python 3.
 
 **Real phone + Mac on the same Wi-Fi**
 
@@ -43,7 +46,7 @@ The phone should show *Mac Tester* in People Nearby within a few seconds, and th
 
 ```sh
 adb emu redir add udp:28760:28760
-python3 tool/lan_peer_sim.py --name "Mac Tester" --listen 28770 --tcp 28771 --target 127.0.0.1:28760
+python3 tool/lan_peer_sim.py --name "Mac Tester" --listen 28770 --tcp 28771 --target 127.0.0.1:28760 --echo
 # when done:
 adb emu redir del udp:28760
 ```
@@ -58,7 +61,7 @@ From PROJECT_PLAN.md §13.2. Fill in one row per run.
 
 | ID | Test | Phones / router | Build | Result | Notes |
 |---|---|---|---|---|---|
-| R1–R5 | Text and files (needs P4–P6) | | | — | |
+| R1–R5 | Text (P4) and files (needs P6) | | | — | |
 | R6 | Router WAN unplugged, Wi-Fi on: discovery | | | | |
 | R7 | Mobile data on + Wi-Fi without internet | | | | |
 | R8 | Router reboot: peers rediscovered within 60 s | | | | |
@@ -74,5 +77,6 @@ From PROJECT_PLAN.md §13.2. Fill in one row per run.
 | 8 Oct 2026 | Android 17 emulator + `lan_peer_sim.py` on the Mac | version 3 | Wi-Fi bridge (joined, bound to Wi-Fi, interfaces), UDP bound on 28760, NSD browsing, simulated peer appears *Online* in Home and People, GOODBYE moves it to *Seen earlier*, isolation hint after 30 s alone, developer unlock by 7 taps | Pass |
 
 | 9 Oct 2026 | Android 17 emulator + simulator with TCP | version 5 | Version 5: app dials the simulator after the 3 s grace period; handshake; Home shows *connected · 1 nearby* only once TCP is up; rename sends REGISTER (`'Yusuf' is now 'Yusuf Ali'`); connection kept open by PING/PONG | Pass |
+| 9 Oct 2026 | Android 17 emulator + simulator with `--echo` | version 6 | First chat shows the notification explainer, then Android's permission dialog (allowed); message goes Sending → Delivered; echo reply arrives; with the app in the background the reply shows a *LinkUp · Mac Tester* notification; tapping it opens that chat | Pass |
 
 **Still needed for M2** (plan §11.2): two real phones on a router with the internet unplugged and mobile data on. They should see each other within 10 s, go offline within 20 s of Wi-Fi off, and be rediscovered after a router reboot.

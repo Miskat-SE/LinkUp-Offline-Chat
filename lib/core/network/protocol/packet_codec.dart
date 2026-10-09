@@ -132,7 +132,17 @@ abstract final class PacketCodec {
     PacketType.registerResponse,
     PacketType.ping,
     PacketType.pong,
+    PacketType.message,
+    PacketType.messageAck,
+    PacketType.messageDelivered,
+    PacketType.messageRead,
   };
+
+  /// Longest message text, in UTF-8 bytes (PROTOCOL.md §5).
+  static const maxTextBytes = 16 * 1024;
+
+  /// Most message IDs in one receipt.
+  static const maxReceiptIds = 100;
 
   static Packet _packet(String type, PacketHeader header, _Reader p) {
     switch (type) {
@@ -184,8 +194,74 @@ abstract final class PacketCodec {
           header,
           nonce: p.integer('nonce', min: 0, max: 0x7FFFFFFF),
         );
+      case PacketType.message:
+        return _message(header, p);
+      case PacketType.messageAck:
+        return MessageAckPacket(header, ackFor: p.id('ackFor'));
+      case PacketType.messageDelivered:
+        return MessageDeliveredPacket(header, messageIds: _ids(p));
+      case PacketType.messageRead:
+        return MessageReadPacket(header, messageIds: _ids(p));
     }
     throw _Invalid('unhandled type $type');
+  }
+
+  static MessagePacket _message(PacketHeader header, _Reader p) {
+    final kind = switch (p.string('messageType', maxLength: 8)) {
+      'text' => MessageKind.text,
+      'file' => MessageKind.file,
+      final other => throw _Invalid('payload.messageType "$other" is unknown'),
+    };
+    final audience = switch (p.string('audience', maxLength: 16)) {
+      'direct' => MessageAudience.direct,
+      'broadcast' => MessageAudience.broadcast,
+      'multi' => MessageAudience.multi,
+      final other => throw _Invalid('payload.audience "$other" is unknown'),
+    };
+    final text = p.optionalString('text', maxLength: maxTextBytes);
+    if (text != null && utf8.encode(text).length > maxTextBytes) {
+      throw const _Invalid('payload.text is too long');
+    }
+    if (kind == MessageKind.text && (text == null || text.trim().isEmpty)) {
+      throw const _Invalid('payload.text is missing');
+    }
+    FileRef? file;
+    if (kind == MessageKind.file) {
+      final f = _Reader(p.map('file'), prefix: 'payload.file.');
+      final sha256 = f.string('sha256', maxLength: 64);
+      if (!_sha256.hasMatch(sha256)) {
+        throw const _Invalid('payload.file.sha256 is not a SHA-256 hash');
+      }
+      file = FileRef(
+        fileId: f.id('fileId'),
+        name: f.string('name', maxLength: 255),
+        size: f.integer('size', min: 0, max: 1 << 50),
+        mimeType: f.string('mimeType', maxLength: 127),
+        sha256: sha256,
+      );
+    }
+    return MessagePacket(
+      header,
+      kind: kind,
+      audience: audience,
+      text: text,
+      replyToId: p.optionalId('replyToId'),
+      file: file,
+    );
+  }
+
+  static final _sha256 = RegExp(r'^[0-9a-f]{64}$');
+
+  static List<String> _ids(_Reader p) {
+    final ids = p.list('messageIds', maxLength: maxReceiptIds);
+    if (ids.isEmpty) throw const _Invalid('payload.messageIds is empty');
+    return [
+      for (final id in ids)
+        if (id is String && isId(id))
+          id
+        else
+          throw const _Invalid('payload.messageIds must be IDs'),
+    ];
   }
 
   static Announcement _announcement(_Reader p) {
@@ -236,6 +312,23 @@ abstract final class PacketCodec {
       'nameClaimedAt': _time(nameClaimedAt),
     },
     PingPacket(:final nonce) || PongPacket(:final nonce) => {'nonce': nonce},
+    MessagePacket() => {
+      'messageType': packet.kind.name,
+      'audience': packet.audience.name,
+      'text': packet.text,
+      'replyToId': packet.replyToId,
+      if (packet.file case final file?)
+        'file': {
+          'fileId': file.fileId,
+          'name': file.name,
+          'size': file.size,
+          'mimeType': file.mimeType,
+          'sha256': file.sha256,
+        },
+    },
+    MessageAckPacket(:final ackFor) => {'ackFor': ackFor},
+    MessageDeliveredPacket(:final messageIds) ||
+    MessageReadPacket(:final messageIds) => {'messageIds': messageIds},
     RegisterResponsePacket() => {
       'result': packet.result.name,
       'name': packet.name,
@@ -300,6 +393,9 @@ final class _Reader {
   }
 
   DateTime? optionalTime(String key) => _json[key] == null ? null : time(key);
+
+  String? optionalString(String key, {required int maxLength}) =>
+      _json[key] == null ? null : string(key, maxLength: maxLength);
 
   Map<String, Object?> map(String key) {
     final value = _required(key);

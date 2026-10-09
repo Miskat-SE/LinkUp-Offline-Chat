@@ -19,6 +19,7 @@ abstract final class StoreKeys {
   static const themeMode = 'settings.themeMode';
   static const connectionMethod = 'settings.connectionMethod';
   static const developerMode = 'settings.developerMode';
+  static const notificationsAsked = 'settings.notificationsAsked';
 
   static const all = {
     deviceId,
@@ -27,6 +28,7 @@ abstract final class StoreKeys {
     themeMode,
     connectionMethod,
     developerMode,
+    notificationsAsked,
   };
 }
 

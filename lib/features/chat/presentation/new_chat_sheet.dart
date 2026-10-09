@@ -1,14 +1,34 @@
+import 'package:clock/clock.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:resqmesh/app/router.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
+import 'package:resqmesh/core/network/lan_providers.dart';
+import 'package:resqmesh/core/network/nearby.dart';
+import 'package:resqmesh/core/utils/relative_time.dart';
+import 'package:resqmesh/shared/widgets/user_avatar.dart';
 
-/// "New chat" options (spec §8, §14). Each needs people to be discoverable
-/// first, so all three are marked "Coming soon" in this build.
-Future<void> showNewChatSheet(BuildContext context) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => const _NewChatSheet(),
-    );
+/// "New chat" options (spec §8, §14). One person works now; everyone and
+/// selected people arrive with broadcast (P7).
+Future<void> showNewChatSheet(BuildContext context) async {
+  final choice = await showModalBottomSheet<_Choice>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => const _NewChatSheet(),
+  );
+  if (choice != _Choice.person || !context.mounted) return;
+  final peerId = await showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => const _PersonPicker(),
+  );
+  if (peerId != null && context.mounted) {
+    await context.push(Routes.chat(peerId));
+  }
+}
+
+enum _Choice { person }
 
 class _NewChatSheet extends StatelessWidget {
   const _NewChatSheet();
@@ -37,10 +57,11 @@ class _NewChatSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            const _Option(
+            _Option(
               icon: Icons.person_rounded,
               title: 'One person',
               body: 'A private chat with someone nearby.',
+              onTap: () => Navigator.pop(context, _Choice.person),
             ),
             const _Option(
               icon: Icons.campaign_rounded,
@@ -60,76 +81,172 @@ class _NewChatSheet extends StatelessWidget {
 }
 
 class _Option extends StatelessWidget {
-  const _Option({required this.icon, required this.title, required this.body});
+  const _Option({
+    required this.icon,
+    required this.title,
+    required this.body,
+    this.onTap,
+  });
 
   final IconData icon;
   final String title;
   final String body;
 
+  /// Null means not available yet ("Coming soon").
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final available = onTap != null;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Semantics(
-        label: '$title, coming soon',
+        button: available,
+        label: available ? title : '$title, coming soon',
         excludeSemantics: true,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerLow,
+        child: Material(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(AppRadii.md),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: scheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(24),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: available
+                          ? scheme.primaryContainer
+                          : scheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: available
+                          ? scheme.onPrimaryContainer
+                          : scheme.onSecondaryContainer,
+                    ),
                   ),
-                  child: Icon(icon, color: scheme.onSecondaryContainer),
-                ),
-                const SizedBox(width: AppSpacing.lg),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.textTheme.titleMedium),
-                      Text(
-                        body,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: theme.textTheme.titleMedium),
+                        Text(
+                          body,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  if (available)
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: scheme.onSurfaceVariant,
+                    )
+                  else
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: scheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(AppRadii.xl),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Text(
+                          'Coming soon',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: scheme.onTertiaryContainer,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: scheme.tertiaryContainer,
-                    borderRadius: BorderRadius.circular(AppRadii.xl),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.xs,
                     ),
-                    child: Text(
-                      'Coming soon',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: scheme.onTertiaryContainer,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pick someone nearby to chat with; people online are listed first.
+class _PersonPicker extends ConsumerWidget {
+  const _PersonPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final people = ref.watch(nearbyProvider).peers;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: Text('Chat with', style: theme.textTheme.headlineSmall),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (people.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Text(
+                  'Nobody nearby yet. People on the same Wi-Fi or hotspot '
+                  'appear here.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final person in people)
+                      ListTile(
+                        leading: UserAvatar(
+                          name: person.peer.name,
+                          seed: person.peer.deviceId,
+                          size: 44,
+                        ),
+                        title: Text(person.peer.name),
+                        subtitle: Text(switch (person.link) {
+                          LinkState.connected => 'Online',
+                          LinkState.connecting => 'Connecting…',
+                          LinkState.unreachable => "Can't connect",
+                          LinkState.offline =>
+                            'Last seen '
+                                '${relativeTime(person.peer.lastSeen, clock.now())}',
+                        }),
+                        onTap: () =>
+                            Navigator.pop(context, person.peer.deviceId),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
