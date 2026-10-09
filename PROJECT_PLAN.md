@@ -8,7 +8,7 @@ Flutter Android app · works with the router's internet switched off · no cloud
 | Student | Jannatul Miskat Chowdhury (Roll 2405207), IIT, University of Dhaka |
 | Supervisor | Dr. Sumon Ahmed |
 | Product name | **LinkUp** (shown to users; ResQMesh stays the project and research name) |
-| Plan version | 1.9 · 10 Oct 2026 |
+| Plan version | 2.0 · 10 Oct 2026 |
 | Source | Build specification, 8 Oct 2026 (`docs/SPEC.md`, from `ResQMesh_prompt.txt`) |
 | Window | 1 Oct 2026 (Week 1) → ~17 Feb 2027 (Week 20) |
 
@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P7 code complete** (Everyone and selected people) · 3-phone exit test, 2 GB soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
+| Phase | **P8 code complete** (background receiving) · P7 3-phone test, P8 real-phone checks, 2 GB soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P7 (planned for Weeks 3–12) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; images sent several times both ways on the two real phones (user, 10 Oct); **the 2 GB two-phone soak (M4) is still to do**. |
+| Health | Ahead of schedule: P1–P8 (planned for Weeks 3–13) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; images sent several times both ways on the two real phones (user, 10 Oct); **the 2 GB two-phone soak (M4) is still to do**. |
 | Blockers | None recorded |
 
 **This week**
@@ -819,7 +819,7 @@ Task IDs (`P6.3`) go in branch names and commit messages (§15.3).
 - [x] **P0.2** Vet the packages (§5.1), pin versions and fill in the Status column; check the M3 Expressive community packages
 - [ ] **P0.3** Confirm platform facts:
   - [x] `ACCESS_LOCAL_NETWORK` rules: enforced only from `targetSdk` 37 (ADR-0015)
-  - [ ] `connectedDevice` service requirements (check against the docs in P8)
+  - [x] `connectedDevice` service requirements: `FOREGROUND_SERVICE_CONNECTED_DEVICE` plus a prerequisite permission, met by `CHANGE_WIFI_MULTICAST_STATE`; the service starts only while the app is visible or already running (P8)
   - [x] `file_picker` copies every picked file into the cache (ADR-0014)
   - [x] Flutter 3.47.6 defaults: `compileSdk` 36, `targetSdk` 36, `minSdk` 24
   - [ ] Whether `bindProcessToNetwork` applies to `dart:io` sockets (needs phones; P0.5)
@@ -930,14 +930,14 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 **Exit:** 3 phones receive a broadcast text and file, with correct per-recipient status. *Shown on loopback with real sockets and engines (test); on 3 real phones still to do.*
 
 #### P8 · Background receiving (Week 13, 24–30 Dec)
-- [ ] **P8.1** Cached `FlutterEngine` in `Application`; `MainActivity` attaches to it
-- [ ] **P8.2** `LanForegroundService` (`connectedDevice`): starts with transfers, shows *"Receiving video.mp4 — 62%"*, stops when idle
-- [ ] **P8.3** *Stay reachable* setting, offered once; low-importance ongoing notification
-- [ ] **P8.4** Wi-Fi lock and partial wake lock during active transfers only
-- [ ] **P8.5** Notification taps open the chat or transfer details; Activity screen
-- [ ] **P8.6** Lifecycle checks on devices (screen off, background, swiped away, Doze via `adb shell dumpsys deviceidle force-idle`, OEM battery savers); results in `TESTING.md`, limitations in the README
+- [x] **P8.1** Cached `FlutterEngine` in `Application`; `MainActivity` attaches to it
+- [x] **P8.2** `LanForegroundService` (`connectedDevice`): starts with transfers, shows *"Receiving video.mp4 — 62%"*, stops when idle
+- [x] **P8.3** *Stay reachable* setting, offered once; low-importance ongoing notification
+- [x] **P8.4** Wi-Fi lock and partial wake lock during active transfers only
+- [x] **P8.5** Notification taps open the chat or transfer details; Activity screen
+- [ ] **P8.6** *(Emulator done: screen off, background, swiped away, Doze; see TESTING.md. Real phones and OEM battery savers still to do.)* Lifecycle checks on devices (screen off, background, swiped away, Doze via `adb shell dumpsys deviceidle force-idle`, OEM battery savers); results in `TESTING.md`, limitations in the README
 
-**Exit:** a 1 GB file is received with the screen off and the app in the background; every row of §5.6 is checked and documented.
+**Exit:** a 1 GB file is received with the screen off and the app in the background; every row of §5.6 is checked and documented. *Shown on the emulator (1 GB in 32 s, screen off, app in the background); real phones still to do.*
 
 #### P9 · Security hardening (Week 14, 31 Dec–6 Jan)
 - [ ] **P9.1** Review every inbound path against §7.6 and §9; add any missing checks
@@ -1219,3 +1219,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.7 | 9 Oct 2026 | P5 done: SQLite through drift (schema v1, `messages` only; D22 and ADR-0020); chats, unread counts and the outbox survive restarts; interrupted sends wait again at start; delivery and read receipts queue until the sender reconnects; each connection gets a full 5 attempts; Settings → Storage with *Clear chat history*; migration test scaffold. 189 tests. The release APK grows by about 7 MB (SQLite for three CPU types; a Play Store bundle splits it). The simulator keeps one device ID per name. |
 | 1.8 | 9 Oct 2026 | P6 done (code): file transfer in a worker isolate on its own port (D23, ADR-0021; `filePort` in HELLO), FILE_* packets, schema v2 with the `files` table, resume by offset, 3 automatic resumes then Retry, one retry after a checksum mismatch, duplicates by file ID and by content, at most 3 uploads at a time, 4 GiB and free-space checks. Attach sheet, file cards, File Preview (Open, Share, Save to Downloads), Transfer Details, Storage v1 with all four actions (Clear all local data restarts at onboarding). Kotlin `FileBridge` (FileProvider with hard links, MediaStore, thumbnails, free space); `REQUEST_INSTALL_PACKAGES` so received APKs open in the system installer. Discovery now reopens its UDP socket after Android cuts a backgrounded app's network. Simulator sends and receives files. 261 tests. |
 | 1.9 | 10 Oct 2026 | P7 done (code): Everyone thread (one message to the people online at that moment, `message_recipients` with per-person status, "Delivered to 2 of 3", per-person retry and receipts, sender names, notifications "Rahim · Everyone"); selected people as one direct message each, queued for anyone offline; files fanned out with one copy and one hash. Schema v3 (`audience`, `senderId`, `message_recipients`). New chat options and People Nearby → Select people. 3-phone loopback test with real sockets. Milestone table updated. 284 tests. |
+| 2.0 | 10 Oct 2026 | P8 done (code): the `Application` owns a cached FlutterEngine and the bridges (screen-independent); `LanForegroundService` (`connectedDevice`) runs while files move ("Receiving video.mp4 — 62%", updated at most once a second) or with *Stay reachable* on, with Wi-Fi and partial wake locks during transfers only; *Stay reachable* in Settings, offered once on Home; battery settings link; notification taps carry an app route (chat, transfer details, Activity); Activity screen; HELLO every 15 s in the background. Emulator: 1 GB received with the screen off, Doze, swipe-away. 292 tests. |

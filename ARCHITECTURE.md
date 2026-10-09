@@ -154,6 +154,23 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 - **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
 
+## Background (P8)
+
+```
+ResQMeshApp (Application) ── cached FlutterEngine ── Dart: discovery, messages, transfers
+   └ bridges: LanBridge · NotificationBridge · FileBridge · BackgroundBridge
+MainActivity ── attaches to the cached engine; doesn't destroy it
+BackgroundCoordinator (Dart) ── BackgroundState ──▶ LanForegroundService (connectedDevice)
+                                                     ├ while files move: progress notification + Wi-Fi/wake locks
+                                                     └ Stay reachable, idle: quiet "reachable" notification
+```
+
+- The engine and bridges belong to the process, not the screen: closing or swiping away the screen leaves the Dart code running if the service runs.
+- `BackgroundCoordinator` (app layer) listens to `TransferService.changes` and sends the service at most one update a second: one file ("Receiving video.mp4 — 62%", opens its details) or several ("Sending 2 files · receiving 1", opens Activity). With nothing moving and *Stay reachable* off, the service stops.
+- Android 12+ only allows starting the service while the app is visible; it starts when a transfer begins (the app is open then) or when *Stay reachable* is switched on.
+- Notification taps carry an app route. `NotificationBridge` keeps it until Dart takes it (`takeOpenedRoute`), so a tap is never lost or handled twice even though the Dart code starts before the screen.
+- Discovery sends HELLO every 15 s while the app is in the background (§6.2).
+
 ## Everyone and selected people (P7)
 
 - **Everyone:** `MessagingService.sendToEveryone` takes the people connected at that moment, stores one message (conversation `everyone`) plus one `message_recipients` row per person, and sends each their own MESSAGE (same ID). Each recipient has its own retries (10 s, 5 tries), receipts and outbox entry, exactly like a direct message. The bubble shows a `DeliverySummary` ("Delivered to 2 of 3"); tapping it lists each person.
@@ -215,6 +232,8 @@ TransferService ── upload · answer · stop ──────────�
 | Transfer state machine and decisions | `test/features/file_transfer/transfer_service_test.dart` |
 | File screens (whole app) | `test/features/file_transfer/file_ui_test.dart` |
 | File messages between two phones | `test/features/chat/file_messages_test.dart` |
+| Background service wording, throttling, start/stop | `test/app/background_coordinator_test.dart` |
+| Stay reachable, battery link, Activity, notification routes | `test/features/settings/background_ui_test.dart` |
 | Everyone and selected people (3 phones) | `test/features/chat/broadcast_test.dart`, `broadcast_loopback_test.dart`, `broadcast_ui_test.dart` |
 | File names, storage paths, SHA-256 vectors | `test/core/storage/file_name_sanitizer_test.dart` |
 | Schema snapshots and migrations | `test/drift/app_database/migration_test.dart` |

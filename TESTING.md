@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test        # 284 tests, about 30 seconds (the 200 MB transfer test takes most of it)
+flutter test        # 292 tests, about 30 seconds (the 200 MB transfer test takes most of it)
 ```
 
 | Area | File | What it proves |
@@ -30,6 +30,8 @@ flutter test        # 284 tests, about 30 seconds (the 200 MB transfer test take
 | Everyone and selected people | `test/features/chat/broadcast_test.dart` | Three phones: Everyone reaches those online, each tracked; only people online at that moment; nobody online; one recipient failing while others succeed, then Retry; a recipient dropping out gets it on return; READ to each sender; selected people as direct messages queued for those away; one hash per file for several people and for Everyone; restart recovery; chat-list preview; one packet per recipient with the same ID |
 | 3 phones on loopback | `test/features/chat/broadcast_loopback_test.dart` | **P7 exit:** real sockets and transfer engines; a broadcast text and a 3 MB file reach both phones byte-identical, with "Delivered to 2 of 2" |
 | Everyone screens | `test/features/chat/broadcast_ui_test.dart` | Everyone send with summary and per-person sheet; nobody online; an incoming Everyone message in the list, notification and thread; Select people → send |
+| Background service | `test/app/background_coordinator_test.dart` | Notification wording for one file, several files and preparing; routes; the service follows a transfer at most once per interval and stops after it; Stay reachable keeps it running |
+| Background screens | `test/features/settings/background_ui_test.dart` | Stay reachable offered once on Home; Settings switch and battery link; a transfer in Activity; the service notification's tap opens Transfer Details |
 | File screens | `test/features/file_transfer/file_ui_test.dart` | Whole app: attach → review → remove → send → Sending % → Sent; receive with progress → preview → Open, Share, Save; details with live numbers and Pause; Storage *Clear all local data* back to onboarding |
 | File names | `test/core/storage/file_name_sanitizer_test.dart` | Traversal, hidden names, control and bidi characters, reserved names, 255-byte limit on character boundaries; storage paths from IDs; SHA-256 test vectors |
 | App flows | `test/features/onboarding/onboarding_flow_test.dart` | Whole app: onboarding, relaunch, tabs, New chat sheet, Change name, connection method, theme |
@@ -97,6 +99,7 @@ From PROJECT_PLAN.md §13.2. Fill in one row per run.
 | 9 Oct 2026 | **Two real phones** (Yusuf and Miskat) on a router with the internet unplugged | version 7 | Text messages sent and received both ways (run by the user). A first attempt failed one way until the phones' Wi-Fi was sorted out; the cause wasn't captured. If it happens again, compare Settings → Developer options on both phones: *Bound to Wi-Fi*, *Peers*, the packet counters and the errors. | Pass |
 | 9 Oct 2026 | Android 17 emulator + simulator with files | version 8 | **1 GB Mac → app**: offered, confirmed, received, checksum verified, card shows it; 1,073.7 MB in 109 s (9.8 MB/s through `adb forward`); app memory about 80 MB PSS afterwards. File picker → Send sheet (*Send to Mac Tester · 1 file · 286 MB*). Found: after the picker put the app in the background, Android cut its network and the discovery socket never recovered (fixed in version 9). | Pass, one bug found |
 | 10 Oct 2026 | **Two real phones** | version 9 | Images sent several times in both directions (run by the user). | Pass |
+| 10 Oct 2026 | Android 17 emulator + simulator | version 11 | **P8 exit:** 1 GB from the Mac started with the app open; then Home and screen off: service `connectedDevice` running, notification *Receiving bg_test_1GB.bin — 35%*; finished in 31.7 s (33.8 MB/s), checksum verified; service stopped after. *Stay reachable* on: 90 s of forced Doze (`dumpsys deviceidle force-idle`) without losing the connection; swiped from Recents: process, service and connection stayed; reopened warm in 1.3 s on the same engine. Same file offered again: answered as a duplicate at once. | Pass |
 | 10 Oct 2026 | Android 17 emulator + simulator | version 10 | New chat → Everyone nearby → *1 online now*; *Hello everyone* reached the Mac marked *(to everyone)*; bubble shows *Delivered to 1 of 1*. | Pass |
 | 9 Oct 2026 | Android 17 emulator + simulator with files | version 9 | The 300 MB file queued under version 8 was hashed again after the update, announced, confirmed and sent: **300 MB app → Mac**, SHA-256 identical, 71 s (4.2 MB/s through the emulator's network); memory about 97 MB PSS. App sent to the background for 40 s: reconnected by itself. | Pass |
 
