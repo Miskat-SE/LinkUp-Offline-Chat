@@ -5,20 +5,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
-import 'package:resqmesh/features/chat/data/in_memory_message_repository.dart';
+import 'package:resqmesh/core/storage/app_database.dart';
+import 'package:resqmesh/features/chat/data/drift_message_repository.dart';
 import 'package:resqmesh/features/chat/data/messaging_service.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
+import 'package:resqmesh/features/chat/domain/message_repository.dart';
 
 import '../../support/linked_pair.dart';
+import '../../support/test_database.dart';
 
 const idA = 'aaaaaaaa-0000-4000-8000-000000000001';
 const idB = 'bbbbbbbb-0000-4000-8000-000000000002';
 const idC = 'cccccccc-0000-4000-8000-000000000003';
 
-/// One phone: its repository and messaging service.
+/// One phone: its database, repository and messaging service.
 final class Phone {
-  Phone(String id, String name, PairLink link)
-    : repository = InMemoryMessageRepository() {
+  Phone(this.id, this.name, this.link, {AppDatabase? database})
+    : database = database ?? testDatabase() {
+    repository = DriftMessageRepository(this.database);
     service = MessagingService(
       links: link,
       repository: repository,
@@ -32,8 +36,19 @@ final class Phone {
     )..start();
   }
 
-  final InMemoryMessageRepository repository;
+  final String id;
+  final String name;
+  final PairLink link;
+  final AppDatabase database;
+  late final MessageRepository repository;
   late final MessagingService service;
+
+  /// The app is killed (no clean-up) and started again on the same
+  /// database.
+  Phone restart() {
+    unawaited(service.stop());
+    return Phone(id, name, link, database: database);
+  }
 }
 
 void main() {
@@ -67,12 +82,19 @@ void main() {
     return id;
   }
 
-  MessageStatus statusAt(InMemoryMessageRepository repo, String id) =>
-      repo.peek(id)!.status;
+  ChatMessage find(FakeAsync async, MessageRepository repo, String id) {
+    ChatMessage? message;
+    unawaited(repo.find(id).then((m) => message = m));
+    async.flushMicrotasks();
+    return message!;
+  }
+
+  MessageStatus statusAt(FakeAsync async, MessageRepository repo, String id) =>
+      find(async, repo, id).status;
 
   List<ChatMessage> conversation(
     FakeAsync async,
-    InMemoryMessageRepository repo,
+    MessageRepository repo,
     String peerId,
   ) {
     late List<ChatMessage> messages;
@@ -98,11 +120,11 @@ void main() {
       expect(atRahim.peerName, 'Yusuf');
       expect(atRahim.isRead, isFalse);
       expect(received.single.id, id);
-      expect(statusAt(yusuf.repository, id), MessageStatus.delivered);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
 
       unawaited(rahim.service.markConversationRead(idA));
       async.flushMicrotasks();
-      expect(statusAt(yusuf.repository, id), MessageStatus.read);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.read);
       expect(conversation(async, rahim.repository, idA).single.isRead, isTrue);
     });
   });
@@ -110,13 +132,13 @@ void main() {
   test('a message to someone offline waits, then sends when they connect', () {
     run((async) {
       final id = send(async, 'Hello');
-      expect(statusAt(yusuf.repository, id), MessageStatus.pending);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.pending);
       async.elapse(const Duration(minutes: 5));
-      expect(statusAt(yusuf.repository, id), MessageStatus.pending);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.pending);
 
       pair.connect();
       async.flushMicrotasks();
-      expect(statusAt(yusuf.repository, id), MessageStatus.delivered);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
       expect(conversation(async, rahim.repository, idA), hasLength(1));
     });
   });
@@ -147,7 +169,7 @@ void main() {
 
       final id = send(async, 'Hello');
       async.elapse(const Duration(seconds: 25));
-      expect(statusAt(yusuf.repository, id), MessageStatus.sending);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.sending);
       expect(
         pair.a.sent.whereType<MessagePacket>().where(
           (p) => p.header.messageId == id,
@@ -162,7 +184,7 @@ void main() {
       pair.b.dropOutgoing = false;
       async.elapse(const Duration(seconds: 10));
       // The duplicate is answered with ACK and the lost DELIVERED again.
-      expect(statusAt(yusuf.repository, id), MessageStatus.delivered);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
     });
   });
 
@@ -174,13 +196,13 @@ void main() {
 
       final id = send(async, 'Hello');
       async.elapse(const Duration(seconds: 60));
-      expect(statusAt(yusuf.repository, id), MessageStatus.failed);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.failed);
       expect(pair.a.sent.whereType<MessagePacket>(), hasLength(5));
 
       pair.b.dropOutgoing = false;
       unawaited(yusuf.service.retry(id));
       async.flushMicrotasks();
-      expect(statusAt(yusuf.repository, id), MessageStatus.delivered);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
     });
   });
 
@@ -192,16 +214,16 @@ void main() {
         async.flushMicrotasks();
         pair.b.dropOutgoing = true;
         final id = send(async, 'Hello');
-        expect(statusAt(yusuf.repository, id), MessageStatus.sending);
+        expect(statusAt(async, yusuf.repository, id), MessageStatus.sending);
 
         pair.disconnect();
         async.flushMicrotasks();
-        expect(statusAt(yusuf.repository, id), MessageStatus.pending);
+        expect(statusAt(async, yusuf.repository, id), MessageStatus.pending);
 
         pair.b.dropOutgoing = false;
         pair.connect();
         async.flushMicrotasks();
-        expect(statusAt(yusuf.repository, id), MessageStatus.delivered);
+        expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
       });
     },
   );
@@ -223,7 +245,7 @@ void main() {
         ..inject(idB, MessageDeliveredPacket(from(idB), messageIds: [id]))
         ..inject(idB, MessageAckPacket(from(idB), ackFor: id));
       async.flushMicrotasks();
-      expect(statusAt(yusuf.repository, id), MessageStatus.read);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.read);
     });
   });
 
@@ -246,7 +268,7 @@ void main() {
         ),
       );
       async.flushMicrotasks();
-      expect(statusAt(yusuf.repository, id), MessageStatus.sending);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.sending);
     });
   });
 
@@ -285,7 +307,7 @@ void main() {
     });
   });
 
-  test('reading while disconnected marks the messages read locally', () {
+  test('a READ made while disconnected is sent on reconnect', () {
     run((async) {
       pair.connect();
       async.flushMicrotasks();
@@ -296,7 +318,118 @@ void main() {
       unawaited(rahim.service.markConversationRead(idA));
       async.flushMicrotasks();
       expect(conversation(async, rahim.repository, idA).single.isRead, isTrue);
-      expect(statusAt(yusuf.repository, id), MessageStatus.delivered);
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
+
+      pair.connect();
+      async.flushMicrotasks();
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.read);
+    });
+  });
+
+  test('a DELIVERED that could not be sent is sent on reconnect', () {
+    run((async) {
+      // The connection drops just as the message arrives: it is stored,
+      // but no receipt can go back.
+      pair.b.inject(
+        idA,
+        MessagePacket(
+          PacketHeader.create(
+            senderId: idA,
+            senderName: 'Yusuf',
+            receiverId: idB,
+          ),
+          kind: MessageKind.text,
+          audience: MessageAudience.direct,
+          text: 'Hello',
+        ),
+      );
+      async.flushMicrotasks();
+      expect(conversation(async, rahim.repository, idA), hasLength(1));
+      expect(pair.b.sent, isEmpty);
+
+      pair.connect();
+      async.flushMicrotasks();
+      expect(
+        pair.b.sent.whereType<MessageDeliveredPacket>().single.messageIds,
+        [conversation(async, rahim.repository, idA).single.id],
+      );
+
+      // Sent once; the next reconnect has nothing owed.
+      pair
+        ..disconnect()
+        ..connect();
+      async.flushMicrotasks();
+      expect(pair.b.sent.whereType<MessageDeliveredPacket>(), hasLength(1));
+    });
+  });
+
+  test('after a restart, interrupted sends wait again and then go out', () {
+    run((async) {
+      final one = send(async, 'one'); // written while Rahim is away
+      async.elapse(const Duration(seconds: 1));
+      // Rahim connects but no confirmation comes back.
+      pair.connect();
+      pair.b.dropOutgoing = true;
+      async.flushMicrotasks();
+      final two = send(async, 'two');
+      expect(statusAt(async, yusuf.repository, one), MessageStatus.sending);
+      expect(statusAt(async, yusuf.repository, two), MessageStatus.sending);
+
+      // The app is killed while both are Sending, and Rahim leaves before
+      // it starts again.
+      yusuf = yusuf.restart();
+      pair.disconnect();
+      pair.b.dropOutgoing = false;
+      async.flushMicrotasks();
+      for (final id in [one, two]) {
+        expect(statusAt(async, yusuf.repository, id), MessageStatus.pending);
+        expect(find(async, yusuf.repository, id).attempts, 0);
+      }
+
+      pair.connect();
+      async.flushMicrotasks();
+      expect(statusAt(async, yusuf.repository, one), MessageStatus.delivered);
+      expect(statusAt(async, yusuf.repository, two), MessageStatus.delivered);
+      expect(conversation(async, rahim.repository, idA).map((m) => m.text), [
+        'one',
+        'two',
+      ], reason: 'the resends are recognised and stored once');
+    });
+  });
+
+  test('a message caught Sending by a restart is sent again at start', () {
+    run((async) {
+      pair.connect();
+      pair.b.dropOutgoing = true;
+      async.flushMicrotasks();
+      final id = send(async, 'Hello');
+      pair.b.dropOutgoing = false;
+      // Killed and restarted while Rahim is still connected.
+      yusuf = yusuf.restart();
+      async.flushMicrotasks();
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.delivered);
+      expect(conversation(async, rahim.repository, idA), hasLength(1));
+    });
+  });
+
+  test('each new connection gets a full set of attempts', () {
+    run((async) {
+      pair.connect();
+      pair.b.dropOutgoing = true;
+      async.flushMicrotasks();
+      final id = send(async, 'Hello');
+      async.elapse(const Duration(seconds: 35)); // 4 attempts
+      pair.disconnect();
+      async.flushMicrotasks();
+      pair.connect();
+      async.elapse(const Duration(seconds: 35));
+      expect(
+        statusAt(async, yusuf.repository, id),
+        MessageStatus.sending,
+        reason: 'only 4 attempts on this connection so far',
+      );
+      async.elapse(const Duration(seconds: 15));
+      expect(statusAt(async, yusuf.repository, id), MessageStatus.failed);
     });
   });
 

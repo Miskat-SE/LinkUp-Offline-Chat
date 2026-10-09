@@ -1,7 +1,7 @@
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 
-/// Where chat messages live. In memory for now; SQLite in P5, behind the
-/// same interface.
+/// Where chat messages live: SQLite on the phone, so chats and the outbox
+/// survive restarts.
 abstract interface class MessageRepository {
   /// One conversation, oldest first; emits on every change.
   Stream<List<ChatMessage>> watchConversation(String peerId);
@@ -29,8 +29,21 @@ abstract interface class MessageRepository {
   /// Marks incoming messages from [peerId] as read and returns their IDs.
   Future<List<String>> markRead(String peerId);
 
-  /// Outgoing messages to [peerId] still waiting to be sent, oldest first.
+  /// Outgoing messages to [peerId] still waiting to be sent or confirmed,
+  /// oldest first.
   Future<List<ChatMessage>> pendingFor(String peerId);
+
+  /// After a restart nothing is in flight: Sending messages go back to
+  /// Pending with their attempts reset. Returns how many.
+  Future<int> resetInterrupted();
+
+  /// Incoming messages from [peerId] still owed [receipt], oldest first:
+  /// DELIVERED for those with no receipt yet and not read, READ for read
+  /// ones whose READ wasn't sent.
+  Future<List<String>> owedReceipts(String peerId, Receipt receipt);
+
+  /// Records that [receipt] was sent for [messageIds]. Never moves back.
+  Future<void> recordReceipts(List<String> messageIds, Receipt receipt);
 
   /// Deletes on this phone only.
   Future<void> delete(String messageId);

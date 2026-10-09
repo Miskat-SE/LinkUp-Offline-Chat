@@ -8,6 +8,8 @@ import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
 import 'package:resqmesh/core/settings/developer_mode.dart';
+import 'package:resqmesh/core/storage/database_providers.dart';
+import 'package:resqmesh/features/settings/presentation/storage_screen.dart';
 import 'package:resqmesh/features/settings/presentation/theme_mode_controller.dart';
 import 'package:resqmesh/shared/widgets/connection_method_info.dart';
 import 'package:resqmesh/shared/widgets/user_avatar.dart';
@@ -35,6 +37,8 @@ class SettingsScreen extends ConsumerWidget {
                 _ConnectionCard(),
                 _SectionTitle('Appearance'),
                 _ThemeCard(),
+                _SectionTitle('Storage'),
+                _StorageCard(),
                 _SectionTitle('About'),
                 _AboutCard(),
               ],
@@ -124,6 +128,40 @@ class _ConnectionCard extends ConsumerWidget {
         subtitle: Text(info?.title ?? 'Not chosen'),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push(Routes.connection),
+      ),
+    );
+  }
+}
+
+class _StorageCard extends ConsumerWidget {
+  const _StorageCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final count = ref.watch(messageCountProvider).value;
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.sm,
+        ),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: scheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
+          ),
+          child: Icon(
+            Icons.storage_rounded,
+            color: scheme.onSecondaryContainer,
+          ),
+        ),
+        title: const Text('Storage'),
+        subtitle: Text(count == null ? '…' : messageCountLabel(count)),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push(Routes.storage),
       ),
     );
   }

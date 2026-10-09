@@ -39,6 +39,16 @@ enum MessageStatus {
   };
 }
 
+/// The last receipt sent back for an incoming message. Receipts that
+/// couldn't be sent (the sender was offline) go out when they reconnect.
+enum Receipt {
+  none,
+  delivered,
+  read;
+
+  bool isBefore(Receipt other) => index < other.index;
+}
+
 /// One chat message. Pure data; the repository stores it.
 final class ChatMessage {
   const ChatMessage({

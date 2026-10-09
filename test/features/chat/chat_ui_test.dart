@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
+import 'package:resqmesh/core/storage/app_database.dart';
 import 'package:resqmesh/core/storage/key_value_store.dart';
 import 'package:resqmesh/features/chat/presentation/chat_screen.dart';
 
@@ -13,6 +14,7 @@ import '../../support/memory_datagram_network.dart';
 import '../../support/memory_key_value_store.dart';
 import '../../support/other_phone.dart';
 import '../../support/test_app.dart';
+import '../../support/test_database.dart';
 
 /// The app as Yusuf, with Rahim discovered and connected.
 final class ChatScenario {
@@ -22,6 +24,7 @@ final class ChatScenario {
     WidgetTester tester, {
     bool notificationsAllowed = true,
     bool rahimReachable = true,
+    AppDatabase? database,
   }) async {
     final lan = MemoryDatagramNetwork();
     final rahim = await startOtherPhone(lan, name: 'Rahim');
@@ -36,6 +39,7 @@ final class ChatScenario {
       links: links,
       notifications: notifications,
       network: FakeNetworkMonitor.onWifi('192.168.0.10'),
+      database: database,
       settle: false,
     );
     await pumpFor(tester, const Duration(seconds: 1));
@@ -264,6 +268,70 @@ void main() {
     await pumpFor(tester, const Duration(seconds: 1));
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(find.text('Rahim'), findsWidgets);
+    await s.finish(tester);
+  });
+
+  testWidgets('chats and unread badges are still there after a restart', (
+    tester,
+  ) async {
+    final db = testDatabase();
+    addTearDown(db.close);
+    final s = await ChatScenario.start(tester, database: db);
+    s.rahimSays('Meeting at 10 PM');
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await s.finish(tester);
+
+    // Started again: same phone, same database, nobody nearby yet.
+    await launchApp(tester, s.store, database: db, settle: false);
+    expect(find.text('Meeting at 10 PM'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget, reason: 'still unread');
+    await tester.tap(find.text('Meeting at 10 PM'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.text('Rahim'), findsWidgets, reason: 'name kept offline');
+    await closeApp(tester);
+  });
+
+  testWidgets('Storage shows the message count and clears chat history', (
+    tester,
+  ) async {
+    final s = await ChatScenario.start(tester);
+    s
+      ..rahimSays('One')
+      ..rahimSays('Two');
+    await pumpFor(tester, const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('Settings'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.scrollUntilVisible(
+      find.text('Storage').last,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('2 messages'));
+    await tester.tap(find.text('2 messages'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('2 messages saved'), findsOneWidget);
+
+    await tester.tap(find.text('Clear chat history'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.textContaining('All 2 messages on this phone'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('2 messages saved'), findsOneWidget);
+
+    await tester.tap(find.text('Clear chat history'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.text('Clear history'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('No messages saved'), findsOneWidget);
+    expect(find.text('Chat history cleared'), findsOneWidget);
+
+    await tester.pageBack();
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.text('Chats'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('No chats yet'), findsOneWidget);
     await s.finish(tester);
   });
 }

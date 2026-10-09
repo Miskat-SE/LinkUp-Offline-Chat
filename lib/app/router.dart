@@ -14,6 +14,7 @@ import 'package:resqmesh/features/onboarding/presentation/splash_screen.dart';
 import 'package:resqmesh/features/settings/presentation/change_name_screen.dart';
 import 'package:resqmesh/features/settings/presentation/connection_screen.dart';
 import 'package:resqmesh/features/settings/presentation/settings_screen.dart';
+import 'package:resqmesh/features/settings/presentation/storage_screen.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -24,6 +25,7 @@ abstract final class Routes {
   static const changeName = '/settings/name';
   static const connection = '/settings/connection';
   static const developer = '/settings/developer';
+  static const storage = '/settings/storage';
 
   static String chat(String peerId) => '/chat/$peerId';
 }
@@ -118,6 +120,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'connection',
                     parentNavigatorKey: rootKey,
                     builder: (context, state) => const ConnectionScreen(),
+                  ),
+                  GoRoute(
+                    path: 'storage',
+                    parentNavigatorKey: rootKey,
+                    builder: (context, state) => const StorageScreen(),
                   ),
                   GoRoute(
                     path: 'developer',

@@ -10,16 +10,20 @@ import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
 import 'package:resqmesh/core/platform/platform_api.g.dart';
+import 'package:resqmesh/core/storage/app_database.dart';
+import 'package:resqmesh/core/storage/database_providers.dart';
 
 import 'fake_network_monitor.dart';
 import 'fake_notifications.dart';
 import 'fake_peer_links.dart';
 import 'memory_datagram_network.dart';
 import 'memory_key_value_store.dart';
+import 'test_database.dart';
 
 /// Starts the real app with test stand-ins for the platform: [store] for
-/// SharedPreferences, [network] for Wi-Fi, [lan] for UDP. This phone has
-/// address [ip] on [lan].
+/// SharedPreferences, [network] for Wi-Fi, [lan] for UDP, and an in-memory
+/// SQLite [database]. This phone has address [ip] on [lan]. Pass the same
+/// [store] and [database] again to simulate a restart.
 Future<void> launchApp(
   WidgetTester tester,
   MemoryKeyValueStore store, {
@@ -28,8 +32,11 @@ Future<void> launchApp(
   String ip = '192.168.0.10',
   FakePeerLinks? links,
   FakeNotifications? notifications,
+  AppDatabase? database,
   bool settle = true,
 }) async {
+  final db = database ?? testDatabase();
+  if (database == null) addTearDown(db.close);
   // A tall phone screen, so onboarding cards fit without scrolling.
   tester.view
     ..physicalSize = const Size(1080, 2400)
@@ -63,6 +70,8 @@ Future<void> launchApp(
           (lan ?? MemoryDatagramNetwork()).binderFor(ip),
         ),
         serviceDiscoveryProvider.overrideWithValue(null),
+        // Not closed with the app, so a test can launch it again.
+        appDatabaseProvider.overrideWithValue(db),
         appNotificationsProvider.overrideWithValue(
           notifications ?? FakeNotifications(),
         ),

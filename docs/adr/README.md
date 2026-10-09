@@ -23,3 +23,4 @@ One file per decision. Status values: Proposed, Accepted, Superseded.
 | [0017](0017-encryption-decided-by-a-spike-in-p9.md) | Encryption decided by a spike in P9 | Accepted |
 | [0018](0018-go-router-for-navigation.md) | go_router for navigation | Accepted |
 | [0019](0019-hand-written-sealed-packet-classes.md) | Hand-written sealed packet classes | Accepted |
+| [0020](0020-database-schema-grows-with-the-phases.md) | The database schema grows with the phases | Accepted |

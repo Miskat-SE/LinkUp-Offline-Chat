@@ -160,7 +160,12 @@ void main() {
     await tester.tap(find.text('Settings'));
     await pumpFor(tester, const Duration(seconds: 1));
     // Debug builds (and tests) always have developer mode.
-    // Bring the row to the top, clear of the bottom navigation bar.
+    // Scroll to the row, then bring it clear of the bottom navigation bar.
+    await tester.scrollUntilVisible(
+      find.text('Developer options'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.ensureVisible(find.text('Developer options'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.tap(find.text('Developer options'));

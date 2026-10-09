@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: phase P4 done (text messaging).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. Messages to someone offline wait and go when they connect. Names are unique on the network. Saved chat history arrives in P5 and file sharing in P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
+> **Status: phase P5 done (saved chats).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. Chats are saved on the phone, and messages to someone offline wait, even across restarts, and go when they come back. Names are unique on the network. File sharing arrives in P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
 
 ## Documents
 
@@ -42,6 +42,8 @@ flutter test
 flutter build apk --release
 ```
 
+**Generated code** is committed, so a fresh clone builds as is. After changing the database tables, run `dart run build_runner build`; after a schema version change, also `dart run drift_dev make-migrations` (see ARCHITECTURE.md, *Storage*). After changing `pigeons/platform_api.dart`, run `dart run pigeon --input pigeons/platform_api.dart`.
+
 `test/architecture_test.dart` enforces the layer rules: Material comes from `material_ui`, `core/` never imports `features/`, domain code is pure Dart, and widgets never import `dart:io`.
 
 ## Build an APK
@@ -73,7 +75,7 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 
 ## Known limitations (so far)
 
-- Chats are kept in memory: they are lost when Android closes the app. Saved history arrives in P5, file sharing in P6.
+- File sharing arrives in P6.
 - Group chat (*Everyone*, selected people) is *Coming soon* (P7).
 - Wi-Fi Direct and Bluetooth are shown as *Coming soon* (P13–P14).
 - Discovery and messages work while the app is open; background reachability arrives in P8.

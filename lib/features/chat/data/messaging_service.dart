@@ -19,6 +19,9 @@ import 'package:uuid/uuid.dart';
 ///   stored twice), ACKed, then reported on [incoming] and confirmed with
 ///   MESSAGE_DELIVERED.
 /// - Receipts move messages forward only: Sent → Delivered → Read.
+/// - Outbox (§7.4): runs at start, whenever someone connects (which
+///   includes after a network change), and on retry. Receipts that
+///   couldn't be sent wait in the database and go out on reconnect too.
 final class MessagingService {
   MessagingService({
     required this._links,
@@ -38,6 +41,9 @@ final class MessagingService {
 
   static const _uuid = Uuid();
 
+  /// Message IDs per receipt packet; well under the 64 KiB frame limit.
+  static const _receiptBatch = 100;
+
   final StreamController<ChatMessage> _incoming =
       StreamController<ChatMessage>.broadcast();
   final Map<String, Timer> _ackTimers = {};
@@ -52,9 +58,22 @@ final class MessagingService {
   bool isConnected(String peerId) => _links.current.links.containsKey(peerId);
 
   void start() {
-    _connected = _links.current.links.keys.toSet();
-    _packets ??= _links.packets.listen((p) => _serial(() => _onPacket(p)));
-    _linkChanges ??= _links.snapshots.listen((s) => _serial(() => _onLinks(s)));
+    if (_packets != null) return;
+    _packets = _links.packets.listen((p) => _serial(() => _onPacket(p)));
+    _linkChanges = _links.snapshots.listen((s) => _serial(() => _onLinks(s)));
+    unawaited(_serial(_recover));
+  }
+
+  /// At app start nothing is in flight: interrupted sends wait again, and
+  /// anyone already connected gets their queued messages and receipts.
+  Future<void> _recover() async {
+    final interrupted = await _repository.resetInterrupted();
+    if (interrupted > 0) {
+      _logger.info(LogTag.message, 'Interrupted sends queued again', {
+        'count': interrupted,
+      });
+    }
+    await _onLinks(_links.current);
   }
 
   Future<void> stop() async {
@@ -107,19 +126,10 @@ final class MessagingService {
   });
 
   /// The user opened the chat: marks its messages read and tells the
-  /// sender. (Receipts for a disconnected sender are queued from P5.)
+  /// sender, now or when they reconnect.
   Future<void> markConversationRead(String peerId) => _serial(() async {
     final ids = await _repository.markRead(peerId);
-    if (ids.isEmpty || !isConnected(peerId)) return;
-    for (var i = 0; i < ids.length; i += 100) {
-      _links.send(
-        peerId,
-        MessageReadPacket(
-          _header(peerId),
-          messageIds: ids.sublist(i, (i + 100).clamp(0, ids.length)),
-        ),
-      );
-    }
+    if (ids.isNotEmpty) await _sendReceipts(peerId, ids, Receipt.read);
   });
 
   /// Deletes on this phone only.
@@ -132,7 +142,11 @@ final class MessagingService {
 
   Future<void> _transmit(ChatMessage message) async {
     if (!isConnected(message.peerId)) {
-      await _repository.updateStatus(message.id, MessageStatus.pending);
+      await _repository.updateStatus(
+        message.id,
+        MessageStatus.pending,
+        attempts: 0,
+      );
       return;
     }
     final attempts = message.attempts + 1;
@@ -174,7 +188,11 @@ final class MessagingService {
     final message = await _repository.find(messageId);
     if (message == null || message.status != MessageStatus.sending) return;
     if (!isConnected(message.peerId)) {
-      await _repository.updateStatus(messageId, MessageStatus.pending);
+      await _repository.updateStatus(
+        messageId,
+        MessageStatus.pending,
+        attempts: 0,
+      );
     } else if (message.attempts >= maxAttempts) {
       _logger.warning(LogTag.message, 'Not confirmed, giving up', {
         'message': _short(messageId),
@@ -191,10 +209,15 @@ final class MessagingService {
     final left = _connected.difference(now);
     _connected = now;
     for (final peerId in left) {
-      // Unconfirmed messages wait for the person to come back.
+      // Unconfirmed messages wait for the person to come back, and get a
+      // full set of attempts on the next connection.
       for (final message in await _repository.pendingFor(peerId)) {
         _ackTimers.remove(message.id)?.cancel();
-        await _repository.updateStatus(message.id, MessageStatus.pending);
+        await _repository.updateStatus(
+          message.id,
+          MessageStatus.pending,
+          attempts: 0,
+        );
       }
     }
     for (final peerId in joined) {
@@ -207,6 +230,10 @@ final class MessagingService {
       }
       for (final message in waiting) {
         await _transmit(message);
+      }
+      for (final receipt in [Receipt.delivered, Receipt.read]) {
+        final owed = await _repository.owedReceipts(peerId, receipt);
+        if (owed.isNotEmpty) await _sendReceipts(peerId, owed, receipt);
       }
     }
   }
@@ -273,15 +300,9 @@ final class MessagingService {
         'message': _short(message.id),
       });
       final stored = await _repository.find(message.id);
-      _links.send(
-        from,
-        MessageDeliveredPacket(_header(from), messageIds: [message.id]),
-      );
+      await _sendReceipts(from, [message.id], Receipt.delivered);
       if (stored?.isRead ?? false) {
-        _links.send(
-          from,
-          MessageReadPacket(_header(from), messageIds: [message.id]),
-        );
+        await _sendReceipts(from, [message.id], Receipt.read);
       }
       return;
     }
@@ -289,10 +310,29 @@ final class MessagingService {
     if (!_incoming.isClosed) _incoming.add(message);
     // While the app runs, a new message is shown at once: in the open chat,
     // the chat list, or a notification.
-    _links.send(
-      from,
-      MessageDeliveredPacket(_header(from), messageIds: [message.id]),
-    );
+    await _sendReceipts(from, [message.id], Receipt.delivered);
+  }
+
+  /// Sends [receipt] for [ids] to [peerId] in batches and records what was
+  /// handed to the connection; the rest waits for the next connection.
+  Future<void> _sendReceipts(
+    String peerId,
+    List<String> ids,
+    Receipt receipt,
+  ) async {
+    if (!isConnected(peerId)) return;
+    for (var i = 0; i < ids.length; i += _receiptBatch) {
+      final batch = ids.sublist(i, (i + _receiptBatch).clamp(0, ids.length));
+      final header = _header(peerId);
+      final sent = _links.send(
+        peerId,
+        receipt == Receipt.read
+            ? MessageReadPacket(header, messageIds: batch)
+            : MessageDeliveredPacket(header, messageIds: batch),
+      );
+      if (!sent) return;
+      await _repository.recordReceipts(batch, receipt);
+    }
   }
 
   /// Applies a receipt from [from] to its own messages only.

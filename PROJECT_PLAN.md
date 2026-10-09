@@ -8,7 +8,7 @@ Flutter Android app · works with the router's internet switched off · no cloud
 | Student | Jannatul Miskat Chowdhury (Roll 2405207), IIT, University of Dhaka |
 | Supervisor | Dr. Sumon Ahmed |
 | Product name | **LinkUp** (shown to users; ResQMesh stays the project and research name) |
-| Plan version | 1.6 · 9 Oct 2026 |
+| Plan version | 1.7 · 9 Oct 2026 |
 | Source | Build specification, 8 Oct 2026 (`docs/SPEC.md`, from `ResQMesh_prompt.txt`) |
 | Window | 1 Oct 2026 (Week 1) → ~17 Feb 2027 (Week 20) |
 
@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P4 code complete** (text messaging) · P0 spike, inventory and review still open |
+| Phase | **P5 code complete** (SQLite, outbox) · P0 spike, inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P4 (planned for Weeks 3–7) passed their phase gates in Week 2. Verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
+| Health | Ahead of schedule: P1–P5 (planned for Weeks 3–8) passed their phase gates in Week 2; the M3 exit (messages survive restarts, queued messages delivered on return) was shown on the emulator. Verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
 | Blockers | None recorded |
 
 **This week**
@@ -156,6 +156,7 @@ Confirm by the end of Week 2, then record each one as an ADR in `docs/adr/`.
 | D18 | Navigation | `go_router` | First-party; notification taps can deep-link to a chat or transfer |
 | D19 | Packet models | Hand-written sealed classes with strict `fromJson` validation; no code generation for packets | Every field validated (spec §28); exhaustive `switch` over packet types |
 | D20 | Connection methods | The user picks one of four methods (`ConnectionMethod`). The framing and packets (§7) are the same on all of them; each method only supplies discovery and a byte stream: LAN and hotspot → UDP/NSD + TCP; Wi-Fi Direct → P2P group + TCP; Bluetooth → its own discovery and stream (D21). | One protocol and one codebase for messages and files, whatever the radio |
+| D22 | Database schema (ADR-0020) | Grows with the phases: v1 is `messages` only; `files` (P6), `message_recipients` (P7) and `peers` arrive as tested migrations. Message IDs unique on their own; stored values are fixed text codes; times in UTC microseconds. One repository, tested on in-memory SQLite. | No speculative tables; the migration path is exercised early |
 | D21 | Bluetooth design | Decide by spike at the start of P14: BLE advertising for discovery plus L2CAP connection-oriented channels (API 29+, no pairing) **or** classic Bluetooth RFCOMM sockets (pairing, wider support). | Bluetooth is slow (roughly 0.1–2 Mbit/s): the UI warns before large files |
 
 ---
@@ -598,9 +599,9 @@ mark completed                                       mark completed
 
 ## 8. Data and storage
 
-### 8.1 Database schema (drift, schema version 1)
+### 8.1 Database schema (drift)
 
-Fields from spec §9, plus additions needed for status, threads and resume.
+Fields from spec §9, plus additions needed for status, threads and resume. **As built (D22):** schema v1 (P5) has `messages` only, with `messageId` unique on its own, a `peerName` column, `body` for the text, times as UTC microseconds and no `audience`/`messageType`/`fileId` yet. The other tables below arrive as migrations in the phases that use them. The tables here are the target design.
 
 **`peers`**
 
@@ -881,17 +882,17 @@ P3 then tightens "online" to require a TCP HELLO.
 - [x] **P4.4** Notification for an incoming message when its chat isn't open; `POST_NOTIFICATIONS` asked on the first chat, after a short explainer
 - [x] **P4.5** Tests: status transitions, duplicate delivery, receipts arriving out of order, end-to-end text over loopback
 
-Repositories are interfaces from P4 on. The in-memory version used here is replaced by drift in P5 and stays in use for tests. Until then, chats are lost when Android closes the app.
+Repositories are interfaces from P4 on. P5 replaced the in-memory version with drift; tests use drift on in-memory SQLite (D22).
 
 **Exit:** text works both ways between A and B, with Sent, Delivered and Read.
 
 #### P5 · SQLite persistence (Week 8, 19–25 Nov)
-- [ ] **P5.1** drift database (§8.1): tables, indexes, schema v1 snapshot
-- [ ] **P5.2** Repositories on drift; `watch` queries drive Home and Chat; unread counts
-- [ ] **P5.3** Outbox: Pending while offline; runs when a peer comes online, at app start and after a network change; queued receipts
-- [ ] **P5.4** Home chat list (last message, time, unread badge, online dot) and search
-- [ ] **P5.5** Clear chat history (first Storage action)
-- [ ] **P5.6** Tests: DAOs on an in-memory database, migration test scaffold, outbox after reconnect, app restart with pending messages
+- [x] **P5.1** drift database (§8.1): tables, indexes, schema v1 snapshot (`messages` only, D22)
+- [x] **P5.2** Repositories on drift; `watch` queries drive Home and Chat; unread counts
+- [x] **P5.3** Outbox: Pending while offline; runs when a peer comes online, at app start and after a network change; queued receipts
+- [x] **P5.4** Home chat list (last message, time, unread badge, online dot) and search
+- [x] **P5.5** Clear chat history (first Storage action): Settings → Storage with the message count
+- [x] **P5.6** Tests: DAOs on an in-memory database, migration test scaffold, outbox after reconnect, app restart with pending messages
 
 **Exit (M3):** messages survive restarts; a message sent to an offline peer is delivered automatically when the peer returns.
 
@@ -1214,3 +1215,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.4 | 9 Oct 2026 | Product renamed **LinkUp** (user's choice; non-technical, single word). Name kept in one constant (`Brand.name`); internal identifiers unchanged. APKs now `LINKUP_version-N.apk`. |
 | 1.5 | 9 Oct 2026 | P3 done: control connections (HELLO handshake, PING/PONG, idle timeout, framing limits), connection manager (lower ID dials, grace period, duplicate tie-break, backoff, network reset, port fallback), REGISTER over TCP, "Online" now means connected, new "Found X, but couldn't connect" state. Simulator speaks TCP. |
 | 1.6 | 9 Oct 2026 | P4 done: direct text messages with ACK, delivered and read receipts; resend with the same ID after 10 s, failed after 5 tries, tap to retry; duplicates stored once; outbox sent when the person connects; chat screen (day separators, ticks, reply, copy, delete, retry); unread badges; notifications through the Kotlin bridge, with `POST_NOTIFICATIONS` asked on the first chat. Messages are in memory until P5. 169 tests. Simulator answers messages (`--echo`). |
+| 1.7 | 9 Oct 2026 | P5 done: SQLite through drift (schema v1, `messages` only; D22 and ADR-0020); chats, unread counts and the outbox survive restarts; interrupted sends wait again at start; delivery and read receipts queue until the sender reconnects; each connection gets a full 5 attempts; Settings → Storage with *Clear chat history*; migration test scaffold. 189 tests. The release APK grows by about 7 MB (SQLite for three CPU types; a Play Store bundle splits it). The simulator keeps one device ID per name. |

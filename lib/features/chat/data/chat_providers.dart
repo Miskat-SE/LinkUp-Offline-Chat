@@ -4,13 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
-import 'package:resqmesh/features/chat/data/in_memory_message_repository.dart';
+import 'package:resqmesh/core/storage/database_providers.dart';
+import 'package:resqmesh/features/chat/data/drift_message_repository.dart';
 import 'package:resqmesh/features/chat/data/messaging_service.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/domain/message_repository.dart';
 
 final messageRepositoryProvider = Provider<MessageRepository>(
-  (ref) => InMemoryMessageRepository(),
+  (ref) => DriftMessageRepository(ref.watch(appDatabaseProvider)),
 );
 
 /// Sends and receives messages for the life of the app.

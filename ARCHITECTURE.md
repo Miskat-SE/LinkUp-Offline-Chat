@@ -35,14 +35,14 @@ lib/
 │   ├── connection/               ConnectionMethod (Wi-Fi, hotspot, Wi-Fi Direct, Bluetooth), chosen-method provider
 │   ├── identity/                 Username rules, LocalIdentity, IdentityRepository, providers
 │   ├── logging/                  AppLogger, FileLogSink, DebugPrintSink
-│   └── storage/key_value_store.dart   KeyValueStore over SharedPreferencesWithCache
+│   └── storage/                  KeyValueStore (SharedPreferences); AppDatabase (drift), StorageManager
 ├── features/
 │   ├── onboarding/presentation/  Splash; onboarding (welcome → name → how to connect)
 │   ├── chat/domain/              ChatMessage, MessageStatus, ConversationSummary, MessageRepository
-│   ├── chat/data/                InMemoryMessageRepository, MessagingService, chat providers
+│   ├── chat/data/                DriftMessageRepository, MessagingService, chat providers
 │   ├── chat/presentation/        Home (chat list), Chat screen, message bubbles, New chat sheet
 │   ├── users/presentation/       People Nearby shell
-│   └── settings/presentation/    Settings, Change name, How you connect, theme mode
+│   └── settings/presentation/    Settings, Change name, How you connect, Storage, theme mode
 └── shared/widgets/               AppMark, UserAvatar, EmptyState, NameForm, MeshIllustration,
                                   ConnectionMethodPicker/Info, ConnectionStatusCard
 ```
@@ -133,17 +133,34 @@ DiscoveryEngine ──online peers──▶ ConnectionManager (PeerLinks) ──
 ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──▶ other phone
      ▲                   │  ▲                                        │
      │ watchConversation │  └──── ACK · DELIVERED · READ ◀───────────┘
-     └──── MessageRepository (in memory now, drift in P5)
+     └──── MessageRepository ── SQLite (drift), the single source of truth
 ```
 
 - **`MessagingService`** (`lib/features/chat/data/messaging_service.dart`) owns the status machine:
   - Every message is stored first as *pending*, then sent if the person is connected (*sending*).
   - ACK → *sent*, DELIVERED → *delivered*, READ → *read*. Status never moves backwards, so late receipts are harmless.
   - No ACK within 10 s: resend with the same message ID. After 5 attempts: *failed*, and the user can tap to retry.
-  - Losing the connection puts *sending* messages back to *pending*. When a person connects, their pending messages go out in the order they were written.
+  - Losing the connection puts *sending* messages back to *pending* with their attempts reset, so every connection gets a full 5 tries. When a person connects, their pending messages go out in the order they were written, followed by any receipts still owed to them.
   - Incoming messages must be addressed to this device. Duplicates are stored once and answered with ACK and DELIVERED again (and READ if already read), so a sender whose receipts were lost catches up.
   - Receipts only count when they come from the message's recipient.
-- **`MessageRepository`** is an interface. P4 keeps messages in memory; P5 swaps in drift and keeps the in-memory one for tests.
+- **`MessageRepository`** is an interface, implemented by `DriftMessageRepository`.
+- **Outbox (P5).** At start, messages left *sending* by a killed app go back to *pending*, then anyone already connected is served. A network change drops every connection and redials, so it triggers the same path. Each incoming message records the last receipt sent back (`receiptSent`); DELIVERED and READ that couldn't be sent go out when the sender reconnects.
+
+## Storage (P5)
+
+```
+lib/core/storage/
+├── app_database.dart        AppDatabase (drift), Messages table, UtcMicros
+├── database_providers.dart  appDatabaseProvider, storageManagerProvider, messageCountProvider
+└── storage_manager.dart     message count, Clear chat history (Storage screen)
+lib/features/chat/data/drift_message_repository.dart   chat queries and text-code mapping
+```
+
+- One SQLite file, `resqmesh.sqlite`, in app-internal storage (`getApplicationSupportDirectory`). `drift_flutter` runs queries on a background isolate and opens the file on first use, so start-up doesn't wait for it.
+- Screens watch queries: the chat list is one query (latest message and unread count per chat), and a chat is its messages in local-time order, with the row ID breaking ties.
+- Stored values are fixed text codes mapped by the repository, never Dart enum names (ADR-0020). Times are UTC microseconds.
+- **Schema changes:** bump `schemaVersion`, run `dart run drift_dev make-migrations` (it writes `drift_schemas/` and the test helpers), write the step in `AppDatabase.migration`, and add a test in `test/drift/app_database/migration_test.dart`.
+- The Storage screen lives in Settings and talks to `core/storage` directly; screens watching the database update by themselves.
 - **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
 
 ## Testing
@@ -157,4 +174,4 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 | Onboarding, relaunch, Change name, theme (whole app) | `test/features/onboarding/onboarding_flow_test.dart` |
 | Layer rules | `test/architecture_test.dart` |
 
-Tests use `MemoryKeyValueStore` in place of SharedPreferences; everything else is the real code.
+Tests use `MemoryKeyValueStore` in place of SharedPreferences and the real database schema on in-memory SQLite; everything else is the real code.

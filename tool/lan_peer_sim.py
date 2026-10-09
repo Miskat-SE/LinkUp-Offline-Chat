@@ -37,8 +37,10 @@ def now():
 
 
 class Peer:
-    def __init__(self, name, listen, targets, tcp_port, echo=False):
-        self.id = str(uuid.uuid4())
+    def __init__(self, name, listen, targets, tcp_port, echo=False, device_id=None):
+        # Like a real phone, the same simulated phone keeps its device ID
+        # between runs, so chats and queued messages carry over.
+        self.id = device_id or str(uuid.uuid5(uuid.NAMESPACE_URL, f"resqmesh-sim:{name}"))
         self.name = name
         self.claimed_at = now()
         self.targets = targets
@@ -228,6 +230,7 @@ def main():
     parser.add_argument("--listen", type=int, default=PORT, help=f"UDP port to listen on (default {PORT})")
     parser.add_argument("--tcp", type=int, default=28771, help="TCP port to accept connections on (default 28771)")
     parser.add_argument("--echo", action="store_true", help="answer every chat message")
+    parser.add_argument("--id", help="device ID (default: fixed for each --name)")
     parser.add_argument(
         "--target",
         action="append",
@@ -238,7 +241,7 @@ def main():
     for t in args.target or [f"255.255.255.255:{PORT}"]:
         host, port = t.rsplit(":", 1)
         targets.append((host, int(port)))
-    Peer(args.name, args.listen, targets, args.tcp, args.echo).run()
+    Peer(args.name, args.listen, targets, args.tcp, args.echo, args.id).run()
 
 
 if __name__ == "__main__":
