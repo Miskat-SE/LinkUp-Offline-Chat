@@ -1,5 +1,11 @@
 /// How a peer was heard from.
-enum DiscoverySource { udp, nsd }
+enum DiscoverySource {
+  udp,
+  nsd,
+
+  /// It connected to us over TCP before discovery saw it.
+  tcp,
+}
 
 /// Another ResQMesh device seen on the local network.
 final class Peer {

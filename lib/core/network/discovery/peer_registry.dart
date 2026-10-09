@@ -85,6 +85,14 @@ final class PeerRegistry {
     return changed ? PeerUpdate.changed : PeerUpdate.refreshed;
   }
 
+  /// Updates a known peer's name. Returns false for unknown devices.
+  bool rename(String deviceId, String name, DateTime nameClaimedAt) {
+    final peer = _peers[deviceId];
+    if (peer == null) return false;
+    _peers[deviceId] = peer.copyWith(name: name, nameClaimedAt: nameClaimedAt);
+    return true;
+  }
+
   /// The peer said GOODBYE. Returns whether it was online.
   bool goodbye(String deviceId, DateTime now) {
     final peer = _peers[deviceId];

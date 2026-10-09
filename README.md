@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: phase P2 done (LAN discovery).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and names are unique on the network. People Nearby shows who is online, and a hidden developer screen shows the network details. Chat and file transfer arrive in phases P3–P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
+> **Status: phase P3 done (connections).** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and keep a live connection to each other. Names are unique on the network. People Nearby shows who is online, and a hidden developer screen shows the network details. Chat and file transfer arrive in phases P4–P6. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
 
 ## Documents
 

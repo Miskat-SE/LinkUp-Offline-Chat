@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P2 code complete** (LAN discovery) · P0 spike, inventory and review still open |
+| Phase | **P3 code complete** (TCP connections) · P0 spike, inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1 and P2 (planned for Weeks 3–5) passed their phase gates in Week 2. P2 verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
+| Health | Ahead of schedule: P1–P3 (planned for Weeks 3–6) passed their phase gates in Week 2. Verified on an Android 17 emulator with a simulated peer; **two real phones still needed for M2**. |
 | Blockers | None recorded |
 
 **This week**
@@ -863,14 +863,16 @@ Task IDs (`P6.3`) go in branch names and commit messages (§15.3).
 P3 then tightens "online" to require a TCP HELLO.
 
 #### P3 · TCP connections (Week 6, 5–11 Nov)
-- [ ] **P3.1** TCP server (preferred port, ephemeral fallback) and client; frame reader with length limits
-- [ ] **P3.2** HELLO handshake, version check, sender ID bound to the connection
-- [ ] **P3.3** `ConnectionManager`: one control connection per peer, tie-break (§5.5 rule 7), PING/PONG, timeouts, reconnect with backoff
-- [ ] **P3.4** Online = handshake complete; stronger isolation hint when a peer is discovered but unreachable
-- [ ] **P3.5** Network change handling: close, rebind and restart on an IP change
-- [ ] **P3.6** Tests: two real `LanEngine`s over loopback covering handshake, tie-break, timeout, reconnect, malformed and oversized frames
+- [x] **P3.1** TCP server (preferred port, ephemeral fallback) and client; frame reader with length limits
+- [x] **P3.2** HELLO handshake, version check, sender ID bound to the connection
+- [x] **P3.3** `ConnectionManager`: one control connection per peer, tie-break (§5.5 rule 7), PING/PONG, timeouts, reconnect with backoff
+- [x] **P3.4** Online = handshake complete; stronger isolation hint when a peer is discovered but unreachable
+- [x] **P3.5** Network change handling: close, rebind and restart on an IP change
+- [x] **P3.6** Tests: real TCP sockets on loopback covering handshake, tie-break, keep-alive, idle timeout, reconnect, network reset, malformed and oversized frames, wrong device, self-connection (16 tests, stable over repeated runs)
 
 **Exit:** control connections stay up for 30 min idle on 2 phones, and reconnect after a Wi-Fi toggle and a router reboot without restarting the app.
+
+*Result (9 Oct):* gate passed (format, analyze, 138 tests, release build). On the Android 17 emulator the app connected to `tool/lan_peer_sim.py` over TCP, kept the connection alive with PING/PONG, and sent REGISTER on a rename. Two-phone run still needed.
 
 #### P4 · Text messaging (Week 7, 12–18 Nov)
 - [ ] **P4.1** MESSAGE, MESSAGE_ACK, MESSAGE_DELIVERED and MESSAGE_READ handlers; de-duplication on (`senderId`, `messageId`)
@@ -1210,3 +1212,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.2 | 8 Oct 2026 | Connection methods back in scope at the user's request: users choose Wi-Fi network, phone hotspot, Wi-Fi Direct or Bluetooth (D20–D21, §2.1); Google Nearby stays out. New phases P13 (Wi-Fi Direct) and P14 (Bluetooth) after v1.0; permissions, risks and §16 Q3 added. UI preview done ahead of P11 (U.1–U.5). Example name in the spec changed from Tanim to Yusuf. |
 | 1.3 | 8 Oct 2026 | P2 done: Kotlin bridge (Wi-Fi binding, hotspot detection, multicast lock), protocol codec and framing, UDP + NSD discovery engine, network-wide unique names, live status, People Nearby, developer screen; 112 tests; `tool/lan_peer_sim.py` for one-phone testing; `TESTING.md` started. `POST_NOTIFICATIONS` request moved to P4. |
 | 1.4 | 9 Oct 2026 | Product renamed **LinkUp** (user's choice; non-technical, single word). Name kept in one constant (`Brand.name`); internal identifiers unchanged. APKs now `LINKUP_version-N.apk`. |
+| 1.5 | 9 Oct 2026 | P3 done: control connections (HELLO handshake, PING/PONG, idle timeout, framing limits), connection manager (lower ID dials, grace period, duplicate tie-break, backoff, network reset, port fallback), REGISTER over TCP, "Online" now means connected, new "Found X, but couldn't connect" state. Simulator speaks TCP. |

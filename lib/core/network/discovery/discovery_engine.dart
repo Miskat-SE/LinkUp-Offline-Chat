@@ -162,7 +162,7 @@ final class DiscoveryEngine {
   final AppLogger _logger;
   final ServiceDiscovery? _nsd;
   final int _udpPort;
-  final int _tcpPort;
+  int _tcpPort;
   final Random _random;
   SelfInfo _self;
 
@@ -270,6 +270,30 @@ final class DiscoveryEngine {
         _emit();
       }),
     );
+  }
+
+  /// Announces the TCP port actually listened on (P3), which may differ
+  /// from the preferred one if it was taken.
+  void setTcpPort(int port) {
+    if (port == _tcpPort) return;
+    _tcpPort = port;
+    unawaited(
+      _serial(() async {
+        await _nsd?.stopAdvertising();
+        await _updateAdvertising();
+        if (_self.canAnnounce) _broadcast(_hello());
+      }),
+    );
+  }
+
+  /// A connected device renamed itself over TCP (REGISTER).
+  void applyRename(String deviceId, String name, DateTime nameClaimedAt) {
+    if (!_registry.rename(deviceId, name, nameClaimedAt)) return;
+    _logger.info(LogTag.discovery, 'Peer renamed', {
+      'device': deviceId.substring(0, 4),
+    });
+    _recomputeClash();
+    _emit();
   }
 
   /// Sends HELLO now (developer screen) and asks who is there.
@@ -518,8 +542,8 @@ final class DiscoveryEngine {
         );
       case RegisterResponsePacket(:final result, :final name):
         if (result == RegisterResult.nameTaken) _nameTaken(name);
-      case RegisterPacket():
-        // Sent over TCP from P3 on; HELLO carries names until then.
+      case RegisterPacket() || PingPacket() || PongPacket():
+        // TCP-only packets; ignored if they arrive over UDP.
         break;
     }
   }

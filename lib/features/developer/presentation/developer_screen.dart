@@ -6,7 +6,6 @@ import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/constants/protocol_constants.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
-import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/utils/relative_time.dart';
 
@@ -17,8 +16,9 @@ class DeveloperScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final discovery =
-        ref.watch(discoveryProvider).value ?? DiscoverySnapshot.initial;
+    final nearby = ref.watch(nearbyProvider);
+    final discovery = nearby.discovery;
+    final links = nearby.links;
     final identity = ref.watch(identityProvider);
     final logs = ref.watch(appLoggerProvider).recent;
     final net = discovery.network;
@@ -56,7 +56,7 @@ class DeveloperScreen extends ConsumerWidget {
             _Row('Device ID', identity.deviceId),
           ]),
           _Section('Network', [
-            _Row('Status', discovery.state.name),
+            _Row('Status', nearby.status.name),
             _Row('Wi-Fi joined', _yesNo(net.wifiConnected)),
             _Row('Bound to Wi-Fi', _yesNo(net.boundToWifi)),
             _Row('Sharing hotspot', _yesNo(net.isHotspotHost)),
@@ -79,9 +79,12 @@ class DeveloperScreen extends ConsumerWidget {
                   ? 'not bound'
                   : 'listening on ${discovery.udpPort}',
             ),
-            const _Row(
+            _Row(
               'TCP',
-              '${ProtocolConstants.tcpPort} advertised (connections in P3)',
+              links.listeningPort == null
+                  ? 'not listening'
+                  : 'listening on ${links.listeningPort}'
+                        '${links.listeningPort == ProtocolConstants.tcpPort ? '' : ' (preferred port was taken)'}',
             ),
             _Row('NSD', discovery.nsdEnabled ? 'browsing' : 'off'),
           ]),
@@ -95,6 +98,28 @@ class DeveloperScreen extends ConsumerWidget {
                     ' · seen ${relativeTime(p.lastSeen, now)} · v${p.appVersion}',
               ),
           ]),
+          _Section('Connections · ${links.links.length}', [
+            if (links.links.isEmpty) const _Row('—', 'none'),
+            for (final link in links.links.values)
+              _Row(
+                '${link.peerName} · ${link.peerId.substring(0, 4)}',
+                '${link.direction.name} · ${link.address}'
+                    '${link.rttMs == null ? '' : ' · ${link.rttMs} ms'}'
+                    ' · since ${relativeTime(link.connectedAt, now)}',
+              ),
+            if (links.unreachable.isNotEmpty)
+              _Row(
+                "Can't connect",
+                links.unreachable.map((id) => id.substring(0, 4)).join(', '),
+              ),
+            _Row(
+              'Counters',
+              'dials ${links.stats.dials} · failed ${links.stats.dialFailures}'
+                  ' · accepted ${links.stats.accepted}'
+                  ' · bad handshakes ${links.stats.handshakeFailures}'
+                  ' · duplicates closed ${links.stats.duplicatesClosed}',
+            ),
+          ]),
           _Section('Packets', [
             _Row('Sent', _counts(discovery.stats.sent)),
             _Row('Received', _counts(discovery.stats.received)),
@@ -102,8 +127,14 @@ class DeveloperScreen extends ConsumerWidget {
             _Row('Other apps', '${discovery.stats.foreign}'),
           ]),
           _Section('Network errors', [
-            if (discovery.stats.recentErrors.isEmpty) const _Row('—', 'none'),
-            for (final e in discovery.stats.recentErrors.reversed) _Row('', e),
+            if (discovery.stats.recentErrors.isEmpty &&
+                links.stats.recentErrors.isEmpty)
+              const _Row('—', 'none'),
+            for (final e in [
+              ...discovery.stats.recentErrors,
+              ...links.stats.recentErrors,
+            ].reversed)
+              _Row('', e),
           ]),
           _Section('Recent logs', [
             for (final entry in logs.reversed.take(100))

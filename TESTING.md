@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test        # 112 tests, about 5 seconds
+flutter test        # 138 tests, about 10 seconds
 ```
 
 | Area | File | What it proves |
@@ -18,6 +18,8 @@ flutter test        # 112 tests, about 5 seconds
 | Peer list | `test/core/network/discovery/peer_registry_test.dart` | Merge by device ID, expiry after 20 s, GOODBYE, name holders, clash rule |
 | Discovery | `test/core/network/discovery/discovery_engine_test.dart` | Two to three engines on an in-memory LAN: find each other, leave, come back, IP change, Wi-Fi lost and back, name check (taken, free, no network), name clash, blocked access, isolation hint, malformed packets, NSD when broadcasts are dropped |
 | Sockets | `test/core/network/network_test.dart` | Real UDP sockets on loopback; subnet and broadcast maths; display names; "last seen" text |
+| TCP connections | `test/core/network/connection/connection_manager_test.dart` | Real sockets on loopback: lower ID dials, grace period, duplicate tie-break, keep-alive and round-trip time, idle timeout, no HELLO, packets before HELLO, malformed and oversized frames, self-connection, wrong device at an address, reconnect, network reset, port fallback |
+| Nearby and REGISTER | `test/core/network/connection/nearby_and_register_test.dart` | Online means connected; unreachable state; devices only seen over TCP; renames applied and answered |
 | App flows | `test/features/onboarding/onboarding_flow_test.dart` | Whole app: onboarding, relaunch, tabs, New chat sheet, Change name, connection method, theme |
 | Discovery UI | `test/features/discovery/discovery_ui_test.dart` | Whole app with a second simulated phone: status line, People Nearby, leaving, name taken during onboarding, clash banner, developer screen |
 
@@ -27,7 +29,7 @@ flutter test        # 112 tests, about 5 seconds
 
 ## 2. Testing with one phone: the simulated peer
 
-`tool/lan_peer_sim.py` pretends to be a second phone. It announces itself, answers DISCOVERY and NAME_CHECK, and prints what it hears. It needs Python 3 and nothing else.
+`tool/lan_peer_sim.py` pretends to be a second phone. It announces itself, answers DISCOVERY and NAME_CHECK, and accepts TCP connections on port 28771: the HELLO handshake, PING and REGISTER. It prints what it hears and needs only Python 3.
 
 **Real phone + Mac on the same Wi-Fi**
 
@@ -41,12 +43,12 @@ The phone should show *Mac Tester* in People Nearby within a few seconds, and th
 
 ```sh
 adb emu redir add udp:28760:28760
-python3 tool/lan_peer_sim.py --name "Mac Tester" --listen 28770 --target 127.0.0.1:28760
+python3 tool/lan_peer_sim.py --name "Mac Tester" --listen 28770 --tcp 28771 --target 127.0.0.1:28760
 # when done:
 adb emu redir del udp:28760
 ```
 
-In this mode the emulator hears the Mac, but its broadcasts can't reach the Mac. That is a limitation of the emulator's network, not of the app.
+In this mode the emulator hears the Mac, but its broadcasts can't reach the Mac; that's a limitation of the emulator's network, not of the app. The app then connects to the Mac over TCP: it dials `10.0.2.2:28771`, which the emulator maps to the Mac.
 
 **Developer screen.** In a release build, open Settings, then tap the version number 7 times. It shows the phone's IP, subnet, broadcast address, whether the app is bound to Wi-Fi, ports, peers with their source (UDP/NSD), packet counters, errors and recent logs. **Copy logs** puts the logs on the clipboard for bug reports.
 
@@ -70,5 +72,7 @@ From PROJECT_PLAN.md §13.2. Fill in one row per run.
 | Date | Setup | Build | What was checked | Result |
 |---|---|---|---|---|
 | 8 Oct 2026 | Android 17 emulator + `lan_peer_sim.py` on the Mac | version 3 | Wi-Fi bridge (joined, bound to Wi-Fi, interfaces), UDP bound on 28760, NSD browsing, simulated peer appears *Online* in Home and People, GOODBYE moves it to *Seen earlier*, isolation hint after 30 s alone, developer unlock by 7 taps | Pass |
+
+| 9 Oct 2026 | Android 17 emulator + simulator with TCP | version 5 | Version 5: app dials the simulator after the 3 s grace period; handshake; Home shows *connected · 1 nearby* only once TCP is up; rename sends REGISTER (`'Yusuf' is now 'Yusuf Ali'`); connection kept open by PING/PONG | Pass |
 
 **Still needed for M2** (plan §11.2): two real phones on a router with the internet unplugged and mobile data on. They should see each other within 10 s, go offline within 20 s of Wi-Fi off, and be rediscovered after a router reboot.

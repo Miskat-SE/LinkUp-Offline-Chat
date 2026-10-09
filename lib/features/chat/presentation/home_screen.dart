@@ -7,7 +7,6 @@ import 'package:resqmesh/core/connection/connection_method.dart';
 import 'package:resqmesh/core/connection/connection_providers.dart';
 import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
-import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/features/chat/presentation/new_chat_sheet.dart';
 import 'package:resqmesh/shared/widgets/connection_status_card.dart';
@@ -25,8 +24,7 @@ class HomeScreen extends ConsumerWidget {
     final name = ref.watch(identityProvider).username ?? '';
     final method =
         ref.watch(connectionMethodProvider) ?? ConnectionMethod.wifiRouter;
-    final discovery =
-        ref.watch(discoveryProvider).value ?? DiscoverySnapshot.initial;
+    final nearby = ref.watch(nearbyProvider);
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showNewChatSheet(context),
@@ -47,7 +45,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                if (discovery.clash != null) ...[
+                if (nearby.discovery.clash != null) ...[
                   NameClashBanner(
                     onChangeName: () => context.push(Routes.changeName),
                   ),
@@ -55,7 +53,7 @@ class HomeScreen extends ConsumerWidget {
                 ],
                 ConnectionStatusCard(
                   method: method,
-                  discovery: discovery,
+                  nearby: nearby,
                   onChange: () => context.push(Routes.connection),
                 ),
                 const SizedBox(height: AppSpacing.xl),

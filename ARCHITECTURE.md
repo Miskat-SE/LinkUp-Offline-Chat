@@ -1,6 +1,6 @@
 # ResQMesh Architecture
 
-Describes the code as it is now (end of phase P2). The target design is in [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §4; sections below grow as each phase lands.
+Describes the code as it is now (end of phase P3). The target design is in [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §4; sections below grow as each phase lands.
 
 ## Layers
 
@@ -11,7 +11,7 @@ DATA           Repositories over storage
 CORE           Bootstrap · identity · key-value storage · logging
 ```
 
-Still to come: TCP connections (P3), the drift database (P5), the transfer isolate (P6) and the foreground service (P8).
+Still to come: messages (P4), the drift database (P5), the transfer isolate (P6) and the foreground service (P8).
 
 **Rules** (checked by `test/architecture_test.dart`):
 - Material widgets come from `package:material_ui` (Flutter's decoupled Material library), never `package:flutter/material.dart` (ADR-0016).
@@ -100,6 +100,30 @@ Kotlin LanBridge ──pigeon──▶ PlatformNetworkMonitor ──▶ Discover
   - Network changes run one at a time (`_serial`).
 - **State for the UI.** `discoveryProvider` streams a `DiscoverySnapshot`: status (`noNetwork`, `searching`, `connected`, `blocked`), network, peers, isolation hint, name clash, counters.
 - **Swappable parts.** `NetworkMonitor`, `DatagramTransport` and `ServiceDiscovery` are interfaces, so tests run the real engine on an in-memory LAN.
+
+## Connections (P3)
+
+```
+DiscoveryEngine ──online peers──▶ ConnectionManager (PeerLinks) ──▶ LinksSnapshot ─┐
+      ▲  setTcpPort / applyRename        │  ServerSocket :28761 (or ephemeral)     ├─▶ NearbySnapshot ──▶ UI
+      └──────── RegisterHandler ◀────────┤  PeerConnection per device             │   (Online = connected)
+                                         └─ packets (P4 uses these)  DiscoverySnapshot ┘
+```
+
+- **`PeerConnection`** (`lib/core/network/connection/peer_connection.dart`) is one TCP control connection:
+  - Both sides send HELLO first, within 5 s. Anything else first, our own ID, an unexpected device ID or an incompatible protocol closes it.
+  - After the handshake, every packet's sender must match the HELLO.
+  - PING every 15 s; 45 s of silence closes it.
+  - 3 malformed frames in a row, a bad frame kind or an oversized length close it at once.
+- **`ConnectionManager`**:
+  - Listens on 28761, or an ephemeral port if that is taken, and announces the real port.
+  - The lower device ID dials straight away. The higher one dials after a 3 s grace period, for when only one side discovered the other.
+  - If both connections still happen, it keeps the one opened by the lower ID.
+  - Lost connections are redialled with backoff (1 s up to 30 s). A device that fails twice is marked unreachable.
+  - On any network change it drops everything and listens again.
+- **`RegisterHandler`** sends REGISTER to every connection when the name changes. It applies renames from others, and answers `nameTaken` if this device holds the name under the clash rule.
+- **`NearbySnapshot`** combines discovery and connections. *Online* means a live connection. Other people show as *Connecting…*, *Can't connect*, or *Last seen*. A device that connected to us but was never discovered still appears.
+- **`PeerLinks`** is an interface: widget tests use a stand-in, while `ConnectionManager` is tested on real loopback sockets.
 
 ## Testing
 

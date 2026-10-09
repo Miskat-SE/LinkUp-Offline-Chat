@@ -80,6 +80,8 @@ void main() {
         name: 'Yusuf',
         nameClaimedAt: DateTime.utc(2026, 10, 8),
       ),
+      PingPacket(header(receiver: _other), nonce: 42),
+      PongPacket(header(receiver: _other), nonce: 42),
       RegisterResponsePacket(
         header(),
         result: RegisterResult.ok,

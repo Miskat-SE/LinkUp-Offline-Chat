@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/core/connection/connection_method.dart';
-import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
+import 'package:resqmesh/core/network/nearby.dart';
 import 'package:resqmesh/shared/widgets/connection_method_info.dart';
 
 /// Hero card at the top of Home and People: the chosen connection method and
@@ -10,12 +10,12 @@ class ConnectionStatusCard extends StatelessWidget {
   const ConnectionStatusCard({
     super.key,
     required this.method,
-    required this.discovery,
+    required this.nearby,
     required this.onChange,
   });
 
   final ConnectionMethod method;
-  final DiscoverySnapshot discovery;
+  final NearbySnapshot nearby;
   final VoidCallback onChange;
 
   @override
@@ -55,7 +55,7 @@ class ConnectionStatusCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        discovery.network.isHotspotHost
+                        nearby.discovery.network.isHotspotHost
                             ? 'Sharing your hotspot'
                             : 'Connecting with',
                         style: theme.textTheme.labelLarge?.copyWith(
@@ -74,10 +74,24 @@ class ConnectionStatusCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            _StatusLine(method: method, discovery: discovery),
-            if (discovery.isolationSuspected) ...[
+            _StatusLine(method: method, nearby: nearby),
+            if (nearby.status == NearbyStatus.unreachable) ...[
               const SizedBox(height: AppSpacing.md),
-              const _IsolationHint(),
+              const _Hint(
+                title: 'The router may be blocking device-to-device traffic.',
+                lines: ['Try a phone hotspot: one shares it, the others join.'],
+              ),
+            ] else if (nearby.isolationSuspected) ...[
+              const SizedBox(height: AppSpacing.md),
+              const _Hint(
+                title: 'No nearby devices found.',
+                lines: [
+                  'Make sure:',
+                  '• Everyone is connected to the same Wi-Fi',
+                  '• The router allows device-to-device communication',
+                  '• The app is allowed to access the local network',
+                ],
+              ),
             ],
             const SizedBox(height: AppSpacing.lg),
             FilledButton.tonalIcon(
@@ -93,29 +107,37 @@ class ConnectionStatusCard extends StatelessWidget {
 }
 
 class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.method, required this.discovery});
+  const _StatusLine({required this.method, required this.nearby});
 
   final ConnectionMethod method;
-  final DiscoverySnapshot discovery;
+  final NearbySnapshot nearby;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final count = discovery.onlineCount;
-    final (Color dot, String text) = switch (discovery.state) {
-      LanState.connected => (
+    final count = nearby.connectedCount;
+    final (Color dot, String text) = switch (nearby.status) {
+      NearbyStatus.connected => (
         const Color(0xFF2E9E4F),
         'Local network connected · $count nearby',
       ),
-      LanState.searching => (const Color(0xFFF29900), 'Searching for devices…'),
-      LanState.noNetwork => (
+      NearbyStatus.searching => (
+        const Color(0xFFF29900),
+        'Searching for devices…',
+      ),
+      NearbyStatus.unreachable => (
+        scheme.error,
+        "Found ${nearby.firstUnreachable?.peer.name ?? 'someone'}, "
+            "but couldn't connect",
+      ),
+      NearbyStatus.noNetwork => (
         scheme.error,
         method == ConnectionMethod.hotspot
             ? 'Not on a hotspot. Join one, or turn on yours.'
             : 'Wi-Fi disconnected',
       ),
-      LanState.blocked => (scheme.error, 'Local network access is off'),
+      NearbyStatus.blocked => (scheme.error, 'Local network access is off'),
     };
     return Semantics(
       liveRegion: true,
@@ -123,7 +145,7 @@ class _StatusLine extends StatelessWidget {
       excludeSemantics: true,
       child: Row(
         children: [
-          if (discovery.state == LanState.searching)
+          if (nearby.status == NearbyStatus.searching)
             SizedBox.square(
               dimension: 14,
               child: CircularProgressIndicator(strokeWidth: 2.5, color: dot),
@@ -150,9 +172,13 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
-/// Spec §31 wording; never claims the app is broken.
-class _IsolationHint extends StatelessWidget {
-  const _IsolationHint();
+/// A short explanation under the status line. Uses the spec §31 wording for
+/// the isolation hint, and never claims the app is broken.
+class _Hint extends StatelessWidget {
+  const _Hint({required this.title, required this.lines});
+
+  final String title;
+  final List<String> lines;
 
   @override
   Widget build(BuildContext context) {
@@ -170,20 +196,11 @@ class _IsolationHint extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'No nearby devices found.',
+              title,
               style: theme.textTheme.titleSmall?.copyWith(color: color),
             ),
             const SizedBox(height: AppSpacing.xs),
-            Text('Make sure:', style: style),
-            Text('• Everyone is connected to the same Wi-Fi', style: style),
-            Text(
-              '• The router allows device-to-device communication',
-              style: style,
-            ),
-            Text(
-              '• The app is allowed to access the local network',
-              style: style,
-            ),
+            for (final line in lines) Text(line, style: style),
           ],
         ),
       ),

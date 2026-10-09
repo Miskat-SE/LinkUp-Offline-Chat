@@ -11,6 +11,8 @@ abstract final class PacketType {
   static const nameCheck = 'NAME_CHECK';
   static const register = 'REGISTER';
   static const registerResponse = 'REGISTER_RESPONSE';
+  static const ping = 'PING';
+  static const pong = 'PONG';
 }
 
 /// Envelope fields shared by every control packet (PROTOCOL.md §3).
@@ -200,6 +202,26 @@ final class RegisterResponsePacket extends Packet {
 
   @override
   String get type => PacketType.registerResponse;
+}
+
+/// Keep-alive on an idle TCP connection (PROTOCOL.md §4.5).
+final class PingPacket extends Packet {
+  const PingPacket(super.header, {required this.nonce});
+
+  final int nonce;
+
+  @override
+  String get type => PacketType.ping;
+}
+
+/// Answer to [PingPacket], echoing its nonce.
+final class PongPacket extends Packet {
+  const PongPacket(super.header, {required this.nonce});
+
+  final int nonce;
+
+  @override
+  String get type => PacketType.pong;
 }
 
 bool _listEquals(List<String> a, List<String> b) {

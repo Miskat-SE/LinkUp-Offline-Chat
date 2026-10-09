@@ -6,6 +6,7 @@ import 'package:resqmesh/core/storage/key_value_store.dart';
 import 'package:resqmesh/shared/widgets/name_form.dart';
 
 import '../../support/fake_network_monitor.dart';
+import '../../support/fake_peer_links.dart';
 import '../../support/memory_datagram_network.dart';
 import '../../support/memory_key_value_store.dart';
 import '../../support/test_app.dart';
@@ -91,6 +92,33 @@ void main() {
     await pumpFor(tester, const Duration(seconds: 1));
     expect(find.text('Seen earlier'), findsOneWidget);
     expect(find.text('Last seen just now'), findsOneWidget);
+    await finish(tester, other);
+  });
+
+  testWidgets('a phone that is found but cannot be reached says so', (
+    tester,
+  ) async {
+    final lan = MemoryDatagramNetwork();
+    final other = await startOtherPhone(lan, name: 'Rahim');
+    final links = FakePeerLinks()..refused.add(other.self.deviceId);
+    await launchApp(
+      tester,
+      onboarded(),
+      lan: lan,
+      links: links,
+      network: FakeNetworkMonitor.onWifi('192.168.0.10'),
+      settle: false,
+    );
+    await pumpFor(tester, const Duration(seconds: 2));
+
+    expect(find.text("Found Rahim, but couldn't connect"), findsOneWidget);
+    expect(
+      find.text('The router may be blocking device-to-device traffic.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('People'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(find.text("Can't connect"), findsOneWidget);
     await finish(tester, other);
   });
 

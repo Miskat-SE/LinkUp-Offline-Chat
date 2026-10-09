@@ -130,6 +130,8 @@ abstract final class PacketCodec {
     PacketType.nameCheck,
     PacketType.register,
     PacketType.registerResponse,
+    PacketType.ping,
+    PacketType.pong,
   };
 
   static Packet _packet(String type, PacketHeader header, _Reader p) {
@@ -171,6 +173,16 @@ abstract final class PacketCodec {
           holderClaimedAt: taken
               ? p.time('holderClaimedAt')
               : p.optionalTime('holderClaimedAt'),
+        );
+      case PacketType.ping:
+        return PingPacket(
+          header,
+          nonce: p.integer('nonce', min: 0, max: 0x7FFFFFFF),
+        );
+      case PacketType.pong:
+        return PongPacket(
+          header,
+          nonce: p.integer('nonce', min: 0, max: 0x7FFFFFFF),
         );
     }
     throw _Invalid('unhandled type $type');
@@ -223,6 +235,7 @@ abstract final class PacketCodec {
       'name': name,
       'nameClaimedAt': _time(nameClaimedAt),
     },
+    PingPacket(:final nonce) || PongPacket(:final nonce) => {'nonce': nonce},
     RegisterResponsePacket() => {
       'result': packet.result.name,
       'name': packet.name,
