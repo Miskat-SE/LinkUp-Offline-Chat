@@ -1,0 +1,10 @@
+{
+  "protocolVersion": 1,
+  "type": "DISCOVERY",
+  "messageId": "0b7e1c52-6a0f-4d8b-9f3e-1a2b3c4d5e6f",
+  "senderId": "3f2a9c4e-1b7d-4c55-8e0a-6d2f9b1c7a33",
+  "senderName": "",
+  "receiverId": "*",
+  "timestamp": "2026-10-08T20:42:13.512Z",
+  "payload": {}
+}

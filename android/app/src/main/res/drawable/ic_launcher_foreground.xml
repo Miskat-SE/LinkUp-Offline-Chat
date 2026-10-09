@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ResQMesh mark: three peers linked to a hub, inside the 66 dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Links between the outer peers -->
+    <path
+        android:pathData="M54,31 L34.1,65.5 L73.9,65.5 Z"
+        android:strokeWidth="2.5"
+        android:strokeColor="#B3FFFFFF"
+        android:strokeLineJoin="round" />
+    <!-- Spokes to the hub -->
+    <path
+        android:pathData="M54,54 L54,31 M54,54 L34.1,65.5 M54,54 L73.9,65.5"
+        android:strokeWidth="3.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <!-- Hub -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M46,54 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+    <!-- Peers -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M47.5,31 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M27.6,65.5 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M67.4,65.5 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+</vector>

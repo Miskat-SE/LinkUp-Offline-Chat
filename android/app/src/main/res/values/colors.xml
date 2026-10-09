@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand seed colour, as AppTheme.seed in lib/app/theme/app_theme.dart -->
+    <color name="ic_launcher_background">#00696E</color>
+    <!-- Shown behind the launch screen until Flutter draws its first frame -->
+    <color name="launch_background">#F4FBFB</color>
+</resources>

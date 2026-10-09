@@ -1,0 +1,17 @@
+{
+  "protocolVersion": 1,
+  "type": "HELLO",
+  "messageId": "6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10",
+  "senderId": "3f2a9c4e-1b7d-4c55-8e0a-6d2f9b1c7a33",
+  "senderName": "Yusuf",
+  "receiverId": "*",
+  "timestamp": "2026-10-08T20:42:13.512Z",
+  "payload": {
+    "tcpPort": 28761,
+    "appVersion": "1.0.0+3",
+    "minProtocol": 1,
+    "maxProtocol": 1,
+    "nameClaimedAt": "2026-10-08T19:02:44.120Z",
+    "capabilities": []
+  }
+}

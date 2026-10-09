@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""A simulated ResQMesh phone, for testing discovery with only one phone.
+
+Speaks the UDP discovery protocol from PROTOCOL.md: announces itself with
+HELLO every 5 s, answers DISCOVERY and NAME_CHECK, and prints every device it
+hears. Standard library only.
+
+Same Wi-Fi as a real phone (Mac and phone on one network):
+    python3 tool/lan_peer_sim.py --name "Mac Tester"
+
+Android emulator (forward the port first):
+    adb emu redir add udp:28760:28760
+    python3 tool/lan_peer_sim.py --name "Mac Tester" --listen 28770 \
+        --target 127.0.0.1:28760
+
+Ctrl-C sends GOODBYE and stops.
+"""
+
+import argparse
+import datetime
+import json
+import select
+import socket
+import time
+import uuid
+
+MAGIC = b"RQM1"
+PORT = 28760
+
+
+def now():
+    t = datetime.datetime.now(datetime.timezone.utc)
+    return t.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+class Peer:
+    def __init__(self, name, listen, targets):
+        self.id = str(uuid.uuid4())
+        self.name = name
+        self.claimed_at = now()
+        self.targets = targets
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.bind(("0.0.0.0", listen))
+        self.seen = {}
+
+    def packet(self, kind, payload, receiver="*"):
+        body = {
+            "protocolVersion": 1,
+            "type": kind,
+            "messageId": str(uuid.uuid4()),
+            "senderId": self.id,
+            "senderName": self.name,
+            "receiverId": receiver,
+            "timestamp": now(),
+            "payload": payload,
+        }
+        return MAGIC + json.dumps(body).encode()
+
+    def announcement(self):
+        return {
+            "tcpPort": 28761,
+            "appVersion": "sim",
+            "minProtocol": 1,
+            "maxProtocol": 1,
+            "nameClaimedAt": self.claimed_at,
+            "capabilities": [],
+        }
+
+    def send(self, data, address):
+        try:
+            self.sock.sendto(data, address)
+        except OSError as e:
+            print(f"  ! send to {address} failed: {e}")
+
+    def announce(self, kind="HELLO"):
+        data = self.packet(kind, self.announcement() if kind == "HELLO" else {})
+        for target in self.targets:
+            self.send(data, target)
+
+    def handle(self, data, address):
+        if not data.startswith(MAGIC):
+            return
+        try:
+            p = json.loads(data[len(MAGIC):])
+        except ValueError:
+            print(f"  ! malformed datagram from {address}")
+            return
+        if p.get("senderId") == self.id:
+            return
+        kind, sender, name = p.get("type"), p.get("senderId", "?"), p.get("senderName", "")
+        if kind in ("HELLO", "DISCOVERY_RESPONSE"):
+            if sender not in self.seen:
+                print(f"+ found {name!r} ({sender[:4]}) at {address[0]}")
+            elif self.seen[sender] != name:
+                print(f"~ {sender[:4]} is now {name!r}")
+            self.seen[sender] = name
+        elif kind == "DISCOVERY":
+            print(f"? DISCOVERY from {address[0]}:{address[1]}, answering")
+            self.send(
+                self.packet("DISCOVERY_RESPONSE", self.announcement(), sender),
+                address,
+            )
+        elif kind == "NAME_CHECK":
+            candidate = p.get("payload", {}).get("candidateName", "")
+            taken = candidate.strip().lower() == self.name.strip().lower()
+            print(f"? NAME_CHECK {candidate!r} -> {'taken' if taken else 'free'}")
+            if taken:
+                payload = {
+                    "result": "nameTaken",
+                    "name": self.name,
+                    "holderId": self.id,
+                    "holderClaimedAt": self.claimed_at,
+                }
+                self.send(self.packet("REGISTER_RESPONSE", payload, sender), address)
+        elif kind == "GOODBYE":
+            print(f"- {name!r} ({sender[:4]}) left")
+            self.seen.pop(sender, None)
+
+    def run(self):
+        print(f"Simulated phone {self.name!r} ({self.id[:4]}), sending to {self.targets}")
+        self.announce("DISCOVERY")
+        next_hello = 0.0
+        try:
+            while True:
+                if time.monotonic() >= next_hello:
+                    self.announce()
+                    next_hello = time.monotonic() + 5
+                ready, _, _ = select.select([self.sock], [], [], 0.5)
+                if ready:
+                    data, address = self.sock.recvfrom(2048)
+                    self.handle(data, address)
+        except KeyboardInterrupt:
+            for target in self.targets:
+                self.send(self.packet("GOODBYE", {"reason": "appStopped"}), target)
+            print("\nSent GOODBYE")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--name", default="Mac Tester", help="name to announce (2-30 characters)")
+    parser.add_argument("--listen", type=int, default=PORT, help=f"UDP port to listen on (default {PORT})")
+    parser.add_argument(
+        "--target",
+        action="append",
+        help=f"host:port to announce to (repeatable; default 255.255.255.255:{PORT})",
+    )
+    args = parser.parse_args()
+    targets = []
+    for t in args.target or [f"255.255.255.255:{PORT}"]:
+        host, port = t.rsplit(":", 1)
+        targets.append((host, int(port)))
+    Peer(args.name, args.listen, targets).run()
+
+
+if __name__ == "__main__":
+    main()

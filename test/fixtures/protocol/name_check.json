@@ -1,0 +1,10 @@
+{
+  "protocolVersion": 1,
+  "type": "NAME_CHECK",
+  "messageId": "9c8b7a65-4321-4fed-8cba-0987654321ab",
+  "senderId": "3f2a9c4e-1b7d-4c55-8e0a-6d2f9b1c7a33",
+  "senderName": "",
+  "receiverId": "*",
+  "timestamp": "2026-10-08T20:42:13.512Z",
+  "payload": { "candidateName": "Yusuf" }
+}
