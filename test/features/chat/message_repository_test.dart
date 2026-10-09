@@ -154,7 +154,9 @@ void main() {
   test('marking read clears the unread count and returns the IDs', () async {
     await repo.insertIncoming(incoming(1, id: 'x'));
     await repo.insertOutgoing(outgoing(2, id: 'mine'));
-    expect(await repo.markRead(_rahim), ['x']);
+    expect(await repo.markRead(_rahim), {
+      _rahim: ['x'],
+    });
     expect(await repo.markRead(_rahim), isEmpty);
     expect((await repo.watchConversations().first).single.unreadCount, 0);
   });
@@ -313,5 +315,149 @@ void main() {
     final reopened = DriftMessageRepository(second);
     expect((await reopened.find('kept'))?.status, MessageStatus.pending);
     expect((await reopened.pendingFor(_rahim)).single.id, 'kept');
+  });
+
+  group('Everyone', () {
+    ChatMessage broadcast(String id) => ChatMessage(
+      id: id,
+      peerId: ChatMessage.everyone,
+      peerName: 'Everyone',
+      direction: MessageDirection.outgoing,
+      text: 'Hi all',
+      sentAt: _t0,
+      createdAt: _t0,
+      status: MessageStatus.sent,
+      audience: ChatAudience.everyone,
+    );
+
+    MessageRecipient to(String id, String name, {String message = 'b'}) =>
+        MessageRecipient(
+          messageId: message,
+          recipientId: id,
+          recipientName: name,
+          status: MessageStatus.pending,
+        );
+
+    test('recipients are stored, watched, and only move forward', () async {
+      await repo.insertBroadcast(broadcast('b'), [
+        to(_rahim, 'Rahim'),
+        to(_karim, 'Karim'),
+      ]);
+      final watched = <Map<String, List<MessageRecipient>>>[];
+      final sub = repo
+          .watchRecipients(ChatMessage.everyone)
+          .listen(watched.add);
+      await pumpEventQueue();
+
+      await repo.updateRecipient('b', _rahim, MessageStatus.read);
+      await repo.updateRecipient('b', _rahim, MessageStatus.delivered);
+      await repo.updateRecipient(
+        'b',
+        _karim,
+        MessageStatus.sending,
+        attempts: 2,
+      );
+      await pumpEventQueue();
+      await sub.cancel();
+
+      final recipients = {
+        for (final r in await repo.recipients('b')) r.recipientName: r,
+      };
+      expect(recipients['Rahim']!.status, MessageStatus.read);
+      expect(recipients['Karim']!.status, MessageStatus.sending);
+      expect(recipients['Karim']!.attempts, 2);
+      expect(watched.last['b'], hasLength(2));
+      expect(
+        await repo.updateRecipient('b', 'nobody', MessageStatus.read),
+        isNull,
+      );
+    });
+
+    test('deliveries waiting for a person come oldest first', () async {
+      await repo.insertBroadcast(broadcast('b1'), [
+        to(_rahim, 'Rahim', message: 'b1'),
+      ]);
+      await repo.insertBroadcast(broadcast('b2').copyWith(), [
+        to(_rahim, 'Rahim', message: 'b2'),
+        to(_karim, 'Karim', message: 'b2'),
+      ]);
+      await repo.updateRecipient('b2', _karim, MessageStatus.delivered);
+      expect((await repo.pendingDeliveriesTo(_rahim)).map((e) => e.$1.id), [
+        'b1',
+        'b2',
+      ]);
+      expect(await repo.pendingDeliveriesTo(_karim), isEmpty);
+    });
+
+    test('deleting an Everyone message removes its recipients', () async {
+      await repo.insertBroadcast(broadcast('b'), [to(_rahim, 'Rahim')]);
+      await repo.delete('b');
+      expect(await repo.recipients('b'), isEmpty);
+      expect(await repo.find('b'), isNull);
+    });
+
+    test(
+      'incoming Everyone messages: unread, read and owed receipts by sender',
+      () async {
+        ChatMessage from(String id, String sender, String name) => ChatMessage(
+          id: id,
+          peerId: ChatMessage.everyone,
+          peerName: name,
+          direction: MessageDirection.incoming,
+          text: 'x',
+          sentAt: _t0,
+          createdAt: _t0,
+          status: MessageStatus.received,
+          audience: ChatAudience.everyone,
+          senderId: sender,
+        );
+        await repo.insertIncoming(from('e1', _rahim, 'Rahim'));
+        await repo.insertIncoming(from('e2', _karim, 'Karim'));
+        expect(await repo.owedReceipts(_rahim, Receipt.delivered), ['e1']);
+        expect(await repo.markRead(ChatMessage.everyone), {
+          _rahim: ['e1'],
+          _karim: ['e2'],
+        });
+        expect(await repo.owedReceipts(_karim, Receipt.read), ['e2']);
+      },
+    );
+  });
+
+  test('delivery summaries read naturally', () {
+    MessageRecipient r(MessageStatus status) => MessageRecipient(
+      messageId: 'm',
+      recipientId: 'id',
+      recipientName: 'n',
+      status: status,
+    );
+    String label(List<MessageStatus> statuses) =>
+        DeliverySummary([for (final s in statuses) r(s)]).label;
+
+    expect(label([]), 'Nobody was online');
+    expect(
+      label([MessageStatus.sending, MessageStatus.pending]),
+      'Sending to 2',
+    );
+    expect(
+      label([MessageStatus.sent, MessageStatus.pending]),
+      'Sent to 1 of 2',
+    );
+    expect(
+      label([MessageStatus.delivered, MessageStatus.read, MessageStatus.sent]),
+      'Read by 1 of 3',
+    );
+    expect(
+      label([MessageStatus.delivered, MessageStatus.failed]),
+      'Delivered to 1 of 2 · 1 not sent',
+    );
+    expect(
+      DeliverySummary([r(MessageStatus.read), r(MessageStatus.delivered)])
+          .overall,
+      MessageStatus.delivered,
+    );
+    expect(
+      DeliverySummary([r(MessageStatus.failed)]).overall,
+      MessageStatus.failed,
+    );
   });
 }

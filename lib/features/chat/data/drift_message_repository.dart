@@ -54,7 +54,7 @@ final class DriftMessageRepository implements MessageRepository {
               return ConversationSummary(
                 peerId: last.peerId,
                 // The latest name seen in this conversation.
-                peerName: last.peerName,
+                peerName: last.peerId == _everyone ? 'Everyone' : last.peerName,
                 lastMessage: last,
                 unreadCount: row.read<int>('unread'),
               );
@@ -117,22 +117,28 @@ final class DriftMessageRepository implements MessageRepository {
   });
 
   @override
-  Future<List<String>> markRead(String peerId) => _db.transaction(() async {
-    final unread = _unreadFrom(peerId);
-    final ids =
-        await (_db.selectOnly(_messages)
-              ..addColumns([_messages.messageId])
-              ..where(unread)
-              ..orderBy([OrderingTerm.asc(_messages.createdAt)]))
-            .map((row) => row.read(_messages.messageId)!)
-            .get();
-    if (ids.isNotEmpty) {
-      await (_db.update(_messages)..where((_) => unread)).write(
-        const MessagesCompanion(isRead: Value(true)),
-      );
-    }
-    return ids;
-  });
+  Future<Map<String, List<String>>> markRead(String conversationId) =>
+      _db.transaction(() async {
+        final unread = _unreadFrom(conversationId);
+        final m = _messages;
+        final rows =
+            await (_db.selectOnly(m)
+                  ..addColumns([m.messageId, m.conversationId, m.senderId])
+                  ..where(unread)
+                  ..orderBy([OrderingTerm.asc(m.createdAt)]))
+                .get();
+        if (rows.isEmpty) return const {};
+        await (_db.update(m)..where((_) => unread)).write(
+          const MessagesCompanion(isRead: Value(true)),
+        );
+        final bySender = <String, List<String>>{};
+        for (final row in rows) {
+          // Everyone messages are confirmed to whoever sent each one.
+          final sender = row.read(m.senderId) ?? row.read(m.conversationId)!;
+          bySender.putIfAbsent(sender, () => []).add(row.read(m.messageId)!);
+        }
+        return bySender;
+      });
 
   @override
   Future<List<ChatMessage>> pendingFor(String peerId) async {
@@ -156,21 +162,35 @@ final class DriftMessageRepository implements MessageRepository {
   }
 
   @override
-  Future<int> resetInterrupted() =>
-      (_db.update(_messages)..where(
-            (m) => m.status.equals(_statusCodes[MessageStatus.sending]!),
-          ))
-          .write(
-            MessagesCompanion(
-              status: Value(_statusCodes[MessageStatus.pending]!),
-              attempts: const Value(0),
-            ),
-          );
+  Future<int> resetInterrupted() => _db.transaction(() async {
+    final sending = _statusCodes[MessageStatus.sending]!;
+    final pending = _statusCodes[MessageStatus.pending]!;
+    final messages =
+        await (_db.update(
+          _messages,
+        )..where((m) => m.status.equals(sending))).write(
+          MessagesCompanion(status: Value(pending), attempts: const Value(0)),
+        );
+    final deliveries =
+        await (_db.update(
+          _recipients,
+        )..where((r) => r.status.equals(sending))).write(
+          MessageRecipientsCompanion(
+            status: Value(pending),
+            attempts: const Value(0),
+            updatedAt: Value(clock.now()),
+          ),
+        );
+    return messages + deliveries;
+  });
 
   @override
   Future<List<String>> owedReceipts(String peerId, Receipt receipt) {
     final m = _messages;
-    final incoming = m.conversationId.equals(peerId) & m.direction.equals(_in);
+    // Their chat, and their messages in the Everyone thread.
+    final incoming =
+        (m.conversationId.equals(peerId) | m.senderId.equals(peerId)) &
+        m.direction.equals(_in);
     final owed = switch (receipt) {
       Receipt.none => const Constant(false),
       Receipt.delivered =>
@@ -202,8 +222,148 @@ final class DriftMessageRepository implements MessageRepository {
   }
 
   @override
-  Future<void> delete(String messageId) =>
-      (_db.delete(_messages)..where((m) => m.messageId.equals(messageId))).go();
+  Future<void> delete(String messageId) => _db.transaction(() async {
+    await (_db.delete(
+      _recipients,
+    )..where((r) => r.messageId.equals(messageId))).go();
+    await (_db.delete(
+      _messages,
+    )..where((m) => m.messageId.equals(messageId))).go();
+  });
+
+  // ---------------------------------------------------------- Everyone
+
+  $MessageRecipientsTable get _recipients => _db.messageRecipients;
+
+  @override
+  Future<void> insertBroadcast(
+    ChatMessage message,
+    List<MessageRecipient> recipients,
+  ) => _db.transaction(() async {
+    await _db.into(_messages).insert(_toRow(message));
+    final now = clock.now();
+    for (final r in recipients) {
+      await _db
+          .into(_recipients)
+          .insert(
+            MessageRecipientsCompanion.insert(
+              messageId: message.id,
+              recipientId: r.recipientId,
+              recipientName: r.recipientName,
+              status: _statusCodes[r.status]!,
+              attempts: Value(r.attempts),
+              fileId: Value(r.fileId),
+              updatedAt: now,
+            ),
+          );
+    }
+  });
+
+  @override
+  Future<List<MessageRecipient>> recipients(String messageId) async {
+    final rows =
+        await (_db.select(_recipients)
+              ..where((r) => r.messageId.equals(messageId))
+              ..orderBy([(r) => OrderingTerm.asc(r.recipientName)]))
+            .get();
+    return rows.map(_toRecipient).toList();
+  }
+
+  @override
+  Stream<Map<String, List<MessageRecipient>>> watchRecipients(
+    String conversationId,
+  ) {
+    final query =
+        _db.select(_recipients).join([
+            innerJoin(
+              _messages,
+              _messages.messageId.equalsExp(_recipients.messageId),
+            ),
+          ])
+          ..where(_messages.conversationId.equals(conversationId))
+          ..orderBy([OrderingTerm.asc(_recipients.recipientName)]);
+    return query.watch().map((rows) {
+      final byMessage = <String, List<MessageRecipient>>{};
+      for (final row in rows) {
+        final recipient = _toRecipient(row.readTable(_recipients));
+        byMessage.putIfAbsent(recipient.messageId, () => []).add(recipient);
+      }
+      return byMessage;
+    });
+  }
+
+  @override
+  Future<MessageRecipient?> updateRecipient(
+    String messageId,
+    String recipientId,
+    MessageStatus status, {
+    int? attempts,
+  }) => _db.transaction(() async {
+    final where =
+        _recipients.messageId.equals(messageId) &
+        _recipients.recipientId.equals(recipientId);
+    final row = await (_db.select(
+      _recipients,
+    )..where((_) => where)).getSingleOrNull();
+    if (row == null) return null;
+    final current = _toRecipient(row);
+    final always =
+        status == MessageStatus.failed || status == MessageStatus.pending;
+    final moves = always || status.rank > current.status.rank;
+    if (!moves && attempts == null) return current;
+    final updated = current.copyWith(
+      status: moves ? status : null,
+      attempts: attempts,
+    );
+    await (_db.update(_recipients)..where((_) => where)).write(
+      MessageRecipientsCompanion(
+        status: Value(_statusCodes[updated.status]!),
+        attempts: Value(updated.attempts),
+        updatedAt: Value(clock.now()),
+      ),
+    );
+    return updated;
+  });
+
+  @override
+  Future<List<(ChatMessage, MessageRecipient)>> pendingDeliveriesTo(
+    String peerId,
+  ) async {
+    final query =
+        _db.select(_recipients).join([
+            innerJoin(
+              _messages,
+              _messages.messageId.equalsExp(_recipients.messageId),
+            ),
+          ])
+          ..where(
+            _recipients.recipientId.equals(peerId) &
+                _recipients.status.isIn([
+                  _statusCodes[MessageStatus.pending]!,
+                  _statusCodes[MessageStatus.sending]!,
+                ]),
+          )
+          ..orderBy([
+            OrderingTerm.asc(_messages.createdAt),
+            OrderingTerm.asc(_messages.id),
+          ]);
+    return [
+      for (final row in await query.get())
+        (
+          _toMessage(row.readTable(_messages)),
+          _toRecipient(row.readTable(_recipients)),
+        ),
+    ];
+  }
+
+  static MessageRecipient _toRecipient(RecipientRow row) => MessageRecipient(
+    messageId: row.messageId,
+    recipientId: row.recipientId,
+    recipientName: row.recipientName,
+    status: _statusByCode[row.status] ?? MessageStatus.failed,
+    attempts: row.attempts,
+    fileId: row.fileId,
+  );
 
   Expression<bool> _unreadFrom(String peerId) =>
       _messages.conversationId.equals(peerId) &
@@ -217,6 +377,7 @@ final class DriftMessageRepository implements MessageRepository {
   static const _in = 'in';
   static const _out = 'out';
   static const _file = 'file';
+  static const _everyone = 'everyone';
 
   static const _statusCodes = {
     MessageStatus.pending: 'pending',
@@ -258,6 +419,10 @@ final class DriftMessageRepository implements MessageRepository {
         content: row.kind == _file ? MessageContent.file : MessageContent.text,
         fileId: row.fileId,
         fileName: fileName,
+        audience: row.audience == _everyone
+            ? ChatAudience.everyone
+            : ChatAudience.direct,
+        senderId: row.senderId,
       );
 
   static MessagesCompanion _toRow(ChatMessage message) =>
@@ -275,5 +440,7 @@ final class DriftMessageRepository implements MessageRepository {
         attempts: Value(message.attempts),
         kind: Value(message.isFile ? _file : 'text'),
         fileId: Value(message.fileId),
+        audience: Value(message.isBroadcast ? _everyone : 'direct'),
+        senderId: Value(message.senderId),
       );
 }

@@ -196,7 +196,7 @@ The envelope `messageId` is the chat message ID.
 | Field | Rules |
 |---|---|
 | `messageType` | `text` or `file` |
-| `audience` | `direct`, `broadcast` (sent to everyone online) or `multi` (sent to selected people) |
+| `audience` | `direct`, `broadcast` (sent to everyone online) or `multi` (sent to selected people). A `broadcast` message is sent as one MESSAGE per recipient, each with that recipient's `receiverId` and the **same** `messageId`; receipts come back from each recipient. Receivers show it in their Everyone thread. Messages to selected people are sent as ordinary `direct` messages, one per person. |
 | `text` | Required for `text`, ≤ 16 KiB UTF-8; optional caption for `file` |
 | `replyToId` | UUID or null |
 | `file` | Required for `file`. `fileId` UUID; `name` ≤ 255 UTF-8 bytes (sanitised before use); `size` ≥ 0; `mimeType` ≤ 127 characters; `sha256` 64 lowercase hex characters |

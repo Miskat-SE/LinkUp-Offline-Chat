@@ -33,6 +33,12 @@ class Messages extends Table {
 
   /// File messages only: the row in [Files] (schema v2).
   TextColumn get fileId => text().nullable()();
+
+  /// `direct` or `everyone` (schema v3).
+  TextColumn get audience => text().withDefault(const Constant('direct'))();
+
+  /// Incoming Everyone messages: the sender's device ID (schema v3).
+  TextColumn get senderId => text().nullable()();
   TextColumn get replyToId => text().nullable()();
 
   /// The sender's clock; shown, never used for ordering.
@@ -55,6 +61,27 @@ class Messages extends Table {
   /// Outgoing only: send attempts on the current connection.
   IntColumn get attempts => integer().withDefault(const Constant(0))();
   IntColumn get lastAttemptAt => integer().map(const UtcMicros()).nullable()();
+}
+
+/// Who an outgoing Everyone message went to, each with their own status
+/// (PROJECT_PLAN.md §7.4, schema v3).
+@DataClassName('RecipientRow')
+@TableIndex(name: 'recipients_by_device', columns: {#recipientId, #status})
+class MessageRecipients extends Table {
+  TextColumn get messageId => text()();
+  TextColumn get recipientId => text()();
+  TextColumn get recipientName => text()();
+
+  /// `pending`, `sending`, `sent`, `delivered`, `read` or `failed`.
+  TextColumn get status => text()();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+
+  /// File messages: this recipient's own transfer in [Files].
+  TextColumn get fileId => text().nullable()();
+  IntColumn get updatedAt => integer().map(const UtcMicros())();
+
+  @override
+  Set<Column<Object>> get primaryKey => {messageId, recipientId};
 }
 
 /// Shared files and their transfer state (PROJECT_PLAN.md §8.1, schema v2).
@@ -119,12 +146,12 @@ final class UtcMicros extends TypeConverter<DateTime, int> {
 /// The app's SQLite database. Every schema change needs a new
 /// [schemaVersion], a migration step and a schema snapshot
 /// (`dart run drift_dev make-migrations`; see TESTING.md).
-@DriftDatabase(tables: [Messages, Files])
+@DriftDatabase(tables: [Messages, Files, MessageRecipients])
 final class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -142,6 +169,13 @@ final class AppDatabase extends _$AppDatabase {
         ]) {
           await m.createIndex(index);
         }
+      },
+      // v3 (P7): Everyone messages and their recipients.
+      from2To3: (m, schema) async {
+        await m.addColumn(schema.messages, schema.messages.audience);
+        await m.addColumn(schema.messages, schema.messages.senderId);
+        await m.createTable(schema.messageRecipients);
+        await m.createIndex(schema.recipientsByDevice);
       },
     ),
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),

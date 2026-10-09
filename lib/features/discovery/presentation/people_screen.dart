@@ -66,7 +66,16 @@ class PeopleScreen extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text('People Nearby')),
+          SliverAppBar.large(
+            title: const Text('People Nearby'),
+            actions: [
+              IconButton(
+                tooltip: 'Send to several people',
+                onPressed: () => context.push(Routes.selectPeople()),
+                icon: const Icon(Icons.checklist_rounded),
+              ),
+            ],
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.gutter),
             sliver: SliverList.list(

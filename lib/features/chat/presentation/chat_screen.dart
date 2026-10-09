@@ -17,7 +17,9 @@ import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
 import 'package:resqmesh/features/chat/presentation/message_bubble.dart';
 import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
+import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
 import 'package:resqmesh/features/file_transfer/data/transfer_service.dart';
+import 'package:resqmesh/features/file_transfer/domain/file_transfer.dart';
 import 'package:resqmesh/features/file_transfer/presentation/file_message_card.dart';
 import 'package:resqmesh/features/file_transfer/presentation/send_files_sheet.dart';
 import 'package:resqmesh/shared/widgets/empty_state.dart';
@@ -43,6 +45,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _gettingFiles = false;
 
   String get _peerId => widget.peerId;
+
+  /// The Everyone thread (P7): one message to everyone online.
+  bool get _everyone => _peerId == ChatMessage.everyone;
+
+  /// Names of the people online now, for Everyone messages.
+  Map<String, String> _onlineNames() => {
+    for (final p in ref.read(nearbyProvider).peers)
+      if (p.link == LinkState.connected) p.peer.deviceId: p.peer.name,
+  };
+
+  void _nobodyOnline() => ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Nobody is online to receive it')),
+  );
 
   @override
   void initState() {
@@ -93,6 +108,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final replyTo = _replyingTo;
     _text.clear();
     setState(() => _replyingTo = null);
+    if (_everyone) {
+      final sent = await ref
+          .read(messagingServiceProvider)
+          .sendToEveryone(text: text, names: _onlineNames());
+      if (sent.isEmpty && mounted) _nobodyOnline();
+      return;
+    }
     await ref
         .read(messagingServiceProvider)
         .sendText(
@@ -129,6 +151,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       peerName: peerName,
     );
     if (files == null || files.isEmpty) return;
+    if (_everyone) {
+      final sent = await ref
+          .read(messagingServiceProvider)
+          .sendToEveryone(files: files, names: _onlineNames());
+      if (sent.isEmpty && mounted) _nobodyOnline();
+      return;
+    }
     await ref
         .read(messagingServiceProvider)
         .sendFiles(peerId: _peerId, peerName: peerName, files: files);
@@ -137,7 +166,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _showActions(ChatMessage message) async {
     final action = await showModalBottomSheet<_Action>(
       context: context,
-      builder: (context) => _MessageActions(message: message),
+      builder: (context) => _MessageActions(
+        message: message,
+        canReply: !_everyone,
+        canRetry: message.isBroadcast
+            ? (ref.read(recipientsProvider(_peerId)).value?[message.id] ?? [])
+                  .any((r) => r.status == MessageStatus.failed)
+            : message.status == MessageStatus.failed,
+      ),
     );
     if (!mounted || action == null) return;
     final service = ref.read(messagingServiceProvider);
@@ -194,10 +230,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     for (final p in nearby.peers) {
       if (p.peer.deviceId == _peerId) person = p;
     }
-    final name =
-        person?.peer.name ??
-        (messages.isNotEmpty ? messages.last.peerName : 'Unknown');
-    final connected = person?.link == LinkState.connected;
+    final online = nearby.connectedCount;
+    final name = _everyone
+        ? 'Everyone'
+        : person?.peer.name ??
+              (messages.isNotEmpty ? messages.last.peerName : 'Unknown');
+    final connected = _everyone
+        ? online > 0
+        : person?.link == LinkState.connected;
+    final recipients = _everyone
+        ? ref.watch(recipientsProvider(_peerId)).value ?? const {}
+        : const <String, List<MessageRecipient>>{};
 
     // New messages in an open chat are read at once.
     ref
@@ -214,7 +257,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         titleSpacing: 0,
         title: Row(
           children: [
-            UserAvatar(name: name, seed: _peerId, size: 40),
+            if (_everyone)
+              const _EveryoneAvatar(size: 40)
+            else
+              UserAvatar(name: name, seed: _peerId, size: 40),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -226,7 +272,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    _presence(person),
+                    _everyone
+                        ? (online == 0 ? 'Nobody online' : '$online online now')
+                        : _presence(person),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: connected
                           ? const Color(0xFF2E9E4F)
@@ -247,9 +295,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: messages.isEmpty
                   ? EmptyState(
                       compact: true,
-                      icon: Icons.waving_hand_rounded,
-                      title: 'Say hello to $name',
-                      message: connected
+                      icon: _everyone
+                          ? Icons.campaign_rounded
+                          : Icons.waving_hand_rounded,
+                      title: _everyone
+                          ? 'Talk to everyone nearby'
+                          : 'Say hello to $name',
+                      message: _everyone
+                          ? 'One message reaches every phone that is online '
+                                'right now.'
+                          : connected
                           ? 'Messages go straight to their phone.'
                           : 'They will get your messages when they are '
                                 'back on this network.',
@@ -257,12 +312,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   : _MessageList(
                       messages: messages,
                       peerName: name,
+                      recipients: recipients,
                       onLongPress: _showActions,
                       onRetry: (m) =>
                           ref.read(messagingServiceProvider).retry(m.id),
+                      onShowDelivery: (m) => showDeliverySheet(
+                        context,
+                        recipients: recipients[m.id] ?? const [],
+                        onRetry: () =>
+                            ref.read(messagingServiceProvider).retry(m.id),
+                      ),
                     ),
             ),
-            if (!connected) _OfflineNote(name: name),
+            if (!connected)
+              _OfflineNote(
+                text: _everyone
+                    ? 'Nobody is online. Everyone messages reach only the '
+                          'people online when you send.'
+                    : "$name isn't connected. Messages will send when "
+                          "they're back.",
+              ),
             if (_replyingTo != null)
               _ReplyBar(
                 message: _replyingTo!,
@@ -272,8 +341,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (_gettingFiles) const LinearProgressIndicator(),
             _Composer(
               controller: _text,
+              // Everyone goes only to people online now.
+              enabled: !_everyone || connected,
               onSend: () => _send(name),
-              onAttach: _gettingFiles ? null : () => _attach(name),
+              onAttach: _gettingFiles || (_everyone && !connected)
+                  ? null
+                  : () => _attach(_everyone ? 'everyone online' : name),
             ),
           ],
         ),
@@ -297,6 +370,8 @@ class _MessageList extends StatelessWidget {
     required this.peerName,
     required this.onLongPress,
     required this.onRetry,
+    required this.onShowDelivery,
+    this.recipients = const {},
   });
 
   /// Oldest first.
@@ -304,6 +379,10 @@ class _MessageList extends StatelessWidget {
   final String peerName;
   final void Function(ChatMessage) onLongPress;
   final void Function(ChatMessage) onRetry;
+  final void Function(ChatMessage) onShowDelivery;
+
+  /// Everyone thread: who each outgoing message went to.
+  final Map<String, List<MessageRecipient>> recipients;
 
   static const _groupGap = Duration(minutes: 2);
 
@@ -342,13 +421,28 @@ class _MessageList extends StatelessWidget {
           groupedWithPrevious: previous != null && grouped(previous, message),
           groupedWithNext: next != null && grouped(message, next),
           onLongPress: () => onLongPress(message),
+          senderLabel: message.isBroadcast && !message.isOutgoing
+              ? message.peerName
+              : null,
+          delivery: message.isBroadcast && message.isOutgoing
+              ? DeliverySummary(recipients[message.id] ?? const [])
+              : null,
+          onTapDelivery: () => onShowDelivery(message),
           attachment: message.fileId == null
               ? null
-              : (foreground) => FileMessageCard(
-                  fileId: message.fileId!,
-                  peerName: peerName,
-                  foreground: foreground,
-                ),
+              : (foreground) => message.isBroadcast && message.isOutgoing
+                    ? _BroadcastFileCard(
+                        message: message,
+                        recipients: recipients[message.id] ?? const [],
+                        foreground: foreground,
+                      )
+                    : FileMessageCard(
+                        fileId: message.fileId!,
+                        peerName: message.isBroadcast
+                            ? message.peerName
+                            : peerName,
+                        foreground: foreground,
+                      ),
           onTapFailed: () => onRetry(message),
         ),
       );
@@ -398,9 +492,9 @@ class _DaySeparator extends StatelessWidget {
 }
 
 class _OfflineNote extends StatelessWidget {
-  const _OfflineNote({required this.name});
+  const _OfflineNote({required this.text});
 
-  final String name;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -422,7 +516,7 @@ class _OfflineNote extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              "$name isn't connected. Messages will send when they're back.",
+              text,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -504,11 +598,13 @@ class _Composer extends StatefulWidget {
     required this.controller,
     required this.onSend,
     required this.onAttach,
+    this.enabled = true,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
+  final bool enabled;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -531,7 +627,7 @@ class _ComposerState extends State<_Composer> {
 
   @override
   Widget build(BuildContext context) {
-    final canSend = widget.controller.text.trim().isNotEmpty;
+    final canSend = widget.enabled && widget.controller.text.trim().isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -600,9 +696,15 @@ class _ComposerState extends State<_Composer> {
 enum _Action { reply, copy, retry, delete }
 
 class _MessageActions extends StatelessWidget {
-  const _MessageActions({required this.message});
+  const _MessageActions({
+    required this.message,
+    required this.canReply,
+    required this.canRetry,
+  });
 
   final ChatMessage message;
+  final bool canReply;
+  final bool canRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -611,18 +713,19 @@ class _MessageActions extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
-            leading: const Icon(Icons.reply_rounded),
-            title: const Text('Reply'),
-            onTap: () => Navigator.pop(context, _Action.reply),
-          ),
+          if (canReply)
+            ListTile(
+              leading: const Icon(Icons.reply_rounded),
+              title: const Text('Reply'),
+              onTap: () => Navigator.pop(context, _Action.reply),
+            ),
           if (!message.isFile)
             ListTile(
               leading: const Icon(Icons.copy_rounded),
               title: const Text('Copy'),
               onTap: () => Navigator.pop(context, _Action.copy),
             ),
-          if (message.status == MessageStatus.failed)
+          if (canRetry)
             ListTile(
               leading: const Icon(Icons.refresh_rounded),
               title: const Text('Retry'),
@@ -694,3 +797,157 @@ class _NotificationOffer extends StatelessWidget {
     );
   }
 }
+
+class _EveryoneAvatar extends StatelessWidget {
+  const _EveryoneAvatar({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.campaign_rounded,
+        size: size * 0.55,
+        color: scheme.onTertiaryContainer,
+      ),
+    );
+  }
+}
+
+/// A file sent to everyone: one card, with how many people have it.
+class _BroadcastFileCard extends ConsumerWidget {
+  const _BroadcastFileCard({
+    required this.message,
+    required this.recipients,
+    required this.foreground,
+  });
+
+  final ChatMessage message;
+  final List<MessageRecipient> recipients;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final transfers = [
+      for (final r in recipients)
+        if (r.fileId != null) ref.watch(fileTransferProvider(r.fileId!)).value,
+    ].nonNulls.toList();
+    final total = recipients.length;
+    final done = transfers
+        .where((t) => t.status == TransferStatus.completed)
+        .length;
+    final moving = transfers
+        .where((t) => t.status == TransferStatus.inProgress)
+        .length;
+    final failed = transfers
+        .where(
+          (t) =>
+              t.status == TransferStatus.failed ||
+              t.status == TransferStatus.rejected,
+        )
+        .length;
+    final preparing = transfers.any(
+      (t) => t.status == TransferStatus.preparing,
+    );
+    final status = [
+      if (preparing)
+        'Preparing…'
+      else if (done == total)
+        'Received by all $total'
+      else ...[
+        if (done > 0) 'Received by $done of $total',
+        if (moving > 0) 'Sending to $moving',
+        if (done == 0 && moving == 0 && failed == 0) 'Waiting to send',
+      ],
+      if (failed > 0) '$failed not sent',
+    ].join(' · ');
+    return FileMessageCard(
+      fileId: message.fileId!,
+      peerName: 'everyone',
+      foreground: foreground,
+      statusOverride: status,
+    );
+  }
+}
+
+/// Who an Everyone message reached, person by person.
+Future<void> showDeliverySheet(
+  BuildContext context, {
+  required List<MessageRecipient> recipients,
+  required VoidCallback onRetry,
+}) => showModalBottomSheet<void>(
+  context: context,
+  showDragHandle: true,
+  builder: (context) {
+    final theme = Theme.of(context);
+    final failed = recipients.any((r) => r.status == MessageStatus.failed);
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: Text('Sent to', style: theme.textTheme.titleLarge),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final r in recipients)
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+              ),
+              leading: UserAvatar(name: r.recipientName, seed: r.recipientId),
+              title: Text(r.recipientName),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _recipientStatus(r.status),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: r.status == MessageStatus.failed
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Icon(statusIcon(r.status).$1, size: 18),
+                ],
+              ),
+            ),
+          if (failed)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: FilledButton.tonalIcon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  onRetry();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry for those not sent'),
+              ),
+            )
+          else
+            const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+  },
+);
+
+String _recipientStatus(MessageStatus status) => switch (status) {
+  MessageStatus.pending => 'Waiting',
+  MessageStatus.sending => 'Sending',
+  MessageStatus.sent => 'Sent',
+  MessageStatus.delivered => 'Delivered',
+  MessageStatus.read => 'Read',
+  MessageStatus.failed => 'Not sent',
+  MessageStatus.received => '',
+};

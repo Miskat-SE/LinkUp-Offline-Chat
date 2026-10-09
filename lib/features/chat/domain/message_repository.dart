@@ -26,8 +26,10 @@ abstract interface class MessageRepository {
     int? attempts,
   });
 
-  /// Marks incoming messages from [peerId] as read and returns their IDs.
-  Future<List<String>> markRead(String peerId);
+  /// Marks incoming messages in [conversationId] as read. Returns their IDs
+  /// grouped by the device the READ receipt goes to (the Everyone thread
+  /// has several senders).
+  Future<Map<String, List<String>>> markRead(String conversationId);
 
   /// Outgoing messages to [peerId] still waiting to be sent or confirmed,
   /// oldest first.
@@ -37,7 +39,8 @@ abstract interface class MessageRepository {
   /// Pending with their attempts reset. Returns how many.
   Future<int> resetInterrupted();
 
-  /// Incoming messages from [peerId] still owed [receipt], oldest first:
+  /// Incoming messages from [peerId] (in their chat or the Everyone
+  /// thread) still owed [receipt], oldest first:
   /// DELIVERED for those with no receipt yet and not read, READ for read
   /// ones whose READ wasn't sent.
   Future<List<String>> owedReceipts(String peerId, Receipt receipt);
@@ -45,6 +48,36 @@ abstract interface class MessageRepository {
   /// Records that [receipt] was sent for [messageIds]. Never moves back.
   Future<void> recordReceipts(List<String> messageIds, Receipt receipt);
 
-  /// Deletes on this phone only.
+  /// Deletes on this phone only, with its recipients.
   Future<void> delete(String messageId);
+
+  // ---------------------------------------------------------- Everyone
+
+  /// Stores an outgoing Everyone message and who it goes to.
+  Future<void> insertBroadcast(
+    ChatMessage message,
+    List<MessageRecipient> recipients,
+  );
+
+  Future<List<MessageRecipient>> recipients(String messageId);
+
+  /// Recipients of every outgoing message in [conversationId], by message.
+  Stream<Map<String, List<MessageRecipient>>> watchRecipients(
+    String conversationId,
+  );
+
+  /// Moves one recipient forward (never back, except to failed or
+  /// pending); returns the updated recipient, or null if unknown.
+  Future<MessageRecipient?> updateRecipient(
+    String messageId,
+    String recipientId,
+    MessageStatus status, {
+    int? attempts,
+  });
+
+  /// Everyone messages still to be sent or confirmed to [peerId], oldest
+  /// first.
+  Future<List<(ChatMessage, MessageRecipient)>> pendingDeliveriesTo(
+    String peerId,
+  );
 }

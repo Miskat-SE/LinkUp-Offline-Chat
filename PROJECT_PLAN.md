@@ -8,7 +8,7 @@ Flutter Android app · works with the router's internet switched off · no cloud
 | Student | Jannatul Miskat Chowdhury (Roll 2405207), IIT, University of Dhaka |
 | Supervisor | Dr. Sumon Ahmed |
 | Product name | **LinkUp** (shown to users; ResQMesh stays the project and research name) |
-| Plan version | 1.8 · 9 Oct 2026 |
+| Plan version | 1.9 · 10 Oct 2026 |
 | Source | Build specification, 8 Oct 2026 (`docs/SPEC.md`, from `ResQMesh_prompt.txt`) |
 | Window | 1 Oct 2026 (Week 1) → ~17 Feb 2027 (Week 20) |
 
@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P6 code complete** (file transfer) · device soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
+| Phase | **P7 code complete** (Everyone and selected people) · 3-phone exit test, 2 GB soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P6 (planned for Weeks 3–11) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; **the 2 GB two-phone soak (M4) is still to do**. |
+| Health | Ahead of schedule: P1–P7 (planned for Weeks 3–12) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; images sent several times both ways on the two real phones (user, 10 Oct); **the 2 GB two-phone soak (M4) is still to do**. |
 | Blockers | None recorded |
 
 **This week**
@@ -921,13 +921,13 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 - Mid-term presented
 
 #### P7 · Broadcast and multi-select (Week 12, 17–23 Dec)
-- [ ] **P7.1** `message_recipients` with per-recipient status; summary UI ("Delivered to 3 of 5")
-- [ ] **P7.2** *Send to everyone* (peers online at that moment) → *Everyone* thread on the receivers
-- [ ] **P7.3** Multi-select in People Nearby → send text or files to the selected people (queued for those offline)
-- [ ] **P7.4** File fan-out with the concurrency cap
-- [ ] **P7.5** Tests: fan-out statuses, partial failure, 3 nodes over loopback
+- [x] **P7.1** `message_recipients` with per-recipient status; summary UI ("Delivered to 3 of 5")
+- [x] **P7.2** *Send to everyone* (peers online at that moment) → *Everyone* thread on the receivers
+- [x] **P7.3** Multi-select in People Nearby → send text or files to the selected people (queued for those offline). *As built: each selected person gets their own direct message (one copy and one hash per file); only Everyone uses `message_recipients`.*
+- [x] **P7.4** File fan-out with the concurrency cap
+- [x] **P7.5** Tests: fan-out statuses, partial failure, 3 nodes over loopback
 
-**Exit:** 3 phones receive a broadcast text and file, with correct per-recipient status.
+**Exit:** 3 phones receive a broadcast text and file, with correct per-recipient status. *Shown on loopback with real sockets and engines (test); on 3 real phones still to do.*
 
 #### P8 · Background receiving (Week 13, 24–30 Dec)
 - [ ] **P8.1** Cached `FlutterEngine` in `Application`; `MainActivity` attaches to it
@@ -1012,10 +1012,10 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 
 | ID | Milestone | Due | Status |
 |---|---|---|---|
-| M1 | Plan reviewed, decisions recorded, discovery spike done, onboarding works | 21 Oct (end of Week 3) | In progress |
-| M2 | LAN discovery on 2+ phones with the router's internet off | 4 Nov (end of Week 5) | Not started |
-| M3 | Persistent text chat with offline queue | 25 Nov (end of Week 8) | Not started |
-| M4 | Large-file transfer; mid-term presentation | 16 Dec (Week 11) | Not started |
+| M1 | Plan reviewed, decisions recorded, discovery spike done, onboarding works | 21 Oct (end of Week 3) | Code done; supervisor review open |
+| M2 | LAN discovery on 2+ phones with the router's internet off | 4 Nov (end of Week 5) | Works on 2 phones; offline-in-20 s and router-reboot checks open |
+| M3 | Persistent text chat with offline queue | 25 Nov (end of Week 8) | Done (emulator; chat on 2 phones) |
+| M4 | Large-file transfer; mid-term presentation | 16 Dec (Week 11) | Code done; 2 GB soak and slides open |
 | M5 | Feature complete: broadcast, background, security | 6 Jan (end of Week 14) | Not started |
 | M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Not started |
 | M7 | v1.0.0 released with all four documents | 3 Feb (end of Week 18) | Not started |
@@ -1218,3 +1218,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.6 | 9 Oct 2026 | P4 done: direct text messages with ACK, delivered and read receipts; resend with the same ID after 10 s, failed after 5 tries, tap to retry; duplicates stored once; outbox sent when the person connects; chat screen (day separators, ticks, reply, copy, delete, retry); unread badges; notifications through the Kotlin bridge, with `POST_NOTIFICATIONS` asked on the first chat. Messages are in memory until P5. 169 tests. Simulator answers messages (`--echo`). |
 | 1.7 | 9 Oct 2026 | P5 done: SQLite through drift (schema v1, `messages` only; D22 and ADR-0020); chats, unread counts and the outbox survive restarts; interrupted sends wait again at start; delivery and read receipts queue until the sender reconnects; each connection gets a full 5 attempts; Settings → Storage with *Clear chat history*; migration test scaffold. 189 tests. The release APK grows by about 7 MB (SQLite for three CPU types; a Play Store bundle splits it). The simulator keeps one device ID per name. |
 | 1.8 | 9 Oct 2026 | P6 done (code): file transfer in a worker isolate on its own port (D23, ADR-0021; `filePort` in HELLO), FILE_* packets, schema v2 with the `files` table, resume by offset, 3 automatic resumes then Retry, one retry after a checksum mismatch, duplicates by file ID and by content, at most 3 uploads at a time, 4 GiB and free-space checks. Attach sheet, file cards, File Preview (Open, Share, Save to Downloads), Transfer Details, Storage v1 with all four actions (Clear all local data restarts at onboarding). Kotlin `FileBridge` (FileProvider with hard links, MediaStore, thumbnails, free space); `REQUEST_INSTALL_PACKAGES` so received APKs open in the system installer. Discovery now reopens its UDP socket after Android cuts a backgrounded app's network. Simulator sends and receives files. 261 tests. |
+| 1.9 | 10 Oct 2026 | P7 done (code): Everyone thread (one message to the people online at that moment, `message_recipients` with per-person status, "Delivered to 2 of 3", per-person retry and receipts, sender names, notifications "Rahim · Everyone"); selected people as one direct message each, queued for anyone offline; files fanned out with one copy and one hash. Schema v3 (`audience`, `senderId`, `message_recipients`). New chat options and People Nearby → Select people. 3-phone loopback test with real sockets. Milestone table updated. 284 tests. |

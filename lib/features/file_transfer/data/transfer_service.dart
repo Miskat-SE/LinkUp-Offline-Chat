@@ -180,6 +180,41 @@ final class TransferService {
 
   Future<FileTransfer?> find(String fileId) => _repository.find(fileId);
 
+  /// Another recipient for an already-picked file (multi-select and
+  /// Everyone, P7.4): a new transfer that shares the stored copy and its
+  /// hash, so the file is copied and hashed only once.
+  Future<FileTransfer> shareOutgoing(
+    String sourceFileId, {
+    required String fileId,
+    required String messageId,
+    required String peerId,
+  }) => _serial(() async {
+    final source = await _repository.find(sourceFileId);
+    if (source == null) throw StateError('unknown file $sourceFileId');
+    final now = clock.now();
+    final preparing = source.status == TransferStatus.preparing;
+    final usable = preparing || source.sha256 != null;
+    final transfer = FileTransfer(
+      fileId: fileId,
+      messageId: messageId,
+      peerId: peerId,
+      direction: TransferDirection.outgoing,
+      name: source.name,
+      mimeType: source.mimeType,
+      size: source.size,
+      status: preparing
+          ? TransferStatus.preparing
+          : (usable ? TransferStatus.offered : TransferStatus.failed),
+      sha256: source.sha256,
+      localPath: source.localPath,
+      error: usable ? null : TransferErrors.unavailable,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _repository.insert(transfer);
+    return transfer;
+  });
+
   /// The file description for its MESSAGE, once hashed.
   Future<FileRef?> fileRef(String fileId) async {
     final transfer = await _repository.find(fileId);
@@ -796,13 +831,15 @@ final class TransferService {
   /// After a restart nothing is moving: sends wait to be scheduled again,
   /// receives wait for the sender, and unfinished hashing starts over.
   Future<void> _recover() async {
+    final hashing = <String?>{};
     for (final transfer in await _repository.withStatus({
       TransferStatus.inProgress,
       TransferStatus.preparing,
     })) {
       switch ((transfer.status, transfer.isOutgoing)) {
         case (TransferStatus.preparing, _):
-          unawaited(_hash(transfer));
+          // Shared copies are hashed once.
+          if (hashing.add(transfer.localPath)) unawaited(_hash(transfer));
         case (_, true):
           await _repository.update(
             transfer.fileId,
@@ -829,24 +866,31 @@ final class TransferService {
       }
     }
     await _serial(() async {
-      final current = await _repository.find(transfer.fileId);
-      if (current == null || current.status != TransferStatus.preparing) {
-        return;
-      }
-      if (sha256 == null) {
+      // Every transfer sharing this copy (fan-out) is ready at once.
+      final waiting = [
+        for (final t in await _repository.withStatus({
+          TransferStatus.preparing,
+        }, direction: TransferDirection.outgoing))
+          if (t.fileId == transfer.fileId ||
+              (path != null && t.localPath == path))
+            t,
+      ];
+      for (final t in waiting) {
+        if (sha256 == null) {
+          await _repository.update(
+            t.fileId,
+            status: TransferStatus.failed,
+            error: TransferErrors.unavailable,
+          );
+          continue;
+        }
         await _repository.update(
-          transfer.fileId,
-          status: TransferStatus.failed,
-          error: TransferErrors.unavailable,
+          t.fileId,
+          status: TransferStatus.offered,
+          sha256: sha256,
         );
-        return;
+        if (!_ready.isClosed) _ready.add(t.fileId);
       }
-      await _repository.update(
-        transfer.fileId,
-        status: TransferStatus.offered,
-        sha256: sha256,
-      );
-      if (!_ready.isClosed) _ready.add(transfer.fileId);
     });
   }
 

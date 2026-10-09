@@ -208,7 +208,8 @@ class Peer:
                     self.expected[f["fileId"]] = f
                     print(f"📎 {state['peer']}: {f['name']!r} ({f['size']:,} bytes), waiting for the data")
                 else:
-                    print(f"✉ {state['peer']}: {text!r}")
+                    to = " (to everyone)" if p["payload"].get("audience") == "broadcast" else ""
+                    print(f"✉ {state['peer']}{to}: {text!r}")
                 conn.sendall(self.frame("MESSAGE_ACK", {"ackFor": mid}, sender))
                 conn.sendall(self.frame("MESSAGE_DELIVERED", {"messageIds": [mid]}, sender))
                 if self.echo and text:

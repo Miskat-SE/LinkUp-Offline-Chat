@@ -95,6 +95,29 @@ class $MessagesTable extends Messages
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _audienceMeta = const VerificationMeta(
+    'audience',
+  );
+  @override
+  late final GeneratedColumn<String> audience = GeneratedColumn<String>(
+    'audience',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('direct'),
+  );
+  static const VerificationMeta _senderIdMeta = const VerificationMeta(
+    'senderId',
+  );
+  @override
+  late final GeneratedColumn<String> senderId = GeneratedColumn<String>(
+    'sender_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _replyToIdMeta = const VerificationMeta(
     'replyToId',
   );
@@ -189,6 +212,8 @@ class $MessagesTable extends Messages
     kind,
     body,
     fileId,
+    audience,
+    senderId,
     replyToId,
     sentAt,
     createdAt,
@@ -268,6 +293,18 @@ class $MessagesTable extends Messages
         fileId.isAcceptableOrUnknown(data['file_id']!, _fileIdMeta),
       );
     }
+    if (data.containsKey('audience')) {
+      context.handle(
+        _audienceMeta,
+        audience.isAcceptableOrUnknown(data['audience']!, _audienceMeta),
+      );
+    }
+    if (data.containsKey('sender_id')) {
+      context.handle(
+        _senderIdMeta,
+        senderId.isAcceptableOrUnknown(data['sender_id']!, _senderIdMeta),
+      );
+    }
     if (data.containsKey('reply_to_id')) {
       context.handle(
         _replyToIdMeta,
@@ -343,6 +380,14 @@ class $MessagesTable extends Messages
       fileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}file_id'],
+      ),
+      audience: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audience'],
+      )!,
+      senderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sender_id'],
       ),
       replyToId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -421,6 +466,12 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
 
   /// File messages only: the row in [Files] (schema v2).
   final String? fileId;
+
+  /// `direct` or `everyone` (schema v3).
+  final String audience;
+
+  /// Incoming Everyone messages: the sender's device ID (schema v3).
+  final String? senderId;
   final String? replyToId;
 
   /// The sender's clock; shown, never used for ordering.
@@ -452,6 +503,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     required this.kind,
     required this.body,
     this.fileId,
+    required this.audience,
+    this.senderId,
     this.replyToId,
     required this.sentAt,
     required this.createdAt,
@@ -473,6 +526,10 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     map['body'] = Variable<String>(body);
     if (!nullToAbsent || fileId != null) {
       map['file_id'] = Variable<String>(fileId);
+    }
+    map['audience'] = Variable<String>(audience);
+    if (!nullToAbsent || senderId != null) {
+      map['sender_id'] = Variable<String>(senderId);
     }
     if (!nullToAbsent || replyToId != null) {
       map['reply_to_id'] = Variable<String>(replyToId);
@@ -511,6 +568,10 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       fileId: fileId == null && nullToAbsent
           ? const Value.absent()
           : Value(fileId),
+      audience: Value(audience),
+      senderId: senderId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(senderId),
       replyToId: replyToId == null && nullToAbsent
           ? const Value.absent()
           : Value(replyToId),
@@ -540,6 +601,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       kind: serializer.fromJson<String>(json['kind']),
       body: serializer.fromJson<String>(json['body']),
       fileId: serializer.fromJson<String?>(json['fileId']),
+      audience: serializer.fromJson<String>(json['audience']),
+      senderId: serializer.fromJson<String?>(json['senderId']),
       replyToId: serializer.fromJson<String?>(json['replyToId']),
       sentAt: serializer.fromJson<DateTime>(json['sentAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -562,6 +625,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'kind': serializer.toJson<String>(kind),
       'body': serializer.toJson<String>(body),
       'fileId': serializer.toJson<String?>(fileId),
+      'audience': serializer.toJson<String>(audience),
+      'senderId': serializer.toJson<String?>(senderId),
       'replyToId': serializer.toJson<String?>(replyToId),
       'sentAt': serializer.toJson<DateTime>(sentAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -582,6 +647,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     String? kind,
     String? body,
     Value<String?> fileId = const Value.absent(),
+    String? audience,
+    Value<String?> senderId = const Value.absent(),
     Value<String?> replyToId = const Value.absent(),
     DateTime? sentAt,
     DateTime? createdAt,
@@ -599,6 +666,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     kind: kind ?? this.kind,
     body: body ?? this.body,
     fileId: fileId.present ? fileId.value : this.fileId,
+    audience: audience ?? this.audience,
+    senderId: senderId.present ? senderId.value : this.senderId,
     replyToId: replyToId.present ? replyToId.value : this.replyToId,
     sentAt: sentAt ?? this.sentAt,
     createdAt: createdAt ?? this.createdAt,
@@ -622,6 +691,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       kind: data.kind.present ? data.kind.value : this.kind,
       body: data.body.present ? data.body.value : this.body,
       fileId: data.fileId.present ? data.fileId.value : this.fileId,
+      audience: data.audience.present ? data.audience.value : this.audience,
+      senderId: data.senderId.present ? data.senderId.value : this.senderId,
       replyToId: data.replyToId.present ? data.replyToId.value : this.replyToId,
       sentAt: data.sentAt.present ? data.sentAt.value : this.sentAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -648,6 +719,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('kind: $kind, ')
           ..write('body: $body, ')
           ..write('fileId: $fileId, ')
+          ..write('audience: $audience, ')
+          ..write('senderId: $senderId, ')
           ..write('replyToId: $replyToId, ')
           ..write('sentAt: $sentAt, ')
           ..write('createdAt: $createdAt, ')
@@ -670,6 +743,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     kind,
     body,
     fileId,
+    audience,
+    senderId,
     replyToId,
     sentAt,
     createdAt,
@@ -691,6 +766,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.kind == this.kind &&
           other.body == this.body &&
           other.fileId == this.fileId &&
+          other.audience == this.audience &&
+          other.senderId == this.senderId &&
           other.replyToId == this.replyToId &&
           other.sentAt == this.sentAt &&
           other.createdAt == this.createdAt &&
@@ -710,6 +787,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
   final Value<String> kind;
   final Value<String> body;
   final Value<String?> fileId;
+  final Value<String> audience;
+  final Value<String?> senderId;
   final Value<String?> replyToId;
   final Value<DateTime> sentAt;
   final Value<DateTime> createdAt;
@@ -727,6 +806,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.kind = const Value.absent(),
     this.body = const Value.absent(),
     this.fileId = const Value.absent(),
+    this.audience = const Value.absent(),
+    this.senderId = const Value.absent(),
     this.replyToId = const Value.absent(),
     this.sentAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -745,6 +826,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.kind = const Value.absent(),
     required String body,
     this.fileId = const Value.absent(),
+    this.audience = const Value.absent(),
+    this.senderId = const Value.absent(),
     this.replyToId = const Value.absent(),
     required DateTime sentAt,
     required DateTime createdAt,
@@ -770,6 +853,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Expression<String>? kind,
     Expression<String>? body,
     Expression<String>? fileId,
+    Expression<String>? audience,
+    Expression<String>? senderId,
     Expression<String>? replyToId,
     Expression<int>? sentAt,
     Expression<int>? createdAt,
@@ -788,6 +873,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       if (kind != null) 'kind': kind,
       if (body != null) 'body': body,
       if (fileId != null) 'file_id': fileId,
+      if (audience != null) 'audience': audience,
+      if (senderId != null) 'sender_id': senderId,
       if (replyToId != null) 'reply_to_id': replyToId,
       if (sentAt != null) 'sent_at': sentAt,
       if (createdAt != null) 'created_at': createdAt,
@@ -808,6 +895,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Value<String>? kind,
     Value<String>? body,
     Value<String?>? fileId,
+    Value<String>? audience,
+    Value<String?>? senderId,
     Value<String?>? replyToId,
     Value<DateTime>? sentAt,
     Value<DateTime>? createdAt,
@@ -826,6 +915,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       kind: kind ?? this.kind,
       body: body ?? this.body,
       fileId: fileId ?? this.fileId,
+      audience: audience ?? this.audience,
+      senderId: senderId ?? this.senderId,
       replyToId: replyToId ?? this.replyToId,
       sentAt: sentAt ?? this.sentAt,
       createdAt: createdAt ?? this.createdAt,
@@ -863,6 +954,12 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     }
     if (fileId.present) {
       map['file_id'] = Variable<String>(fileId.value);
+    }
+    if (audience.present) {
+      map['audience'] = Variable<String>(audience.value);
+    }
+    if (senderId.present) {
+      map['sender_id'] = Variable<String>(senderId.value);
     }
     if (replyToId.present) {
       map['reply_to_id'] = Variable<String>(replyToId.value);
@@ -908,6 +1005,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
           ..write('kind: $kind, ')
           ..write('body: $body, ')
           ..write('fileId: $fileId, ')
+          ..write('audience: $audience, ')
+          ..write('senderId: $senderId, ')
           ..write('replyToId: $replyToId, ')
           ..write('sentAt: $sentAt, ')
           ..write('createdAt: $createdAt, ')
@@ -1818,11 +1917,491 @@ class FilesCompanion extends UpdateCompanion<FileRow> {
   }
 }
 
+class $MessageRecipientsTable extends MessageRecipients
+    with TableInfo<$MessageRecipientsTable, RecipientRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MessageRecipientsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _messageIdMeta = const VerificationMeta(
+    'messageId',
+  );
+  @override
+  late final GeneratedColumn<String> messageId = GeneratedColumn<String>(
+    'message_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recipientIdMeta = const VerificationMeta(
+    'recipientId',
+  );
+  @override
+  late final GeneratedColumn<String> recipientId = GeneratedColumn<String>(
+    'recipient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recipientNameMeta = const VerificationMeta(
+    'recipientName',
+  );
+  @override
+  late final GeneratedColumn<String> recipientName = GeneratedColumn<String>(
+    'recipient_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _fileIdMeta = const VerificationMeta('fileId');
+  @override
+  late final GeneratedColumn<String> fileId = GeneratedColumn<String>(
+    'file_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($MessageRecipientsTable.$converterupdatedAt);
+  @override
+  List<GeneratedColumn> get $columns => [
+    messageId,
+    recipientId,
+    recipientName,
+    status,
+    attempts,
+    fileId,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'message_recipients';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecipientRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('message_id')) {
+      context.handle(
+        _messageIdMeta,
+        messageId.isAcceptableOrUnknown(data['message_id']!, _messageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_messageIdMeta);
+    }
+    if (data.containsKey('recipient_id')) {
+      context.handle(
+        _recipientIdMeta,
+        recipientId.isAcceptableOrUnknown(
+          data['recipient_id']!,
+          _recipientIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recipientIdMeta);
+    }
+    if (data.containsKey('recipient_name')) {
+      context.handle(
+        _recipientNameMeta,
+        recipientName.isAcceptableOrUnknown(
+          data['recipient_name']!,
+          _recipientNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recipientNameMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('file_id')) {
+      context.handle(
+        _fileIdMeta,
+        fileId.isAcceptableOrUnknown(data['file_id']!, _fileIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {messageId, recipientId};
+  @override
+  RecipientRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecipientRow(
+      messageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message_id'],
+      )!,
+      recipientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recipient_id'],
+      )!,
+      recipientName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recipient_name'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      fileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_id'],
+      ),
+      updatedAt: $MessageRecipientsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+    );
+  }
+
+  @override
+  $MessageRecipientsTable createAlias(String alias) {
+    return $MessageRecipientsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $converterupdatedAt = const UtcMicros();
+}
+
+class RecipientRow extends DataClass implements Insertable<RecipientRow> {
+  final String messageId;
+  final String recipientId;
+  final String recipientName;
+
+  /// `pending`, `sending`, `sent`, `delivered`, `read` or `failed`.
+  final String status;
+  final int attempts;
+
+  /// File messages: this recipient's own transfer in [Files].
+  final String? fileId;
+  final DateTime updatedAt;
+  const RecipientRow({
+    required this.messageId,
+    required this.recipientId,
+    required this.recipientName,
+    required this.status,
+    required this.attempts,
+    this.fileId,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['message_id'] = Variable<String>(messageId);
+    map['recipient_id'] = Variable<String>(recipientId);
+    map['recipient_name'] = Variable<String>(recipientName);
+    map['status'] = Variable<String>(status);
+    map['attempts'] = Variable<int>(attempts);
+    if (!nullToAbsent || fileId != null) {
+      map['file_id'] = Variable<String>(fileId);
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $MessageRecipientsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    return map;
+  }
+
+  MessageRecipientsCompanion toCompanion(bool nullToAbsent) {
+    return MessageRecipientsCompanion(
+      messageId: Value(messageId),
+      recipientId: Value(recipientId),
+      recipientName: Value(recipientName),
+      status: Value(status),
+      attempts: Value(attempts),
+      fileId: fileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fileId),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory RecipientRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecipientRow(
+      messageId: serializer.fromJson<String>(json['messageId']),
+      recipientId: serializer.fromJson<String>(json['recipientId']),
+      recipientName: serializer.fromJson<String>(json['recipientName']),
+      status: serializer.fromJson<String>(json['status']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      fileId: serializer.fromJson<String?>(json['fileId']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'messageId': serializer.toJson<String>(messageId),
+      'recipientId': serializer.toJson<String>(recipientId),
+      'recipientName': serializer.toJson<String>(recipientName),
+      'status': serializer.toJson<String>(status),
+      'attempts': serializer.toJson<int>(attempts),
+      'fileId': serializer.toJson<String?>(fileId),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  RecipientRow copyWith({
+    String? messageId,
+    String? recipientId,
+    String? recipientName,
+    String? status,
+    int? attempts,
+    Value<String?> fileId = const Value.absent(),
+    DateTime? updatedAt,
+  }) => RecipientRow(
+    messageId: messageId ?? this.messageId,
+    recipientId: recipientId ?? this.recipientId,
+    recipientName: recipientName ?? this.recipientName,
+    status: status ?? this.status,
+    attempts: attempts ?? this.attempts,
+    fileId: fileId.present ? fileId.value : this.fileId,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  RecipientRow copyWithCompanion(MessageRecipientsCompanion data) {
+    return RecipientRow(
+      messageId: data.messageId.present ? data.messageId.value : this.messageId,
+      recipientId: data.recipientId.present
+          ? data.recipientId.value
+          : this.recipientId,
+      recipientName: data.recipientName.present
+          ? data.recipientName.value
+          : this.recipientName,
+      status: data.status.present ? data.status.value : this.status,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      fileId: data.fileId.present ? data.fileId.value : this.fileId,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecipientRow(')
+          ..write('messageId: $messageId, ')
+          ..write('recipientId: $recipientId, ')
+          ..write('recipientName: $recipientName, ')
+          ..write('status: $status, ')
+          ..write('attempts: $attempts, ')
+          ..write('fileId: $fileId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    messageId,
+    recipientId,
+    recipientName,
+    status,
+    attempts,
+    fileId,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecipientRow &&
+          other.messageId == this.messageId &&
+          other.recipientId == this.recipientId &&
+          other.recipientName == this.recipientName &&
+          other.status == this.status &&
+          other.attempts == this.attempts &&
+          other.fileId == this.fileId &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MessageRecipientsCompanion extends UpdateCompanion<RecipientRow> {
+  final Value<String> messageId;
+  final Value<String> recipientId;
+  final Value<String> recipientName;
+  final Value<String> status;
+  final Value<int> attempts;
+  final Value<String?> fileId;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const MessageRecipientsCompanion({
+    this.messageId = const Value.absent(),
+    this.recipientId = const Value.absent(),
+    this.recipientName = const Value.absent(),
+    this.status = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.fileId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MessageRecipientsCompanion.insert({
+    required String messageId,
+    required String recipientId,
+    required String recipientName,
+    required String status,
+    this.attempts = const Value.absent(),
+    this.fileId = const Value.absent(),
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : messageId = Value(messageId),
+       recipientId = Value(recipientId),
+       recipientName = Value(recipientName),
+       status = Value(status),
+       updatedAt = Value(updatedAt);
+  static Insertable<RecipientRow> custom({
+    Expression<String>? messageId,
+    Expression<String>? recipientId,
+    Expression<String>? recipientName,
+    Expression<String>? status,
+    Expression<int>? attempts,
+    Expression<String>? fileId,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (messageId != null) 'message_id': messageId,
+      if (recipientId != null) 'recipient_id': recipientId,
+      if (recipientName != null) 'recipient_name': recipientName,
+      if (status != null) 'status': status,
+      if (attempts != null) 'attempts': attempts,
+      if (fileId != null) 'file_id': fileId,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MessageRecipientsCompanion copyWith({
+    Value<String>? messageId,
+    Value<String>? recipientId,
+    Value<String>? recipientName,
+    Value<String>? status,
+    Value<int>? attempts,
+    Value<String?>? fileId,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return MessageRecipientsCompanion(
+      messageId: messageId ?? this.messageId,
+      recipientId: recipientId ?? this.recipientId,
+      recipientName: recipientName ?? this.recipientName,
+      status: status ?? this.status,
+      attempts: attempts ?? this.attempts,
+      fileId: fileId ?? this.fileId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (messageId.present) {
+      map['message_id'] = Variable<String>(messageId.value);
+    }
+    if (recipientId.present) {
+      map['recipient_id'] = Variable<String>(recipientId.value);
+    }
+    if (recipientName.present) {
+      map['recipient_name'] = Variable<String>(recipientName.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (fileId.present) {
+      map['file_id'] = Variable<String>(fileId.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $MessageRecipientsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MessageRecipientsCompanion(')
+          ..write('messageId: $messageId, ')
+          ..write('recipientId: $recipientId, ')
+          ..write('recipientName: $recipientName, ')
+          ..write('status: $status, ')
+          ..write('attempts: $attempts, ')
+          ..write('fileId: $fileId, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $MessagesTable messages = $MessagesTable(this);
   late final $FilesTable files = $FilesTable(this);
+  late final $MessageRecipientsTable messageRecipients =
+      $MessageRecipientsTable(this);
   late final Index messagesByChat = Index(
     'messages_by_chat',
     'CREATE INDEX messages_by_chat ON messages (conversation_id, created_at)',
@@ -1847,6 +2426,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'files_by_message',
     'CREATE INDEX files_by_message ON files (message_id)',
   );
+  late final Index recipientsByDevice = Index(
+    'recipients_by_device',
+    'CREATE INDEX recipients_by_device ON message_recipients (recipient_id, status)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1854,12 +2437,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     messages,
     files,
+    messageRecipients,
     messagesByChat,
     messagesByStatus,
     messagesUnread,
     filesByContent,
     filesByStatus,
     filesByMessage,
+    recipientsByDevice,
   ];
 }
 
@@ -1872,6 +2457,8 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<String> kind,
   required String body,
   Value<String?> fileId,
+  Value<String> audience,
+  Value<String?> senderId,
   Value<String?> replyToId,
   required DateTime sentAt,
   required DateTime createdAt,
@@ -1890,6 +2477,8 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<String> kind,
   Value<String> body,
   Value<String?> fileId,
+  Value<String> audience,
+  Value<String?> senderId,
   Value<String?> replyToId,
   Value<DateTime> sentAt,
   Value<DateTime> createdAt,
@@ -1946,6 +2535,16 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<String> get fileId => $composableBuilder(
     column: $table.fileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audience => $composableBuilder(
+    column: $table.audience,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get senderId => $composableBuilder(
+    column: $table.senderId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2042,6 +2641,16 @@ class $$MessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get audience => $composableBuilder(
+    column: $table.audience,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get senderId => $composableBuilder(
+    column: $table.senderId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get replyToId => $composableBuilder(
     column: $table.replyToId,
     builder: (column) => ColumnOrderings(column),
@@ -2118,6 +2727,12 @@ class $$MessagesTableAnnotationComposer
   GeneratedColumn<String> get fileId =>
       $composableBuilder(column: $table.fileId, builder: (column) => column);
 
+  GeneratedColumn<String> get audience =>
+      $composableBuilder(column: $table.audience, builder: (column) => column);
+
+  GeneratedColumn<String> get senderId =>
+      $composableBuilder(column: $table.senderId, builder: (column) => column);
+
   GeneratedColumn<String> get replyToId =>
       $composableBuilder(column: $table.replyToId, builder: (column) => column);
 
@@ -2187,6 +2802,8 @@ class $$MessagesTableTableManager
                 Value<String> kind = const Value.absent(),
                 Value<String> body = const Value.absent(),
                 Value<String?> fileId = const Value.absent(),
+                Value<String> audience = const Value.absent(),
+                Value<String?> senderId = const Value.absent(),
                 Value<String?> replyToId = const Value.absent(),
                 Value<DateTime> sentAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -2204,6 +2821,8 @@ class $$MessagesTableTableManager
                 kind: kind,
                 body: body,
                 fileId: fileId,
+                audience: audience,
+                senderId: senderId,
                 replyToId: replyToId,
                 sentAt: sentAt,
                 createdAt: createdAt,
@@ -2223,6 +2842,8 @@ class $$MessagesTableTableManager
                 Value<String> kind = const Value.absent(),
                 required String body,
                 Value<String?> fileId = const Value.absent(),
+                Value<String> audience = const Value.absent(),
+                Value<String?> senderId = const Value.absent(),
                 Value<String?> replyToId = const Value.absent(),
                 required DateTime sentAt,
                 required DateTime createdAt,
@@ -2240,6 +2861,8 @@ class $$MessagesTableTableManager
                 kind: kind,
                 body: body,
                 fileId: fileId,
+                audience: audience,
+                senderId: senderId,
                 replyToId: replyToId,
                 sentAt: sentAt,
                 createdAt: createdAt,
@@ -2687,6 +3310,267 @@ typedef $$FilesTableProcessedTableManager =
       FileRow,
       PrefetchHooks Function()
     >;
+typedef $$MessageRecipientsTableCreateCompanionBuilder =
+    MessageRecipientsCompanion Function({
+      required String messageId,
+      required String recipientId,
+      required String recipientName,
+      required String status,
+      Value<int> attempts,
+      Value<String?> fileId,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$MessageRecipientsTableUpdateCompanionBuilder =
+    MessageRecipientsCompanion Function({
+      Value<String> messageId,
+      Value<String> recipientId,
+      Value<String> recipientName,
+      Value<String> status,
+      Value<int> attempts,
+      Value<String?> fileId,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$MessageRecipientsTableFilterComposer
+    extends Composer<_$AppDatabase, $MessageRecipientsTable> {
+  $$MessageRecipientsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get messageId => $composableBuilder(
+    column: $table.messageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recipientId => $composableBuilder(
+    column: $table.recipientId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recipientName => $composableBuilder(
+    column: $table.recipientName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileId => $composableBuilder(
+    column: $table.fileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+}
+
+class $$MessageRecipientsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MessageRecipientsTable> {
+  $$MessageRecipientsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get messageId => $composableBuilder(
+    column: $table.messageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recipientId => $composableBuilder(
+    column: $table.recipientId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recipientName => $composableBuilder(
+    column: $table.recipientName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fileId => $composableBuilder(
+    column: $table.fileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MessageRecipientsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MessageRecipientsTable> {
+  $$MessageRecipientsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get messageId =>
+      $composableBuilder(column: $table.messageId, builder: (column) => column);
+
+  GeneratedColumn<String> get recipientId => $composableBuilder(
+    column: $table.recipientId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get recipientName => $composableBuilder(
+    column: $table.recipientName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<String> get fileId =>
+      $composableBuilder(column: $table.fileId, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MessageRecipientsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MessageRecipientsTable,
+          RecipientRow,
+          $$MessageRecipientsTableFilterComposer,
+          $$MessageRecipientsTableOrderingComposer,
+          $$MessageRecipientsTableAnnotationComposer,
+          $$MessageRecipientsTableCreateCompanionBuilder,
+          $$MessageRecipientsTableUpdateCompanionBuilder,
+          (
+            RecipientRow,
+            BaseReferences<
+              _$AppDatabase,
+              $MessageRecipientsTable,
+              RecipientRow
+            >,
+          ),
+          RecipientRow,
+          PrefetchHooks Function()
+        > {
+  $$MessageRecipientsTableTableManager(
+    _$AppDatabase db,
+    $MessageRecipientsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MessageRecipientsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MessageRecipientsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MessageRecipientsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> messageId = const Value.absent(),
+                Value<String> recipientId = const Value.absent(),
+                Value<String> recipientName = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<String?> fileId = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MessageRecipientsCompanion(
+                messageId: messageId,
+                recipientId: recipientId,
+                recipientName: recipientName,
+                status: status,
+                attempts: attempts,
+                fileId: fileId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String messageId,
+                required String recipientId,
+                required String recipientName,
+                required String status,
+                Value<int> attempts = const Value.absent(),
+                Value<String?> fileId = const Value.absent(),
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => MessageRecipientsCompanion.insert(
+                messageId: messageId,
+                recipientId: recipientId,
+                recipientName: recipientName,
+                status: status,
+                attempts: attempts,
+                fileId: fileId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$MessageRecipientsTable, RecipientRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $MessageRecipientsTable,
+                    RecipientRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MessageRecipientsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MessageRecipientsTable,
+      RecipientRow,
+      $$MessageRecipientsTableFilterComposer,
+      $$MessageRecipientsTableOrderingComposer,
+      $$MessageRecipientsTableAnnotationComposer,
+      $$MessageRecipientsTableCreateCompanionBuilder,
+      $$MessageRecipientsTableUpdateCompanionBuilder,
+      (
+        RecipientRow,
+        BaseReferences<_$AppDatabase, $MessageRecipientsTable, RecipientRow>,
+      ),
+      RecipientRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2695,4 +3579,6 @@ class $AppDatabaseManager {
       $$MessagesTableTableManager(_db, _db.messages);
   $$FilesTableTableManager get files =>
       $$FilesTableTableManager(_db, _db.files);
+  $$MessageRecipientsTableTableManager get messageRecipients =>
+      $$MessageRecipientsTableTableManager(_db, _db.messageRecipients);
 }

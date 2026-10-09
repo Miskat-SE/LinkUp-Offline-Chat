@@ -40,6 +40,13 @@ final conversationProvider = StreamProvider.family<List<ChatMessage>, String>(
       ref.watch(messageRepositoryProvider).watchConversation(peerId),
 );
 
+/// Who each outgoing Everyone message went to, and how far it got.
+final recipientsProvider =
+    StreamProvider.family<Map<String, List<MessageRecipient>>, String>(
+      (ref, conversationId) =>
+          ref.watch(messageRepositoryProvider).watchRecipients(conversationId),
+    );
+
 /// The chat on screen, if any; its messages are read as they arrive and
 /// don't raise notifications.
 final activeChatProvider = NotifierProvider<ActiveChat, String?>(
@@ -83,9 +90,12 @@ final messageAlertsProvider = Provider<void>((ref) {
     if (visible) return;
     unawaited(
       notifications.showMessage(
+        // Everyone messages open the Everyone thread.
         conversationId: message.peerId,
-        title: message.peerName,
-        body: message.preview,
+        title: message.isBroadcast
+            ? '${message.peerName} · Everyone'
+            : message.peerName,
+        body: message.body,
       ),
     );
   });

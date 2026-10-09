@@ -4,6 +4,15 @@ enum MessageDirection { incoming, outgoing }
 /// What a message carries.
 enum MessageContent { text, file }
 
+/// Who a message is for.
+enum ChatAudience {
+  /// One person (also each copy of a message sent to selected people).
+  direct,
+
+  /// Everyone online at the time; shown in the Everyone thread.
+  everyone,
+}
+
 /// Delivery state of a message (spec §8, PROTOCOL.md §4.3).
 ///
 /// Outgoing messages move forward only:
@@ -69,16 +78,22 @@ final class ChatMessage {
     this.content = MessageContent.text,
     this.fileId,
     this.fileName,
+    this.audience = ChatAudience.direct,
+    this.senderId,
   });
+
+  /// The conversation ID of the Everyone thread.
+  static const everyone = 'everyone';
 
   /// Message ID; the same on both phones.
   final String id;
 
-  /// The other person in the conversation.
+  /// The conversation: the other person's device ID, or [everyone].
   final String peerId;
 
-  /// Their name when the message was sent or received, so the chat list
-  /// works while they are offline.
+  /// Direct messages: the other person's name when it was sent or
+  /// received, so the chat list works while they are offline. Incoming
+  /// Everyone messages: the sender's name. Outgoing ones: "Everyone".
   final String peerName;
   final MessageDirection direction;
   final String text;
@@ -103,13 +118,27 @@ final class ChatMessage {
   /// it (the chat list, new-message notifications).
   final String? fileId;
   final String? fileName;
+  final ChatAudience audience;
+
+  /// Incoming Everyone messages: who sent it.
+  final String? senderId;
 
   bool get isOutgoing => direction == MessageDirection.outgoing;
+
+  bool get isBroadcast => audience == ChatAudience.everyone;
+
+  /// The device receipts for this message go to (incoming only).
+  String get sender => senderId ?? peerId;
 
   bool get isFile => content == MessageContent.file;
 
   /// One line for the chat list and notifications.
-  String get preview => isFile ? '📎 ${fileName ?? 'File'}' : text;
+  String get preview =>
+      // In the Everyone thread, say who wrote it.
+      isBroadcast && !isOutgoing ? '$peerName: $body' : body;
+
+  /// The text, or the file's name.
+  String get body => isFile ? '📎 ${fileName ?? 'File'}' : text;
 
   ChatMessage copyWith({
     String? peerName,
@@ -131,7 +160,92 @@ final class ChatMessage {
     content: content,
     fileId: fileId,
     fileName: fileName,
+    audience: audience,
+    senderId: senderId,
   );
+}
+
+/// One person an Everyone message was sent to, with their own status.
+final class MessageRecipient {
+  const MessageRecipient({
+    required this.messageId,
+    required this.recipientId,
+    required this.recipientName,
+    required this.status,
+    this.attempts = 0,
+    this.fileId,
+  });
+
+  final String messageId;
+  final String recipientId;
+  final String recipientName;
+
+  /// pending, sending, sent, delivered, read or failed.
+  final MessageStatus status;
+  final int attempts;
+
+  /// File messages: this recipient's own transfer.
+  final String? fileId;
+
+  MessageRecipient copyWith({MessageStatus? status, int? attempts}) =>
+      MessageRecipient(
+        messageId: messageId,
+        recipientId: recipientId,
+        recipientName: recipientName,
+        status: status ?? this.status,
+        attempts: attempts ?? this.attempts,
+        fileId: fileId,
+      );
+}
+
+/// "Delivered to 2 of 3", for an Everyone message's bubble.
+final class DeliverySummary {
+  const DeliverySummary(this.recipients);
+
+  final List<MessageRecipient> recipients;
+
+  int get total => recipients.length;
+
+  int count(MessageStatus atLeast) => recipients
+      .where(
+        (r) =>
+            r.status != MessageStatus.failed && r.status.rank >= atLeast.rank,
+      )
+      .length;
+
+  int get failed =>
+      recipients.where((r) => r.status == MessageStatus.failed).length;
+
+  /// The status every recipient has reached, for the bubble's tick.
+  MessageStatus get overall {
+    if (recipients.isEmpty) return MessageStatus.sent;
+    if (failed == total) return MessageStatus.failed;
+    var lowest = MessageStatus.read;
+    for (final r in recipients) {
+      if (r.status == MessageStatus.failed) continue;
+      if (r.status.rank < lowest.rank) lowest = r.status;
+    }
+    return lowest;
+  }
+
+  String get label {
+    if (total == 0) return 'Nobody was online';
+    final read = count(MessageStatus.read);
+    final delivered = count(MessageStatus.delivered);
+    final sent = count(MessageStatus.sent);
+    final parts = <String>[
+      if (read > 0)
+        'Read by $read of $total'
+      else if (delivered > 0)
+        'Delivered to $delivered of $total'
+      else if (sent > 0)
+        'Sent to $sent of $total'
+      else
+        'Sending to $total',
+      if (failed > 0) '$failed not sent',
+    ];
+    return parts.join(' · ');
+  }
 }
 
 /// A row in the chat list.

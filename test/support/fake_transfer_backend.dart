@@ -51,8 +51,12 @@ final class FakeTransferBackend implements TransferBackend {
   void stop(String fileId, FileCancelReason reason) =>
       stops.add((fileId, reason));
 
+  /// How many files were hashed.
+  int hashes = 0;
+
   @override
   Future<String> hashFile(String path) async {
+    hashes++;
     await hashGate?.future;
     return hash;
   }

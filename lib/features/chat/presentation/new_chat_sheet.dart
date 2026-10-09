@@ -7,17 +7,29 @@ import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
 import 'package:resqmesh/core/utils/relative_time.dart';
+import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/shared/widgets/user_avatar.dart';
 
-/// "New chat" options (spec §8, §14). One person works now; everyone and
-/// selected people arrive with broadcast (P7).
+/// "New chat" options (spec §8, §14): one person, everyone nearby, or
+/// selected people.
 Future<void> showNewChatSheet(BuildContext context) async {
   final choice = await showModalBottomSheet<_Choice>(
     context: context,
     isScrollControlled: true,
     builder: (context) => const _NewChatSheet(),
   );
-  if (choice != _Choice.person || !context.mounted) return;
+  if (choice == null || !context.mounted) return;
+  switch (choice) {
+    case _Choice.everyone:
+      await context.push(Routes.chat(ChatMessage.everyone));
+      return;
+    case _Choice.selected:
+      await context.push(Routes.selectPeople());
+      return;
+    case _Choice.person:
+      break;
+  }
+  if (!context.mounted) return;
   final peerId = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
@@ -28,7 +40,7 @@ Future<void> showNewChatSheet(BuildContext context) async {
   }
 }
 
-enum _Choice { person }
+enum _Choice { person, everyone, selected }
 
 class _NewChatSheet extends StatelessWidget {
   const _NewChatSheet();
@@ -63,15 +75,17 @@ class _NewChatSheet extends StatelessWidget {
               body: 'A private chat with someone nearby.',
               onTap: () => Navigator.pop(context, _Choice.person),
             ),
-            const _Option(
+            _Option(
               icon: Icons.campaign_rounded,
               title: 'Everyone nearby',
               body: 'Broadcast one message to all phones that are online.',
+              onTap: () => Navigator.pop(context, _Choice.everyone),
             ),
-            const _Option(
+            _Option(
               icon: Icons.group_add_rounded,
               title: 'Selected people',
               body: 'Pick a few people and send to all of them.',
+              onTap: () => Navigator.pop(context, _Choice.selected),
             ),
           ],
         ),

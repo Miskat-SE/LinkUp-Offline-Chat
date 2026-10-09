@@ -17,6 +17,7 @@ class FileMessageCard extends ConsumerWidget {
     required this.fileId,
     required this.peerName,
     required this.foreground,
+    this.statusOverride,
   });
 
   final String fileId;
@@ -24,6 +25,10 @@ class FileMessageCard extends ConsumerWidget {
 
   /// Text colour of the surrounding bubble.
   final Color foreground;
+
+  /// A file sent to several people: their combined status replaces this
+  /// transfer's own, without per-transfer controls.
+  final String? statusOverride;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,18 +41,19 @@ class FileMessageCard extends ConsumerWidget {
       );
     }
     final progress = ref.watch(transferProgressProvider(fileId)).value;
-    final status = transferStatusText(
-      transfer,
-      peerName: peerName,
-      progress: progress,
-    );
+    final status =
+        statusOverride ??
+        transferStatusText(transfer, peerName: peerName, progress: progress);
+    final stored = ref.watch(storedPathProvider(fileId)) != null;
+    // The sender's own copy can be viewed whatever happened to one copy.
     final available =
-        ref.watch(storedPathProvider(fileId)) != null &&
-        transfer.status == TransferStatus.completed;
+        stored &&
+        (transfer.status == TransferStatus.completed || statusOverride != null);
     final showsBar =
-        transfer.status == TransferStatus.inProgress ||
         transfer.status == TransferStatus.preparing ||
-        transfer.status == TransferStatus.paused;
+        (statusOverride == null &&
+            (transfer.status == TransferStatus.inProgress ||
+                transfer.status == TransferStatus.paused));
     final muted = foreground.withValues(alpha: 0.75);
 
     return Semantics(
@@ -94,7 +100,10 @@ class FileMessageCard extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  _TransferAction(transfer: transfer, color: foreground),
+                  if (statusOverride == null)
+                    _TransferAction(transfer: transfer, color: foreground)
+                  else
+                    const SizedBox(width: AppSpacing.xs),
                 ],
               ),
               if (showsBar) ...[

@@ -18,6 +18,9 @@ class MessageBubble extends StatelessWidget {
     this.peerName = '',
     this.onTapFailed,
     this.attachment,
+    this.senderLabel,
+    this.delivery,
+    this.onTapDelivery,
   });
 
   final ChatMessage message;
@@ -38,12 +41,21 @@ class MessageBubble extends StatelessWidget {
   /// File messages: the file card, drawn in the bubble's text colour.
   final Widget Function(Color foreground)? attachment;
 
+  /// Everyone thread, incoming: who wrote it.
+  final String? senderLabel;
+
+  /// Everyone thread, outgoing: how far it got with each person.
+  final DeliverySummary? delivery;
+  final VoidCallback? onTapDelivery;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final mine = message.isOutgoing;
-    final failed = message.status == MessageStatus.failed;
+    final delivery = this.delivery;
+    final status = delivery?.overall ?? message.status;
+    final failed = status == MessageStatus.failed;
     final background = mine ? scheme.primary : scheme.surfaceContainerHigh;
     final foreground = mine ? scheme.onPrimary : scheme.onSurface;
     const big = Radius.circular(22);
@@ -54,7 +66,8 @@ class MessageBubble extends StatelessWidget {
       topRight: mine && groupedWithPrevious ? small : big,
       bottomRight: mine && groupedWithNext ? small : big,
     );
-    final (icon, statusText) = statusIcon(message.status);
+    final (icon, iconText) = statusIcon(status);
+    final statusText = delivery?.label ?? iconText;
     final time = timeLabel(context, message.createdAt);
 
     return Padding(
@@ -67,7 +80,7 @@ class MessageBubble extends StatelessWidget {
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
         child: Semantics(
           label:
-              '${mine ? 'You' : peerName}: '
+              '${mine ? 'You' : senderLabel ?? peerName}: '
               '${message.isFile ? 'file' : message.text}. $time'
               '${mine ? '. $statusText' : ''}',
           // A file card keeps its own buttons reachable.
@@ -78,13 +91,25 @@ class MessageBubble extends StatelessWidget {
             child: InkWell(
               borderRadius: radius,
               onLongPress: onLongPress,
-              onTap: failed ? onTapFailed : null,
+              onTap: delivery != null
+                  ? onTapDelivery
+                  : (failed ? onTapFailed : null),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (senderLabel != null) ...[
+                      Text(
+                        senderLabel!,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
                     if (repliedTo != null)
                       _Quote(
                         message: repliedTo!,
@@ -104,15 +129,21 @@ class MessageBubble extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          failed ? 'Not sent · Tap to retry' : time,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color:
-                                (failed ? scheme.onErrorContainer : foreground)
-                                    .withValues(alpha: 0.75),
+                        Flexible(
+                          child: Text(
+                            delivery != null
+                                ? '$time · ${delivery.label}'
+                                : (failed ? 'Not sent · Tap to retry' : time),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color:
+                                  (failed
+                                          ? scheme.onErrorContainer
+                                          : foreground)
+                                      .withValues(alpha: 0.75),
+                            ),
                           ),
                         ),
-                        if (mine && !failed) ...[
+                        if (mine && !failed && delivery == null) ...[
                           const SizedBox(width: 4),
                           Icon(
                             icon,

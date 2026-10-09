@@ -5,6 +5,7 @@ import 'package:resqmesh/core/storage/app_database.dart';
 
 import 'generated/schema.dart';
 import 'generated/schema_v1.dart' as v1;
+import 'generated/schema_v2.dart' as v2;
 
 /// Schema snapshots and migrations (PROJECT_PLAN.md §8.1).
 ///
@@ -34,7 +35,7 @@ void main() {
     await db.close();
   });
 
-  test('v1 → v2 keeps every message and adds file sharing', () async {
+  test('from v1, every message is kept through to the latest schema', () async {
     final schema = await verifier.schemaAt(1);
     final old = v1.DatabaseAtV1(schema.newConnection());
     await old
@@ -54,13 +55,61 @@ void main() {
     await old.close();
 
     final db = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(db, 2);
+    await verifier.migrateAndValidate(db, db.schemaVersion);
     final message = await db.select(db.messages).getSingle();
     expect(message.body, 'Saved before the update');
     expect(message.status, 'delivered');
     expect(message.kind, 'text');
     expect(message.fileId, isNull);
     expect(await db.select(db.files).get(), isEmpty);
+    await db.close();
+  });
+
+  test('from v2, messages and files are kept and Everyone is added', () async {
+    final schema = await verifier.schemaAt(2);
+    final old = v2.DatabaseAtV2(schema.newConnection());
+    await old
+        .into(old.messages)
+        .insert(
+          v2.MessagesCompanion.insert(
+            messageId: '6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10',
+            conversationId: 'b81d07aa-5c3e-4f19-9d26-0e7c4a8b2f61',
+            peerName: 'Rahim',
+            direction: 'in',
+            body: '',
+            sentAt: 1,
+            createdAt: 2,
+            status: 'received',
+            kind: const Value('file'),
+            fileId: const Value('0a4e6c1d-2b8f-4e57-a3c9-5d1f7e2b9c80'),
+          ),
+        );
+    await old
+        .into(old.files)
+        .insert(
+          v2.FilesCompanion.insert(
+            fileId: '0a4e6c1d-2b8f-4e57-a3c9-5d1f7e2b9c80',
+            messageId: '6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10',
+            peerId: 'b81d07aa-5c3e-4f19-9d26-0e7c4a8b2f61',
+            direction: 'in',
+            name: 'photo.jpg',
+            mimeType: 'image/jpeg',
+            size: 10,
+            status: 'completed',
+            createdAt: 1,
+            updatedAt: 1,
+          ),
+        );
+    await old.close();
+
+    final db = AppDatabase(schema.newConnection());
+    await verifier.migrateAndValidate(db, db.schemaVersion);
+    final message = await db.select(db.messages).getSingle();
+    expect(message.kind, 'file');
+    expect(message.audience, 'direct');
+    expect(message.senderId, isNull);
+    expect((await db.select(db.files).getSingle()).name, 'photo.jpg');
+    expect(await db.select(db.messageRecipients).get(), isEmpty);
     await db.close();
   });
 }

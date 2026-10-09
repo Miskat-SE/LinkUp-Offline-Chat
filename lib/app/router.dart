@@ -7,6 +7,7 @@ import 'package:resqmesh/core/connection/connection_providers.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/features/chat/presentation/chat_screen.dart';
 import 'package:resqmesh/features/chat/presentation/home_screen.dart';
+import 'package:resqmesh/features/chat/presentation/select_people_screen.dart';
 import 'package:resqmesh/features/developer/presentation/developer_screen.dart';
 import 'package:resqmesh/features/discovery/presentation/people_screen.dart';
 import 'package:resqmesh/features/file_transfer/presentation/file_preview_screen.dart';
@@ -31,6 +32,8 @@ abstract final class Routes {
 
   static String chat(String peerId) => '/chat/$peerId';
   static String filePreview(String fileId) => '/files/$fileId';
+  static String selectPeople([String? preselect]) =>
+      preselect == null ? '/select' : '/select?id=$preselect';
   static String fileDetails(String fileId) => '/files/$fileId/details';
 }
 
@@ -88,6 +91,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/:peerId',
         builder: (context, state) =>
             ChatScreen(peerId: state.pathParameters['peerId']!),
+      ),
+      GoRoute(
+        path: '/select',
+        builder: (context, state) =>
+            SelectPeopleScreen(preselected: state.uri.queryParameters['id']),
       ),
       GoRoute(
         path: '/files/:fileId',

@@ -167,7 +167,17 @@ class _ConversationTile extends StatelessWidget {
       onTap: () => context.push(Routes.chat(summary.peerId)),
       leading: Stack(
         children: [
-          UserAvatar(name: summary.peerName, seed: summary.peerId, size: 52),
+          if (summary.peerId == ChatMessage.everyone)
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: scheme.tertiaryContainer,
+              child: Icon(
+                Icons.campaign_rounded,
+                color: scheme.onTertiaryContainer,
+              ),
+            )
+          else
+            UserAvatar(name: summary.peerName, seed: summary.peerId, size: 52),
           if (online)
             Positioned(
               right: 0,

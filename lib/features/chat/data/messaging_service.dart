@@ -27,6 +27,9 @@ import 'package:uuid/uuid.dart';
 /// - Files (§7.5): a file MESSAGE goes out once the file is prepared; its
 ///   confirmation lets the data follow. The bytes are [TransferService]'s
 ///   job.
+/// - Everyone (§7.4): one message to the people online at that moment,
+///   tracked per recipient with the same retries and receipts as a direct
+///   message. Selected people get one direct message each.
 final class MessagingService {
   MessagingService({
     required this._links,
@@ -169,37 +172,228 @@ final class MessagingService {
     return sent;
   });
 
+  /// Sends the same text and files to each of [people] as their own direct
+  /// message (multi-select, P7.3); those offline get them when they're
+  /// back. Each file is copied and hashed once.
+  Future<void> sendToPeople({
+    required Map<String, String> people,
+    String? text,
+    List<PickedFile> files = const [],
+  }) async {
+    final trimmed = text?.trim() ?? '';
+    if (people.isEmpty || (trimmed.isEmpty && files.isEmpty)) {
+      throw ArgumentError('nothing to send');
+    }
+    if (trimmed.isNotEmpty) {
+      for (final MapEntry(key: id, value: name) in people.entries) {
+        await sendText(peerId: id, peerName: name, text: trimmed);
+      }
+    }
+    if (files.isEmpty) return;
+    await _serial(() async {
+      for (final picked in files) {
+        String? source;
+        for (final MapEntry(key: id, value: name) in people.entries) {
+          source = await _queueFile(picked, id, name, sharing: source);
+        }
+      }
+    });
+  }
+
+  /// Stores a file message to [peerId]; the first copy of a file moves and
+  /// hashes it, later ones share it. Returns the new file ID.
+  Future<String> _queueFile(
+    PickedFile picked,
+    String peerId,
+    String peerName, {
+    String? sharing,
+  }) async {
+    final transfers = _transfers!;
+    final now = clock.now();
+    final messageId = _uuid.v4();
+    final fileId = _uuid.v4();
+    final transfer = sharing == null
+        ? await transfers.prepareOutgoing(
+            picked,
+            fileId: fileId,
+            messageId: messageId,
+            peerId: peerId,
+          )
+        : await transfers.shareOutgoing(
+            sharing,
+            fileId: fileId,
+            messageId: messageId,
+            peerId: peerId,
+          );
+    await _repository.insertOutgoing(
+      ChatMessage(
+        id: messageId,
+        peerId: peerId,
+        peerName: peerName,
+        direction: MessageDirection.outgoing,
+        text: '',
+        sentAt: now,
+        createdAt: now,
+        status: MessageStatus.pending,
+        content: MessageContent.file,
+        fileId: fileId,
+        fileName: transfer.name,
+      ),
+    );
+    // Already hashed (a shared copy): send now if they are connected.
+    if (transfer.sha256 != null) await _fileReady(fileId);
+    return fileId;
+  }
+
+  /// Sends to everyone online right now (P7.2). Returns the messages, or
+  /// an empty list if nobody is online. [names] supplies display names;
+  /// the connection's name is used otherwise.
+  Future<List<ChatMessage>> sendToEveryone({
+    String? text,
+    List<PickedFile> files = const [],
+    Map<String, String> names = const {},
+  }) => _serial(() async {
+    final online = {
+      for (final link in _links.current.links.values)
+        link.peerId:
+            names[link.peerId] ??
+            (link.peerName.isEmpty ? 'Someone' : link.peerName),
+    };
+    if (online.isEmpty) return const <ChatMessage>[];
+    final trimmed = text?.trim() ?? '';
+    final sent = <ChatMessage>[];
+    if (trimmed.isNotEmpty) {
+      sent.add(await _broadcast(online, text: trimmed));
+    }
+    for (final picked in files) {
+      sent.add(await _broadcast(online, file: picked));
+    }
+    _logger.info(LogTag.message, 'Sent to everyone', {
+      'people': online.length,
+      'messages': sent.length,
+    });
+    return sent;
+  });
+
+  Future<ChatMessage> _broadcast(
+    Map<String, String> online, {
+    String text = '',
+    PickedFile? file,
+  }) async {
+    final now = clock.now();
+    final messageId = _uuid.v4();
+    final fileIds = <String, String>{};
+    String? fileName;
+    if (file != null) {
+      String? source;
+      for (final peerId in online.keys) {
+        final fileId = _uuid.v4();
+        final transfer = source == null
+            ? await _transfers!.prepareOutgoing(
+                file,
+                fileId: fileId,
+                messageId: messageId,
+                peerId: peerId,
+              )
+            : await _transfers!.shareOutgoing(
+                source,
+                fileId: fileId,
+                messageId: messageId,
+                peerId: peerId,
+              );
+        source ??= fileId;
+        fileName = transfer.name;
+        fileIds[peerId] = fileId;
+      }
+    }
+    final message = ChatMessage(
+      id: messageId,
+      peerId: ChatMessage.everyone,
+      peerName: 'Everyone',
+      direction: MessageDirection.outgoing,
+      text: text,
+      sentAt: now,
+      createdAt: now,
+      status: MessageStatus.sent,
+      content: file == null ? MessageContent.text : MessageContent.file,
+      fileId: fileIds.values.firstOrNull,
+      fileName: fileName,
+      audience: ChatAudience.everyone,
+    );
+    final recipients = [
+      for (final MapEntry(key: id, value: name) in online.entries)
+        MessageRecipient(
+          messageId: messageId,
+          recipientId: id,
+          recipientName: name,
+          status: MessageStatus.pending,
+          fileId: fileIds[id],
+        ),
+    ];
+    await _repository.insertBroadcast(message, recipients);
+    for (final recipient in recipients) {
+      await _transmitTo(message, recipient);
+    }
+    return message;
+  }
+
   /// A file finished preparing: its message can go out.
   Future<void> _fileReady(String fileId) async {
     final transfer = await _transfers?.find(fileId);
     if (transfer == null) return;
     final message = await _repository.find(transfer.messageId);
-    if (message == null || message.status != MessageStatus.pending) return;
+    if (message == null) return;
+    if (message.isBroadcast) {
+      for (final r in await _repository.recipients(message.id)) {
+        if (r.fileId == fileId && r.status == MessageStatus.pending) {
+          await _transmitTo(message, r);
+        }
+      }
+      return;
+    }
+    if (message.status != MessageStatus.pending) return;
     await _transmit(message);
   }
 
-  /// Sends a Failed message again.
+  /// Sends a Failed message again; for Everyone, to those it failed for.
   Future<void> retry(String messageId) => _serial(() async {
     final message = await _repository.find(messageId);
-    if (message == null || message.status != MessageStatus.failed) return;
+    if (message == null) return;
+    if (message.isBroadcast) {
+      for (final r in await _repository.recipients(messageId)) {
+        if (r.status == MessageStatus.failed) {
+          await _transmitTo(message, r.copyWith(attempts: 0));
+        }
+      }
+      return;
+    }
+    if (message.status != MessageStatus.failed) return;
     _logger.info(LogTag.message, 'Retry', {'message': _short(messageId)});
     await _transmit(message.copyWith(attempts: 0));
   });
 
   /// The user opened the chat: marks its messages read and tells the
   /// sender, now or when they reconnect.
-  Future<void> markConversationRead(String peerId) => _serial(() async {
-    final ids = await _repository.markRead(peerId);
-    if (ids.isNotEmpty) await _sendReceipts(peerId, ids, Receipt.read);
+  Future<void> markConversationRead(String conversationId) => _serial(() async {
+    final bySender = await _repository.markRead(conversationId);
+    for (final MapEntry(key: sender, value: ids) in bySender.entries) {
+      await _sendReceipts(sender, ids, Receipt.read);
+    }
   });
 
   /// Deletes on this phone only, with its file if it has one.
   Future<void> delete(String messageId) async {
     _ackTimers.remove(messageId)?.cancel();
     final message = await _repository.find(messageId);
+    final recipients = await _repository.recipients(messageId);
+    for (final r in recipients) {
+      _ackTimers.remove(_key(messageId, r.recipientId))?.cancel();
+    }
     await _repository.delete(messageId);
-    final fileId = message?.fileId;
-    if (fileId != null) await _transfers?.discard(fileId);
+    final fileIds = {?message?.fileId, for (final r in recipients) ?r.fileId};
+    for (final fileId in fileIds) {
+      await _transfers?.discard(fileId);
+    }
   }
 
   // ----------------------------------------------------------------- sending
@@ -251,6 +445,81 @@ final class MessagingService {
     );
   }
 
+  /// Sends an Everyone message to one recipient, with its own retries.
+  Future<void> _transmitTo(ChatMessage message, MessageRecipient r) async {
+    final peerId = r.recipientId;
+    final fileId = r.fileId;
+    final file = fileId == null ? null : await _transfers?.fileRef(fileId);
+    if (!isConnected(peerId) || (message.isFile && file == null)) {
+      await _repository.updateRecipient(
+        message.id,
+        peerId,
+        MessageStatus.pending,
+        attempts: 0,
+      );
+      return;
+    }
+    final attempts = r.attempts + 1;
+    await _repository.updateRecipient(
+      message.id,
+      peerId,
+      MessageStatus.sending,
+      attempts: attempts,
+    );
+    final self = _self();
+    _links.send(
+      peerId,
+      MessagePacket(
+        PacketHeader(
+          messageId: message.id,
+          senderId: self.deviceId,
+          senderName: self.name ?? '',
+          receiverId: peerId,
+          timestamp: PacketHeader.wireTime(message.sentAt),
+        ),
+        kind: message.isFile ? MessageKind.file : MessageKind.text,
+        audience: MessageAudience.broadcast,
+        text: message.isFile ? null : message.text,
+        file: file,
+      ),
+    );
+    final key = _key(message.id, peerId);
+    _ackTimers.remove(key)?.cancel();
+    _ackTimers[key] = Timer(
+      ackTimeout,
+      () => unawaited(_serial(() => _deliveryTimedOut(message.id, peerId))),
+    );
+  }
+
+  Future<void> _deliveryTimedOut(String messageId, String peerId) async {
+    _ackTimers.remove(_key(messageId, peerId));
+    final message = await _repository.find(messageId);
+    if (message == null) return;
+    MessageRecipient? recipient;
+    for (final r in await _repository.recipients(messageId)) {
+      if (r.recipientId == peerId) recipient = r;
+    }
+    if (recipient == null || recipient.status != MessageStatus.sending) return;
+    if (!isConnected(peerId)) {
+      await _repository.updateRecipient(
+        messageId,
+        peerId,
+        MessageStatus.pending,
+        attempts: 0,
+      );
+    } else if (recipient.attempts >= maxAttempts) {
+      await _repository.updateRecipient(
+        messageId,
+        peerId,
+        MessageStatus.failed,
+      );
+    } else {
+      await _transmitTo(message, recipient);
+    }
+  }
+
+  static String _key(String messageId, String peerId) => '$messageId|$peerId';
+
   Future<void> _ackTimedOut(String messageId) async {
     _ackTimers.remove(messageId);
     final message = await _repository.find(messageId);
@@ -287,6 +556,17 @@ final class MessagingService {
           attempts: 0,
         );
       }
+      for (final (message, _) in await _repository.pendingDeliveriesTo(
+        peerId,
+      )) {
+        _ackTimers.remove(_key(message.id, peerId))?.cancel();
+        await _repository.updateRecipient(
+          message.id,
+          peerId,
+          MessageStatus.pending,
+          attempts: 0,
+        );
+      }
     }
     for (final peerId in joined) {
       final waiting = await _repository.pendingFor(peerId);
@@ -298,6 +578,11 @@ final class MessagingService {
       }
       for (final message in waiting) {
         await _transmit(message);
+      }
+      for (final (message, r) in await _repository.pendingDeliveriesTo(
+        peerId,
+      )) {
+        await _transmitTo(message, r);
       }
       for (final receipt in [Receipt.delivered, Receipt.read]) {
         final owed = await _repository.owedReceipts(peerId, receipt);
@@ -359,10 +644,14 @@ final class MessagingService {
     } else if (packet.text == null) {
       return;
     }
+    // Everyone messages go to the Everyone thread, with the sender's name.
+    final everyone = packet.audience == MessageAudience.broadcast;
     final message = ChatMessage(
       id: header.messageId,
-      peerId: from,
+      peerId: everyone ? ChatMessage.everyone : from,
       peerName: header.senderName,
+      audience: everyone ? ChatAudience.everyone : ChatAudience.direct,
+      senderId: everyone ? from : null,
       direction: MessageDirection.incoming,
       text: file == null ? packet.text! : '',
       sentAt: header.timestamp,
@@ -429,9 +718,15 @@ final class MessagingService {
   ) async {
     for (final id in ids) {
       final message = await _repository.find(id);
-      if (message == null || message.peerId != from || !message.isOutgoing) {
+      if (message == null || !message.isOutgoing) continue;
+      if (message.isBroadcast) {
+        _ackTimers.remove(_key(id, from))?.cancel();
+        final recipient = await _repository.updateRecipient(id, from, status);
+        final fileId = recipient?.fileId;
+        if (fileId != null) await _transfers?.onFileMessageAccepted(fileId);
         continue;
       }
+      if (message.peerId != from) continue;
       await _repository.updateStatus(id, status);
       // Any receipt means the file message was stored: send the data.
       final fileId = message.fileId;

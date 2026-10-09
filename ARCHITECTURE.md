@@ -154,6 +154,13 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 - **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
 
+## Everyone and selected people (P7)
+
+- **Everyone:** `MessagingService.sendToEveryone` takes the people connected at that moment, stores one message (conversation `everyone`) plus one `message_recipients` row per person, and sends each their own MESSAGE (same ID). Each recipient has its own retries (10 s, 5 tries), receipts and outbox entry, exactly like a direct message. The bubble shows a `DeliverySummary` ("Delivered to 2 of 3"); tapping it lists each person.
+- **Receiving:** a `broadcast` MESSAGE is stored in the Everyone thread with `senderId`; READ receipts from that thread go to each message's sender.
+- **Selected people:** `sendToPeople` sends one direct message per person, so each appears in that person's chat and waits for them if they are offline.
+- **Files:** the first copy is moved and hashed; the others are `TransferService.shareOutgoing` rows on the same stored copy. When the hash is done, every sharing transfer becomes ready. The usual limit of 3 uploads at a time applies.
+
 ## Storage (P5)
 
 ```
@@ -208,6 +215,7 @@ TransferService ── upload · answer · stop ──────────�
 | Transfer state machine and decisions | `test/features/file_transfer/transfer_service_test.dart` |
 | File screens (whole app) | `test/features/file_transfer/file_ui_test.dart` |
 | File messages between two phones | `test/features/chat/file_messages_test.dart` |
+| Everyone and selected people (3 phones) | `test/features/chat/broadcast_test.dart`, `broadcast_loopback_test.dart`, `broadcast_ui_test.dart` |
 | File names, storage paths, SHA-256 vectors | `test/core/storage/file_name_sanitizer_test.dart` |
 | Schema snapshots and migrations | `test/drift/app_database/migration_test.dart` |
 
