@@ -154,6 +154,28 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 - **Notifications** go through `NotificationBridge.kt` (channel *Messages*, one notification per chat). `messageAlertsProvider` skips the chat that is open while the app is in the foreground. Tapping a notification opens that chat, whether the app was running or not. `POST_NOTIFICATIONS` is asked on the first chat, after an explainer sheet.
 
+## Security model (P9)
+
+**Trust model.** LinkUp is for a local network you trust. There are no accounts and no servers. Anyone on the same Wi-Fi running LinkUp (or a modified copy) can see you, message you and send you files. **v1.0 does not encrypt traffic** (ADR-0022): someone on the same Wi-Fi with capture tools can read messages and files, and a device can claim another device's ID. Files and chats are stored only in the app's private storage.
+
+**Every input from the network, and its checks** (P9.1):
+
+| Input | Checks |
+|---|---|
+| UDP datagram (discovery) | ≤ 1,400 bytes; `RQM1` magic; strict JSON decode (never throws); every field typed and bounded; own packets ignored; DISCOVERY and NAME_CHECK answered at most 10 times per 10 s per address (no amplification of spoofed requests) |
+| TCP connection (control) | At most 8 still in the handshake and 20 new per minute per address; HELLO within 5 s or closed; the sender ID is bound to the connection; 32 connections at most |
+| TCP frame | Kind and length checked before buffering (control ≤ 64 KiB, chunk ≤ 256 KiB); 3 malformed frames in a row close the connection; file chunks refused on control connections |
+| Packets on a connection | More than a burst of 2,000 or 200 a second on average closes the connection; idle for 45 s closes it |
+| MESSAGE | Addressed to this device; text ≤ 16 KiB; duplicates stored once; file IDs that belong to something else are refused; names sanitised for display |
+| Receipts | Applied only to messages sent to the device the receipt came from; never move a status back |
+| File data connection | At most 8 in handshake/offer and 30 new per minute per address; HELLO within 5 s, offer within 10 s; the offer must match a file announced by the same device (ID, size, SHA-256); size ≤ 4 GiB and free space − 200 MB; bytes beyond the offered size refused; SHA-256 verified before the file is kept; written under our own file ID (no path from the network); idle 2 min closes it |
+| File names | Last path segment only, control and direction-override characters removed, reserved names fixed, ≤ 255 UTF-8 bytes; used only for display, Open, Share and Save |
+| Opening files | Only when the user taps; APKs go to Android's installer, which asks first |
+
+**Logs.** At the default level, logs contain no message text and no file names: only short device IDs, LAN addresses, counts and error types (P9.4).
+
+**Fuzzing** (P9.2). Random, truncated, bit-flipped and wrongly typed input goes into the packet codec, the datagram codec and the frame decoder, and random bytes go into live control and file connections. The app never crashes, refuses the input, and keeps working (`test/security/`, connection and engine tests).
+
 ## Background (P8)
 
 ```

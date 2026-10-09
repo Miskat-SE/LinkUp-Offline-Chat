@@ -255,6 +255,35 @@ class _AboutCardState extends ConsumerState<_AboutCard> {
             subtitle: Text('Version $version'),
             onTap: _onVersionTap,
           ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.sm,
+            ),
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacy'),
+            subtitle: const Text('What LinkUp keeps, and who can see it'),
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Privacy'),
+                content: const Text(
+                  '${Brand.name} works only on your local network. Nothing '
+                  'goes to the internet, and there are no accounts.\n\n'
+                  'Your chats and files are stored only on this phone.\n\n'
+                  'Messages and files are not encrypted on the network. '
+                  'People on the same Wi-Fi with special tools could see '
+                  'them, so use networks you trust, or your own hotspot.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            ),
+          ),
           if (developer)
             ListTile(
               contentPadding: const EdgeInsets.symmetric(

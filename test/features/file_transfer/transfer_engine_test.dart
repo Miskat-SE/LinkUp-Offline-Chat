@@ -406,6 +406,48 @@ void main() {
     );
   });
 
+  test(
+    'the file port refuses silent connections beyond 8 and garbage (P9)',
+    () async {
+      final pair = await Pair.start();
+      final sockets = [
+        for (var i = 0; i < 12; i++)
+          await Socket.connect('127.0.0.1', pair.receiverPort),
+      ];
+      final closedEarly = <bool>[];
+      await Future.wait([
+        for (final s in sockets)
+          s
+              .drain<void>()
+              .timeout(const Duration(milliseconds: 500))
+              .then(
+                (_) => closedEarly.add(true),
+                onError: (Object _) => closedEarly.add(false),
+              ),
+      ]);
+      expect(closedEarly.where((c) => c).length, greaterThanOrEqualTo(4));
+      for (final s in sockets) {
+        s.destroy();
+      }
+
+      // Random bytes are refused, and a real transfer still works after.
+      final random = Random(3);
+      for (var i = 0; i < 10; i++) {
+        final s = await Socket.connect('127.0.0.1', pair.receiverPort);
+        s.add(
+          List.generate(1 + random.nextInt(3000), (_) => random.nextInt(256)),
+        );
+        await s.drain<void>().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {},
+        );
+        s.destroy();
+      }
+      final id = await pair.send(await pair.makeFile('after.bin', 1000));
+      expect((await pair.receiverEnd(id)).outcome, isA<TransferCompleted>());
+    },
+  );
+
   test('the worker isolate hashes and receives files', () async {
     final worker = await IsolateTransferBackend.spawn();
     final pair = await Pair.start(receiverBackend: worker);

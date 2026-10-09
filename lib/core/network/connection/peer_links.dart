@@ -45,6 +45,7 @@ final class LinkStats {
     this.accepted = 0,
     this.handshakeFailures = 0,
     this.duplicatesClosed = 0,
+    this.refused = 0,
     this.recentErrors = const [],
   });
 
@@ -53,6 +54,9 @@ final class LinkStats {
   final int accepted;
   final int handshakeFailures;
   final int duplicatesClosed;
+
+  /// Connections refused by the limits (too many at once, or too often).
+  final int refused;
   final List<String> recentErrors;
 }
 

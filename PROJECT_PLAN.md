@@ -8,7 +8,7 @@ Flutter Android app · works with the router's internet switched off · no cloud
 | Student | Jannatul Miskat Chowdhury (Roll 2405207), IIT, University of Dhaka |
 | Supervisor | Dr. Sumon Ahmed |
 | Product name | **LinkUp** (shown to users; ResQMesh stays the project and research name) |
-| Plan version | 2.0 · 10 Oct 2026 |
+| Plan version | 2.1 · 10 Oct 2026 |
 | Source | Build specification, 8 Oct 2026 (`docs/SPEC.md`, from `ResQMesh_prompt.txt`) |
 | Window | 1 Oct 2026 (Week 1) → ~17 Feb 2027 (Week 20) |
 
@@ -23,9 +23,9 @@ References written as *spec §n* point to the numbered sections of the build spe
 | | |
 |---|---|
 | Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P8 code complete** (background receiving) · P7 3-phone test, P8 real-phone checks, 2 GB soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
+| Phase | **P9 done: feature complete, `v0.9.0-beta`** · P7 3-phone test, P8 real-phone checks, 2 GB soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
 | Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P8 (planned for Weeks 3–13) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; images sent several times both ways on the two real phones (user, 10 Oct); **the 2 GB two-phone soak (M4) is still to do**. |
+| Health | Ahead of schedule: P1–P9 (planned for Weeks 3–14) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; images sent several times both ways on the two real phones (user, 10 Oct); **the 2 GB two-phone soak (M4) is still to do**. |
 | Blockers | None recorded |
 
 **This week**
@@ -722,7 +722,7 @@ The path on disk is always built from our own `fileId`. The sanitised name is us
 | Files | Disk path from our own `fileId` (D14); names sanitised; files are never opened automatically. An APK opens only when the user taps it, through the system installer. |
 | Logs | No message text or file names at the default level (spec §35). Short device IDs and private LAN IPs are allowed. |
 | Data at rest | Android app sandbox only; no extra database encryption (documented) |
-| Encryption in transit (D17, P9) | **Spike:** TLS 1.3 over `dart:io` `SecureSocket` on control and data connections. Each device has a key pair and a self-signed certificate; peers pin the fingerprint per device ID on first use, and Peer details show it for manual comparison. UDP discovery stays plaintext (no content). **Go** if the full device matrix passes and file throughput drops by ≤ 20%. **Otherwise** look for a maintained implementation of an established handshake such as Noise XX; if none passes vetting, ship plaintext and document it. Never a home-made scheme. |
+| Encryption in transit (D17, P9) | **Decided (ADR-0022): not in v1.0** — spike measured −93% throughput with TLS on loopback and `dart:io` can't pin the sender; documented in README and Settings → Privacy; revisit after v1.0. Original plan: | **Spike:** TLS 1.3 over `dart:io` `SecureSocket` on control and data connections. Each device has a key pair and a self-signed certificate; peers pin the fingerprint per device ID on first use, and Peer details show it for manual comparison. UDP discovery stays plaintext (no content). **Go** if the full device matrix passes and file throughput drops by ≤ 20%. **Otherwise** look for a maintained implementation of an established handshake such as Noise XX; if none passes vetting, ship plaintext and document it. Never a home-made scheme. |
 
 ---
 
@@ -940,13 +940,13 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 **Exit:** a 1 GB file is received with the screen off and the app in the background; every row of §5.6 is checked and documented. *Shown on the emulator (1 GB in 32 s, screen off, app in the background); real phones still to do.*
 
 #### P9 · Security hardening (Week 14, 31 Dec–6 Jan)
-- [ ] **P9.1** Review every inbound path against §7.6 and §9; add any missing checks
-- [ ] **P9.2** Fuzz tests: random, truncated and oversized frames and JSON into the codec and connections (no crash; connection closed)
-- [ ] **P9.3** Rate and connection limits; handshake timeout against slow clients
-- [ ] **P9.4** Log review: no message text or file names at the default level
-- [ ] **P9.5** Encryption spike (D17): TLS with pinning; measure throughput and stability; go/no-go ADR; if go, negotiate through `capabilities` in HELLO
-- [ ] **P9.6** Security model section for the README and `ARCHITECTURE.md`
-- [ ] **P9.7** Feature freeze; tag `v0.9.0-beta`
+- [x] **P9.1** Review every inbound path against §7.6 and §9; add any missing checks
+- [x] **P9.2** Fuzz tests: random, truncated and oversized frames and JSON into the codec and connections (no crash; connection closed)
+- [x] **P9.3** Rate and connection limits; handshake timeout against slow clients
+- [x] **P9.4** Log review: no message text or file names at the default level
+- [x] **P9.5** Encryption spike (D17): TLS with pinning; measure throughput and stability; go/no-go ADR; if go, negotiate through `capabilities` in HELLO. *No-go for v1.0 (ADR-0022): −93% throughput on loopback, sender can't be pinned with `dart:io`; revisit after v1.0.*
+- [x] **P9.6** Security model section for the README and `ARCHITECTURE.md`
+- [x] **P9.7** Feature freeze; tag `v0.9.0-beta`
 
 **Exit (M5):** all inbound validation in place and fuzzed; encryption decision recorded; feature complete.
 
@@ -1016,7 +1016,7 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 | M2 | LAN discovery on 2+ phones with the router's internet off | 4 Nov (end of Week 5) | Works on 2 phones; offline-in-20 s and router-reboot checks open |
 | M3 | Persistent text chat with offline queue | 25 Nov (end of Week 8) | Done (emulator; chat on 2 phones) |
 | M4 | Large-file transfer; mid-term presentation | 16 Dec (Week 11) | Code done; 2 GB soak and slides open |
-| M5 | Feature complete: broadcast, background, security | 6 Jan (end of Week 14) | Not started |
+| M5 | Feature complete: broadcast, background, security | 6 Jan (end of Week 14) | Done 10 Oct (`v0.9.0-beta`); real-phone checks for P7/P8 open |
 | M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Not started |
 | M7 | v1.0.0 released with all four documents | 3 Feb (end of Week 18) | Not started |
 | M8 | Report submitted, defense | ~17 Feb (Week 20) | Not started |
@@ -1219,4 +1219,5 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 1.7 | 9 Oct 2026 | P5 done: SQLite through drift (schema v1, `messages` only; D22 and ADR-0020); chats, unread counts and the outbox survive restarts; interrupted sends wait again at start; delivery and read receipts queue until the sender reconnects; each connection gets a full 5 attempts; Settings → Storage with *Clear chat history*; migration test scaffold. 189 tests. The release APK grows by about 7 MB (SQLite for three CPU types; a Play Store bundle splits it). The simulator keeps one device ID per name. |
 | 1.8 | 9 Oct 2026 | P6 done (code): file transfer in a worker isolate on its own port (D23, ADR-0021; `filePort` in HELLO), FILE_* packets, schema v2 with the `files` table, resume by offset, 3 automatic resumes then Retry, one retry after a checksum mismatch, duplicates by file ID and by content, at most 3 uploads at a time, 4 GiB and free-space checks. Attach sheet, file cards, File Preview (Open, Share, Save to Downloads), Transfer Details, Storage v1 with all four actions (Clear all local data restarts at onboarding). Kotlin `FileBridge` (FileProvider with hard links, MediaStore, thumbnails, free space); `REQUEST_INSTALL_PACKAGES` so received APKs open in the system installer. Discovery now reopens its UDP socket after Android cuts a backgrounded app's network. Simulator sends and receives files. 261 tests. |
 | 1.9 | 10 Oct 2026 | P7 done (code): Everyone thread (one message to the people online at that moment, `message_recipients` with per-person status, "Delivered to 2 of 3", per-person retry and receipts, sender names, notifications "Rahim · Everyone"); selected people as one direct message each, queued for anyone offline; files fanned out with one copy and one hash. Schema v3 (`audience`, `senderId`, `message_recipients`). New chat options and People Nearby → Select people. 3-phone loopback test with real sockets. Milestone table updated. 284 tests. |
+| 2.1 | 10 Oct 2026 | P9 done: inputs reviewed and documented (Security model); fuzz tests for codecs, frames and live connections; limits on discovery answers, half-open and per-address connections, and packet floods; logs reviewed; encryption spike (`tool/tls_spike.dart`) and decision ADR-0022 (plaintext v1.0, user's choice); Settings → Privacy; feature freeze and `v0.9.0-beta`. 302 tests. |
 | 2.0 | 10 Oct 2026 | P8 done (code): the `Application` owns a cached FlutterEngine and the bridges (screen-independent); `LanForegroundService` (`connectedDevice`) runs while files move ("Receiving video.mp4 — 62%", updated at most once a second) or with *Stay reachable* on, with Wi-Fi and partial wake locks during transfers only; *Stay reachable* in Settings, offered once on Home; battery settings link; notification taps carry an app route (chat, transfer details, Activity); Activity screen; HELLO every 15 s in the background. Emulator: 1 GB received with the screen off, Doze, swipe-away. 292 tests. |

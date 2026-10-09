@@ -9,6 +9,9 @@ import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/discovery/peer.dart';
 import 'package:resqmesh/core/network/discovery/service_discovery.dart';
 import 'package:resqmesh/core/network/network_snapshot.dart';
+import 'package:resqmesh/core/network/protocol/datagram.dart';
+import 'package:resqmesh/core/network/protocol/packet.dart';
+import 'package:resqmesh/core/network/protocol/packet_codec.dart';
 
 import '../../../support/fake_network_monitor.dart';
 import '../../../support/memory_datagram_network.dart';
@@ -156,6 +159,42 @@ void main() {
       async.elapse(const Duration(seconds: 30));
       expect(a.peer(idB)?.online, isTrue, reason: 'still hearing Rahim');
       expect(a.peer(idB)!.lastSeen.isAfter(seenBefore), isTrue);
+    });
+  });
+
+  test('answers to one address are limited (no amplification)', () {
+    fakeAsync((async) {
+      final a = Phone(lan, id: idA, ip: '192.168.0.10', name: 'Yusuf');
+      startAll(async, [a]);
+      async.elapse(const Duration(seconds: 1));
+      // A listener at the spoofed victim's address counts what it gets.
+      var answers = 0;
+      unawaited(
+        lan
+            .binderFor('192.168.0.66')(28760)
+            .then(
+              (victim) => victim.incoming.listen((d) {
+                final decoded = DatagramCodec.decode(d.data);
+                if (decoded case Decoded(packet: DiscoveryResponsePacket())) {
+                  answers++;
+                }
+              }),
+            ),
+      );
+      async.flushMicrotasks();
+      final ask = DatagramCodec.encode(
+        DiscoveryPacket(PacketHeader.create(senderId: idC, senderName: '')),
+      );
+      for (var i = 0; i < 100; i++) {
+        lan.inject(ask, fromIp: '192.168.0.66', toPort: 28760);
+      }
+      async.elapse(const Duration(seconds: 2));
+      expect(answers, 10);
+      // A new window allows more.
+      async.elapse(const Duration(seconds: 10));
+      lan.inject(ask, fromIp: '192.168.0.66', toPort: 28760);
+      async.elapse(const Duration(seconds: 1));
+      expect(answers, 11);
     });
   });
 

@@ -11,6 +11,7 @@ import 'package:resqmesh/core/network/discovery/datagram_transport.dart';
 import 'package:resqmesh/core/network/discovery/peer.dart';
 import 'package:resqmesh/core/network/discovery/peer_registry.dart';
 import 'package:resqmesh/core/network/discovery/service_discovery.dart';
+import 'package:resqmesh/core/network/inbound_limits.dart';
 import 'package:resqmesh/core/network/network_monitor.dart';
 import 'package:resqmesh/core/network/network_snapshot.dart';
 import 'package:resqmesh/core/network/protocol/datagram.dart';
@@ -180,6 +181,13 @@ final class DiscoveryEngine {
   StreamSubscription<ServiceCandidate>? _nsdSubscription;
   Timer? _helloTimer;
   Timer? _udpReopen;
+
+  /// Answers to DISCOVERY and NAME_CHECK per source address, so spoofed
+  /// requests can't turn this phone into a traffic amplifier (P9.3).
+  final RateLimiter _replies = RateLimiter(
+    limit: 10,
+    window: const Duration(seconds: 10),
+  );
   bool _background = false;
   Timer? _expiryTimer;
   bool _started = false;
@@ -531,7 +539,7 @@ final class DiscoveryEngine {
   void _handle(Packet packet, String address, int port) {
     switch (packet) {
       case DiscoveryPacket():
-        if (!_self.canAnnounce) return;
+        if (!_self.canAnnounce || !_replies.allow(address)) return;
         final delay = Duration(
           milliseconds: _random.nextInt(
             DiscoveryTiming.maxResponseDelay.inMilliseconds + 1,
@@ -564,6 +572,7 @@ final class DiscoveryEngine {
         final name = _self.name;
         if (!_self.canAnnounce || name == null) return;
         if (!Username.same(candidateName, name)) return;
+        if (!_replies.allow(address)) return;
         _unicast(
           RegisterResponsePacket(
             _header(receiverId: packet.header.senderId),

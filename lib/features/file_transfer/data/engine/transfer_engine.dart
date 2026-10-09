@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:crypto/crypto.dart';
+import 'package:resqmesh/core/network/inbound_limits.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
 import 'package:resqmesh/features/file_transfer/data/engine/data_connection.dart';
 import 'package:resqmesh/features/file_transfer/data/engine/transfer_backend.dart';
@@ -51,6 +52,7 @@ final class TransferEngine implements TransferBackend {
     this.flushEvery = 1024 * 1024,
     InternetAddress? bindAddress,
     this.maxDownloads = 8,
+    this.maxPending = 8,
   }) : _bindAddress = bindAddress ?? InternetAddress.anyIPv4;
 
   final int preferredPort;
@@ -58,6 +60,14 @@ final class TransferEngine implements TransferBackend {
   final int chunkSize;
   final int flushEvery;
   final int maxDownloads;
+
+  /// Data connections still in HELLO or waiting for their offer (P9.3).
+  final int maxPending;
+  int _pending = 0;
+  final RateLimiter _accepts = RateLimiter(
+    limit: 30,
+    window: const Duration(minutes: 1),
+  );
   final InternetAddress _bindAddress;
 
   TransferIdentity? _self;
@@ -365,10 +375,22 @@ final class TransferEngine implements TransferBackend {
 
   Future<void> _accept(Socket socket) async {
     final self = _self;
-    if (self == null || _downloads.length >= maxDownloads) {
+    if (self == null ||
+        _downloads.length >= maxDownloads ||
+        _pending >= maxPending ||
+        !_accepts.allow(socket.remoteAddress.address)) {
       socket.destroy();
       return;
     }
+    _pending++;
+    try {
+      await _receive(socket, self);
+    } finally {
+      _pending--;
+    }
+  }
+
+  Future<void> _receive(Socket socket, TransferIdentity self) async {
     final offer = Completer<FileOfferPacket>();
     _Download? download;
     final DataConnection connection;

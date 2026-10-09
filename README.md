@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: phase P8 done (background receiving).** Transfers keep going with the screen off or the app in the background, with a progress notification; *Stay reachable* (Settings) keeps LinkUp reachable while it is closed. Phase P7: Send one message or file to *Everyone* online, with "Delivered to 2 of 3", or to selected people, each in their own chat. Earlier: Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. They share files of any type and size up to 4 GB: photos, videos, documents, apps. Progress, pause, resume and cancel are shown, and every file is checked with SHA-256. Chats and files are saved on the phone, and anything sent to someone offline goes when they come back. Names are unique on the network. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
+> **Status: v0.9.0-beta, feature complete (P9 security hardening done).** Phase P8: Transfers keep going with the screen off or the app in the background, with a progress notification; *Stay reachable* (Settings) keeps LinkUp reachable while it is closed. Phase P7: Send one message or file to *Everyone* online, with "Delivered to 2 of 3", or to selected people, each in their own chat. Earlier: Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. They share files of any type and size up to 4 GB: photos, videos, documents, apps. Progress, pause, resume and cancel are shown, and every file is checked with SHA-256. Chats and files are saved on the phone, and anything sent to someone offline goes when they come back. Names are unique on the network. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
 
 ## Documents
 
@@ -68,6 +68,10 @@ keyPassword=…
 ## Permissions
 
 LinkUp runs a foreground service (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `WAKE_LOCK`) only while files move or *Stay reachable* is on, always with a notification. Runtime permissions: notifications (`POST_NOTIFICATIONS`), asked the first time you open a chat, after a short explanation; and on Android 8–9 only, storage, the first time you use *Save to Downloads*. Opening a received app (APK) hands it to Android's installer, which asks you to allow installs from LinkUp first (`REQUEST_INSTALL_PACKAGES`); nothing is installed without you. The app also declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
+
+## Security and privacy
+
+LinkUp is made for a local network you trust (a home, office or event Wi-Fi, or your own hotspot). There are no accounts and nothing goes to the internet; chats and files stay in the app's private storage. **Messages and files are not encrypted on the network in v1.0**: others on the same Wi-Fi with special tools could read them, and a device could pretend to be another. Every input from the network is validated and limited, files are checked with SHA-256, and logs hold no message text or file names. See `ARCHITECTURE.md` → *Security model* and ADR-0022.
 
 ## Router isolation
 

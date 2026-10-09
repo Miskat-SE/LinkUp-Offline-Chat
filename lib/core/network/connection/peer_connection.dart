@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
+import 'package:resqmesh/core/network/inbound_limits.dart';
 import 'package:resqmesh/core/network/protocol/frame_codec.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
 import 'package:resqmesh/core/network/protocol/packet_codec.dart';
@@ -121,6 +122,10 @@ final class PeerConnection {
   final Random _random = Random();
   Timer? _keepAlive;
   int _malformedInARow = 0;
+
+  /// Far more than any real use (receipts are batched 100 to a packet), so
+  /// a device flooding packets is cut off (P9.3).
+  final TokenBucket _packetBudget = TokenBucket(capacity: 2000, perSecond: 200);
   int? _pendingNonce;
   DateTime? _pingSentAt;
   DateTime _lastReceived = clock.now();
@@ -199,6 +204,13 @@ final class PeerConnection {
     switch (result) {
       case Decoded(:final packet):
         _malformedInARow = 0;
+        if (!_packetBudget.take()) {
+          _logger.warning(LogTag.network, 'Too many packets, closing', {
+            'address': address,
+          });
+          close('too many packets');
+          return;
+        }
         if (_helloPacket == null) {
           _onHello(packet);
         } else if (packet.header.senderId != peerId) {

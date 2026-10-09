@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -374,4 +375,66 @@ void main() {
     await eventually(() => b.linkTo(a)?.filePort == 28799);
     expect(a.linkTo(b)!.filePort, isNull);
   });
+
+  group('limits (P9.3)', () {
+    test('silent connections beyond 8 at once are refused', () async {
+      final a = await Node(idA, 'Yusuf').start();
+      final clients = [
+        for (var i = 0; i < 12; i++) await RawClient.connect(a.port),
+      ];
+      addTearDown(() {
+        for (final c in clients) {
+          c.close();
+        }
+      });
+      await eventually(() => a.links.current.stats.refused >= 4);
+      // The 8 waiting for HELLO are closed by the handshake timeout too.
+      await Future.wait([for (final c in clients) c.closedByServer])
+          .timeout(const Duration(seconds: 3));
+      expect(a.links.current.links, isEmpty);
+    });
+
+    test('a connected device flooding packets is cut off', () async {
+      final a = await Node(idA, 'Yusuf').start();
+      final raw = await RawClient.connect(a.port);
+      addTearDown(raw.close);
+      raw.sendHello();
+      await eventually(() => a.links.current.links.containsKey(idC));
+      for (var i = 0; i < 2500; i++) {
+        raw.sendPacket(
+          MessageAckPacket(
+            PacketHeader.create(
+              senderId: idC,
+              senderName: 'Raw',
+              receiverId: idA,
+            ),
+            ackFor: idB,
+          ),
+        );
+      }
+      await raw.closedByServer.timeout(const Duration(seconds: 3));
+      await eventually(() => a.links.current.links.isEmpty);
+    });
+  });
+
+  test(
+    'random bytes on a connection close it; the device keeps working (P9.2)',
+    () async {
+      final a = await Node(idA, 'Yusuf').start();
+      final random = Random(7);
+      for (var round = 0; round < 20; round++) {
+        final raw = await RawClient.connect(a.port);
+        if (round.isOdd) raw.sendHello(); // garbage after or instead of HELLO
+        raw.sendRaw(
+          List.generate(1 + random.nextInt(5000), (_) => random.nextInt(256)),
+        );
+        await raw.closedByServer.timeout(const Duration(seconds: 3));
+        raw.close();
+      }
+      // Still accepts a well-behaved device.
+      final b = await Node(idB, 'Rahim').start();
+      a.links.updateEndpoints([b.endpoint]);
+      await eventually(() => a.linkTo(b) != null);
+    },
+  );
 }

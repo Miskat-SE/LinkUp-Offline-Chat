@@ -1,6 +1,6 @@
 # ADR-0017: Encryption decided by a spike in P9
 
-- **Status:** Accepted
+- **Status:** Accepted; decided by ADR-0022 (no encryption in v1.0)
 - **Date:** 2026-10-08
 - **Plan decision:** D17
 

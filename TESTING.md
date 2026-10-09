@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test        # 292 tests, about 30 seconds (the 200 MB transfer test takes most of it)
+flutter test        # 302 tests, about 30 seconds (the 200 MB transfer test takes most of it)
 ```
 
 | Area | File | What it proves |
@@ -32,6 +32,7 @@ flutter test        # 292 tests, about 30 seconds (the 200 MB transfer test take
 | Everyone screens | `test/features/chat/broadcast_ui_test.dart` | Everyone send with summary and per-person sheet; nobody online; an incoming Everyone message in the list, notification and thread; Select people → send |
 | Background service | `test/app/background_coordinator_test.dart` | Notification wording for one file, several files and preparing; routes; the service follows a transfer at most once per interval and stops after it; Stay reachable keeps it running |
 | Background screens | `test/features/settings/background_ui_test.dart` | Stay reachable offered once on Home; Settings switch and battery link; a transfer in Activity; the service notification's tap opens Transfer Details |
+| Fuzzing and limits (P9) | `test/security/codec_fuzz_test.dart`, plus limit and fuzz tests in `connection_manager_test.dart`, `discovery_engine_test.dart`, `transfer_engine_test.dart` | Random, truncated, bit-flipped, wrongly typed and deeply nested input never crashes the codecs; frame buffers stay within limits; random bytes on control and file connections close them and the app keeps working; discovery answers capped per address; half-open connections beyond 8 refused; a packet flood disconnects |
 | File screens | `test/features/file_transfer/file_ui_test.dart` | Whole app: attach → review → remove → send → Sending % → Sent; receive with progress → preview → Open, Share, Save; details with live numbers and Pause; Storage *Clear all local data* back to onboarding |
 | File names | `test/core/storage/file_name_sanitizer_test.dart` | Traversal, hidden names, control and bidi characters, reserved names, 255-byte limit on character boundaries; storage paths from IDs; SHA-256 test vectors |
 | App flows | `test/features/onboarding/onboarding_flow_test.dart` | Whole app: onboarding, relaunch, tabs, New chat sheet, Change name, connection method, theme |

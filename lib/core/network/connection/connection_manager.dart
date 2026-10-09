@@ -8,6 +8,7 @@ import 'package:resqmesh/core/logging/app_logger.dart';
 import 'package:resqmesh/core/network/connection/peer_connection.dart';
 import 'package:resqmesh/core/network/connection/peer_links.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
+import 'package:resqmesh/core/network/inbound_limits.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
 
 /// [PeerLinks] over real TCP sockets (PROJECT_PLAN.md §5.5).
@@ -27,6 +28,7 @@ final class ConnectionManager implements PeerLinks {
     this._connect = connectSocket,
     InternetAddress? bindAddress,
     this._maxLinks = 32,
+    this._maxPending = 8,
   }) : _bindAddress = bindAddress ?? InternetAddress.anyIPv4;
 
   final SelfInfo Function() _self;
@@ -36,6 +38,18 @@ final class ConnectionManager implements PeerLinks {
   final SocketConnector _connect;
   final InternetAddress _bindAddress;
   final int _maxLinks;
+
+  /// Connections still in their HELLO handshake (P9.3): a slow or silent
+  /// client holds one of these for at most the handshake timeout.
+  final int _maxPending;
+  int _pending = 0;
+
+  /// New connections per source address.
+  final RateLimiter _accepts = RateLimiter(
+    limit: 20,
+    window: const Duration(minutes: 1),
+  );
+  int _refused = 0;
 
   ServerSocket? _server;
   StreamSubscription<Socket>? _serverSubscription;
@@ -174,6 +188,14 @@ final class ConnectionManager implements PeerLinks {
       socket.destroy();
       return;
     }
+    if (_pending >= _maxPending ||
+        !_accepts.allow(socket.remoteAddress.address)) {
+      _refused++;
+      socket.destroy();
+      _emit();
+      return;
+    }
+    _pending++;
     try {
       final link = await PeerConnection.open(
         socket: socket,
@@ -188,6 +210,8 @@ final class ConnectionManager implements PeerLinks {
       _handshakeFailures++;
       _error('Inbound handshake failed: ${e.reason}');
       _emit();
+    } finally {
+      _pending--;
     }
   }
 
@@ -343,6 +367,7 @@ final class ConnectionManager implements PeerLinks {
         accepted: _accepted,
         handshakeFailures: _handshakeFailures,
         duplicatesClosed: _duplicatesClosed,
+        refused: _refused,
         recentErrors: List.unmodifiable(_errors),
       ),
     );

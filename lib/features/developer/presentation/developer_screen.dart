@@ -117,7 +117,8 @@ class DeveloperScreen extends ConsumerWidget {
               'dials ${links.stats.dials} · failed ${links.stats.dialFailures}'
                   ' · accepted ${links.stats.accepted}'
                   ' · bad handshakes ${links.stats.handshakeFailures}'
-                  ' · duplicates closed ${links.stats.duplicatesClosed}',
+                  ' · duplicates closed ${links.stats.duplicatesClosed}'
+                  ' · refused ${links.stats.refused}',
             ),
           ]),
           _Section('Packets', [
