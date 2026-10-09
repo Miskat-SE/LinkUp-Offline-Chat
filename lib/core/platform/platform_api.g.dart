@@ -334,6 +334,80 @@ class MessageNotification {
   }
 }
 
+/// What the background service shows and keeps alive (PROJECT_PLAN.md §5.6).
+class BackgroundState {
+  BackgroundState({
+    required this.transferring,
+    required this.stayReachable,
+    required this.title,
+    required this.text,
+    this.progress,
+    this.route,
+  });
+
+  /// Files are moving: keep Wi-Fi and the CPU awake.
+  bool transferring;
+
+  /// Keep the app reachable while idle (Settings).
+  bool stayReachable;
+
+  String title;
+
+  String text;
+
+  /// 0–100, or null for an indeterminate bar or none.
+  int? progress;
+
+  /// Where a tap on the notification goes.
+  String? route;
+
+  List<Object?> _toList() {
+    return <Object?>[transferring, stayReachable, title, text, progress, route];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static BackgroundState decode(Object result) {
+    result as List<Object?>;
+    return BackgroundState(
+      transferring: result[0]! as bool,
+      stayReachable: result[1]! as bool,
+      title: result[2]! as String,
+      text: result[3]! as String,
+      progress: result[4] as int?,
+      route: result[5] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! BackgroundState || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(transferring, other.transferring) &&
+        _deepEquals(stayReachable, other.stayReachable) &&
+        _deepEquals(title, other.title) &&
+        _deepEquals(text, other.text) &&
+        _deepEquals(progress, other.progress) &&
+        _deepEquals(route, other.route);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'BackgroundState(transferring: $transferring, stayReachable: $stayReachable, title: $title, text: $text, progress: $progress, route: $route)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -353,6 +427,9 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is MessageNotification) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
+    } else if (value is BackgroundState) {
+      buffer.putUint8(133);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -369,6 +446,8 @@ class _PigeonCodec extends StandardMessageCodec {
         return AppInfo.decode(readValue(buffer)!);
       case 132:
         return MessageNotification.decode(readValue(buffer)!);
+      case 133:
+        return BackgroundState.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -646,10 +725,11 @@ class NotificationHostApi {
     );
   }
 
-  /// The chat a notification tap launched the app with, once.
-  Future<String?> takeLaunchConversation() async {
+  /// The screen a notification tap asked for (an app route such as
+  /// `/chat/<id>`), once; null if none is waiting.
+  Future<String?> takeOpenedRoute() async {
     final pigeonVar_channelName =
-        'dev.flutter.pigeon.resqmesh.NotificationHostApi.takeLaunchConversation$pigeonVar_messageChannelSuffix';
+        'dev.flutter.pigeon.resqmesh.NotificationHostApi.takeOpenedRoute$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -670,8 +750,8 @@ class NotificationHostApi {
 abstract class NotificationFlutterApi {
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
 
-  /// A notification was tapped while the app was running.
-  void onNotificationOpened(String conversationId);
+  /// A notification was tapped: collect it with `takeOpenedRoute`.
+  void onNotificationOpened();
 
   static void setUp(
     NotificationFlutterApi? api, {
@@ -691,10 +771,8 @@ abstract class NotificationFlutterApi {
         pigeonVar_channel.setMessageHandler(null);
       } else {
         pigeonVar_channel.setMessageHandler((Object? message) async {
-          final List<Object?> args = message! as List<Object?>;
-          final String arg_conversationId = args[0]! as String;
           try {
-            api.onNotificationOpened(arg_conversationId);
+            api.onNotificationOpened();
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
@@ -849,5 +927,64 @@ class FileHostApi {
       isNullValid: false,
     );
     return pigeonVar_replyValue! as bool;
+  }
+}
+
+class BackgroundHostApi {
+  /// Constructor for [BackgroundHostApi]. The [binaryMessenger] named argument is
+  /// available for dependency injection. If it is left null, the default
+  /// BinaryMessenger will be used which routes to the host platform.
+  BackgroundHostApi({
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) : pigeonVar_binaryMessenger = binaryMessenger,
+       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
+           ? '.$messageChannelSuffix'
+           : '';
+
+  final BinaryMessenger? pigeonVar_binaryMessenger;
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  final String pigeonVar_messageChannelSuffix;
+
+  /// Starts, updates or stops the foreground service to match [state]:
+  /// running while transferring or when Stay reachable is on.
+  Future<void> update(BackgroundState state) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.BackgroundHostApi.update$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[state],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Opens Android's battery settings for this app.
+  Future<void> openBatterySettings() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.BackgroundHostApi.openBatterySettings$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 }

@@ -316,11 +316,16 @@ void main() {
     await tester.tap(find.text('Settings'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.scrollUntilVisible(
-      find.text('Storage').last,
+      find.text('1 message'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.ensureVisible(find.text('1 message'));
+    // Centred, clear of the pinned title bar and the tab bar.
+    await Scrollable.ensureVisible(
+      tester.element(find.text('1 message')),
+      alignment: 0.5,
+    );
+    await tester.pump();
     await tester.tap(find.text('1 message'));
     // Measuring folders is real file work.
     for (

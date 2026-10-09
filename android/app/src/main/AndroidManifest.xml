@@ -16,10 +16,16 @@
          user to allow installs from LinkUp first (file sharing is a permitted
          use). Nothing is ever installed without the user. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Background receiving (P8): a connectedDevice foreground service while
+         files move or Stay reachable is on (CHANGE_WIFI_MULTICAST_STATE meets
+         its requirement), and Wi-Fi/CPU locks during transfers only. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:label="LinkUp"
-        android:name="${applicationName}"
+        android:name=".ResQMeshApp"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -43,6 +49,10 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service
+            android:name=".LanForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
         <!-- Open and Share hand other apps a content:// link (FileBridge). -->
         <provider
             android:name="androidx.core.content.FileProvider"

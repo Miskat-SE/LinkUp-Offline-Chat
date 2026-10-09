@@ -1,7 +1,6 @@
 package com.resqmesh.resqmesh.bridge
 
 import android.Manifest
-import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -13,29 +12,31 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.resqmesh.resqmesh.CurrentActivity
+import com.resqmesh.resqmesh.MainActivity
+import com.resqmesh.resqmesh.NotificationBridgeKeys
 import com.resqmesh.resqmesh.R
 import io.flutter.plugin.common.BinaryMessenger
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Message notifications and the Android 13+ notification permission
- * (PROJECT_PLAN.md §5.4). Tapping a notification opens that chat.
+ * (PROJECT_PLAN.md §5.4). Every tap carries an app route; it waits here
+ * until Dart collects it, so a tap is never lost or handled twice, even
+ * when the app's code started before the screen (cached engine, P8.1).
  */
 class NotificationBridge(
-    private val activity: Activity,
+    private val context: Context,
     messenger: BinaryMessenger,
 ) : NotificationHostApi {
-    private val context: Context = activity.applicationContext
     private val flutterApi = NotificationFlutterApi(messenger)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var permissionResult: ((Boolean) -> Unit)? = null
-    private var launchConversation: String? = null
+    private var openedRoute: String? = null
 
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -55,29 +56,18 @@ class NotificationBridge(
     override suspend fun requestNotificationPermission(): Boolean {
         if (hasPermission()) return notificationsAllowed()
         return suspendCancellableCoroutine { continuation ->
-            permissionResult = { granted ->
-                if (continuation.isActive) continuation.resume(granted)
-            }
-            activity.requestPermissions(
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            CurrentActivity.requestPermission(
+                Manifest.permission.POST_NOTIFICATIONS,
                 PERMISSION_REQUEST,
-            )
+            ) { granted -> if (continuation.isActive) continuation.resume(granted) }
         }
-    }
-
-    /** Called from MainActivity.onRequestPermissionsResult. */
-    fun onPermissionResult(requestCode: Int, results: IntArray) {
-        if (requestCode != PERMISSION_REQUEST) return
-        val granted = results.isNotEmpty() && results[0] == PackageManager.PERMISSION_GRANTED
-        permissionResult?.invoke(granted)
-        permissionResult = null
     }
 
     override fun showMessageNotification(notification: MessageNotification) {
         if (!notificationsAllowed()) return
-        val open = Intent(context, activity.javaClass).apply {
+        val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_CONVERSATION, notification.conversationId)
+            putExtra(NotificationBridgeKeys.EXTRA_ROUTE, "/chat/${notification.conversationId}")
         }
         val pending = PendingIntent.getActivity(
             context,
@@ -107,27 +97,22 @@ class NotificationBridge(
         NotificationManagerCompat.from(context).cancel(conversationId.hashCode())
     }
 
-    override fun takeLaunchConversation(): String? =
-        launchConversation.also { launchConversation = null }
+    override fun takeOpenedRoute(): String? = openedRoute.also { openedRoute = null }
 
     /** The activity was started or resumed from a notification. */
-    fun handleIntent(intent: Intent?, launched: Boolean) {
-        val id = intent?.getStringExtra(EXTRA_CONVERSATION) ?: return
-        intent.removeExtra(EXTRA_CONVERSATION)
-        if (launched) {
-            launchConversation = id
-        } else {
-            scope.launch {
-                try {
-                    flutterApi.onNotificationOpened(id)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Could not open chat from notification", e)
-                }
+    fun handleIntent(intent: Intent?) {
+        val route = intent?.getStringExtra(NotificationBridgeKeys.EXTRA_ROUTE) ?: return
+        intent.removeExtra(NotificationBridgeKeys.EXTRA_ROUTE)
+        openedRoute = route
+        scope.launch {
+            try {
+                flutterApi.onNotificationOpened()
+            } catch (e: Exception) {
+                // Dart isn't listening yet; it collects the route on start.
+                Log.d(TAG, "Route left for Dart to collect", e)
             }
         }
     }
-
-    fun dispose() = scope.cancel()
 
     private fun hasPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -137,7 +122,6 @@ class NotificationBridge(
     private companion object {
         const val TAG = "LinkUpNotifications"
         const val CHANNEL_ID = "messages"
-        const val EXTRA_CONVERSATION = "conversationId"
         const val PERMISSION_REQUEST = 4201
     }
 }

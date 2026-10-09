@@ -41,10 +41,16 @@ Future<void> finish(WidgetTester tester, DiscoveryEngine other) async {
   await closeApp(tester);
 }
 
-MemoryKeyValueStore onboarded({String name = 'Yusuf', DateTime? claimedAt}) =>
-    MemoryKeyValueStore({
-      StoreKeys.username: name,
-      StoreKeys.nameClaimedAt: (claimedAt ?? DateTime.utc(2026, 9))
-          .toIso8601String(),
-      StoreKeys.connectionMethod: 'wifiRouter',
-    });
+/// A phone that finished onboarding. [stayReachableOffered] is true by
+/// default so the one-time offer doesn't push Home's list down in tests.
+MemoryKeyValueStore onboarded({
+  String name = 'Yusuf',
+  DateTime? claimedAt,
+  bool stayReachableOffered = true,
+}) => MemoryKeyValueStore({
+  StoreKeys.username: name,
+  StoreKeys.nameClaimedAt: (claimedAt ?? DateTime.utc(2026, 9))
+      .toIso8601String(),
+  StoreKeys.connectionMethod: 'wifiRouter',
+  if (stayReachableOffered) StoreKeys.stayReachableOffered: 'yes',
+});

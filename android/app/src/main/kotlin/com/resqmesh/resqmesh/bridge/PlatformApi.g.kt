@@ -401,6 +401,71 @@ data class MessageNotification (
     return "MessageNotification(conversationId=$conversationId, title=$title, body=$body)"
   }
 }
+
+/**
+ * What the background service shows and keeps alive (PROJECT_PLAN.md §5.6).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class BackgroundState (
+  /** Files are moving: keep Wi-Fi and the CPU awake. */
+  val transferring: Boolean,
+  /** Keep the app reachable while idle (Settings). */
+  val stayReachable: Boolean,
+  val title: String,
+  val text: String,
+  /** 0–100, or null for an indeterminate bar or none. */
+  val progress: Long? = null,
+  /** Where a tap on the notification goes. */
+  val route: String? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): BackgroundState {
+      val transferring = pigeonVar_list[0] as Boolean
+      val stayReachable = pigeonVar_list[1] as Boolean
+      val title = pigeonVar_list[2] as String
+      val text = pigeonVar_list[3] as String
+      val progress = pigeonVar_list[4] as Long?
+      val route = pigeonVar_list[5] as String?
+      return BackgroundState(transferring, stayReachable, title, text, progress, route)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      transferring,
+      stayReachable,
+      title,
+      text,
+      progress,
+      route,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as BackgroundState
+    return PlatformApiPigeonUtils.deepEquals(this.transferring, other.transferring) && PlatformApiPigeonUtils.deepEquals(this.stayReachable, other.stayReachable) && PlatformApiPigeonUtils.deepEquals(this.title, other.title) && PlatformApiPigeonUtils.deepEquals(this.text, other.text) && PlatformApiPigeonUtils.deepEquals(this.progress, other.progress) && PlatformApiPigeonUtils.deepEquals(this.route, other.route)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.transferring)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.stayReachable)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.title)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.text)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.progress)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.route)
+    return result
+  }
+  override fun toString(): String {
+    return "BackgroundState(transferring=$transferring, stayReachable=$stayReachable, title=$title, text=$text, progress=$progress, route=$route)"
+  }
+}
 private open class PlatformApiPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -424,6 +489,11 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
           MessageNotification.fromList(it)
         }
       }
+      133.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          BackgroundState.fromList(it)
+        }
+      }
       else -> super.readValueOfType(type, buffer)
     }
   }
@@ -443,6 +513,10 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
       }
       is MessageNotification -> {
         stream.write(132)
+        writeValue(stream, value.toList())
+      }
+      is BackgroundState -> {
+        stream.write(133)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -611,8 +685,11 @@ interface NotificationHostApi {
   fun showMessageNotification(notification: MessageNotification)
   /** Removes this chat's notification (the chat was opened). */
   fun cancelConversation(conversationId: String)
-  /** The chat a notification tap launched the app with, once. */
-  fun takeLaunchConversation(): String?
+  /**
+   * The screen a notification tap asked for (an app route such as
+   * `/chat/<id>`), once; null if none is waiting.
+   */
+  fun takeOpenedRoute(): String?
 
   companion object {
     /** The codec used by NotificationHostApi. */
@@ -692,11 +769,11 @@ interface NotificationHostApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.takeLaunchConversation$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.NotificationHostApi.takeOpenedRoute$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
             val wrapped: List<Any?> = try {
-              listOf(api.takeLaunchConversation())
+              listOf(api.takeOpenedRoute())
             } catch (exception: Throwable) {
               PlatformApiPigeonUtils.wrapError(exception)
             }
@@ -717,14 +794,14 @@ class NotificationFlutterApi(private val binaryMessenger: BinaryMessenger, priva
       PlatformApiPigeonCodec()
     }
   }
-  /** A notification was tapped while the app was running. */
-  suspend fun onNotificationOpened(conversationIdArg: String)
+  /** A notification was tapped: collect it with `takeOpenedRoute`. */
+  suspend fun onNotificationOpened()
 {
     val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
     return suspendCancellableCoroutine { continuation ->
       val channelName = "dev.flutter.pigeon.resqmesh.NotificationFlutterApi.onNotificationOpened$separatedMessageChannelSuffix"
       val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
-      channel.send(listOf(conversationIdArg)) {
+      channel.send(null) {
         if (it is List<*>) {
           if (it.size > 1) {
             continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
@@ -865,6 +942,62 @@ interface FileHostApi {
               }
               reply.reply(wrapped)
             }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}
+/** Generated interface from Pigeon that represents a handler of messages from Flutter. */
+interface BackgroundHostApi {
+  /**
+   * Starts, updates or stops the foreground service to match [state]:
+   * running while transferring or when Stay reachable is on.
+   */
+  fun update(state: BackgroundState)
+  /** Opens Android's battery settings for this app. */
+  fun openBatterySettings()
+
+  companion object {
+    /** The codec used by BackgroundHostApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+    /** Sets up an instance of `BackgroundHostApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: BackgroundHostApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BackgroundHostApi.update$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val stateArg = args[0] as BackgroundState
+            val wrapped: List<Any?> = try {
+              api.update(stateArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BackgroundHostApi.openBatterySettings$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.openBatterySettings()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
           }
         } else {
           channel.setMessageHandler(null)

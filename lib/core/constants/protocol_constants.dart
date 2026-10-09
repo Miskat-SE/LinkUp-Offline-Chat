@@ -23,6 +23,9 @@ abstract final class ProtocolConstants {
 /// Discovery timing (PROJECT_PLAN.md §6.3).
 abstract final class DiscoveryTiming {
   static const Duration helloInterval = Duration(seconds: 5);
+
+  /// HELLO interval while the screen is closed (§6.2).
+  static const Duration backgroundHelloInterval = Duration(seconds: 15);
   static const Duration helloJitter = Duration(seconds: 1);
   static const Duration offlineAfter = Duration(seconds: 20);
   static const Duration isolationHintAfter = Duration(seconds: 30);

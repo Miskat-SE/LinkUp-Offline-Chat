@@ -7,7 +7,9 @@ import 'package:resqmesh/core/connection/connection_providers.dart';
 import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
+import 'package:resqmesh/core/platform/background.dart';
 import 'package:resqmesh/core/settings/developer_mode.dart';
+import 'package:resqmesh/core/settings/stay_reachable.dart';
 import 'package:resqmesh/core/storage/database_providers.dart';
 import 'package:resqmesh/features/settings/presentation/storage_screen.dart';
 import 'package:resqmesh/features/settings/presentation/theme_mode_controller.dart';
@@ -35,6 +37,8 @@ class SettingsScreen extends ConsumerWidget {
                 _ProfileCard(),
                 _SectionTitle('Connection'),
                 _ConnectionCard(),
+                SizedBox(height: AppSpacing.md),
+                _StayReachableCard(),
                 _SectionTitle('Appearance'),
                 _ThemeCard(),
                 _SectionTitle('Storage'),
@@ -128,6 +132,50 @@ class _ConnectionCard extends ConsumerWidget {
         subtitle: Text(info?.title ?? 'Not chosen'),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push(Routes.connection),
+      ),
+    );
+  }
+}
+
+/// Stay reachable (P8.3): the background service keeps running while idle.
+class _StayReachableCard extends ConsumerWidget {
+  const _StayReachableCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(stayReachableProvider);
+    return Card(
+      child: Column(
+        children: [
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.sm,
+            ),
+            secondary: const Icon(Icons.wifi_tethering_rounded),
+            title: const Text('Stay reachable'),
+            subtitle: const Text(
+              'Get messages and files with LinkUp closed. Shows a small '
+              'notification and uses a little more battery.',
+            ),
+            value: on,
+            onChanged: (value) =>
+                ref.read(stayReachableProvider.notifier).set(on: value),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+            ),
+            leading: const Icon(Icons.battery_saver_rounded),
+            title: const Text('Battery settings'),
+            subtitle: const Text(
+              'If your phone stops LinkUp in the background, allow it here.',
+            ),
+            trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+            onTap: () =>
+                ref.read(backgroundServiceProvider).openBatterySettings(),
+          ),
+        ],
       ),
     );
   }

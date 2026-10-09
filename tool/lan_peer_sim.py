@@ -296,6 +296,9 @@ class Peer:
             self.send_frame(sock, "FILE_OFFER", offer, receiver)
             _, body = self.read_frame(sock)
             answer = json.loads(body)
+            if answer["type"] == "FILE_COMPLETE":
+                print(f"⇡ {f['name']!r}: the app already has it (duplicate)")
+                return
             if answer["type"] != "FILE_ACCEPT":
                 print(f"  ✗ {f['name']!r}: {answer['type']} {answer['payload']}")
                 return

@@ -111,14 +111,15 @@ abstract class NotificationHostApi {
   /// Removes this chat's notification (the chat was opened).
   void cancelConversation(String conversationId);
 
-  /// The chat a notification tap launched the app with, once.
-  String? takeLaunchConversation();
+  /// The screen a notification tap asked for (an app route such as
+  /// `/chat/<id>`), once; null if none is waiting.
+  String? takeOpenedRoute();
 }
 
 @FlutterApi()
 abstract class NotificationFlutterApi {
-  /// A notification was tapped while the app was running.
-  void onNotificationOpened(String conversationId);
+  /// A notification was tapped: collect it with `takeOpenedRoute`.
+  void onNotificationOpened();
 }
 
 /// Getting shared files out of the app (PROJECT_PLAN.md §8.2): files stay
@@ -145,4 +146,40 @@ abstract class FileHostApi {
   /// can't read the video.
   @async
   bool videoThumbnail(String path, String outPath);
+}
+
+/// What the background service shows and keeps alive (PROJECT_PLAN.md §5.6).
+class BackgroundState {
+  BackgroundState({
+    required this.transferring,
+    required this.stayReachable,
+    required this.title,
+    required this.text,
+    this.progress,
+    this.route,
+  });
+
+  /// Files are moving: keep Wi-Fi and the CPU awake.
+  bool transferring;
+
+  /// Keep the app reachable while idle (Settings).
+  bool stayReachable;
+  String title;
+  String text;
+
+  /// 0–100, or null for an indeterminate bar or none.
+  int? progress;
+
+  /// Where a tap on the notification goes.
+  String? route;
+}
+
+@HostApi()
+abstract class BackgroundHostApi {
+  /// Starts, updates or stops the foreground service to match [state]:
+  /// running while transferring or when Stay reachable is on.
+  void update(BackgroundState state);
+
+  /// Opens Android's battery settings for this app.
+  void openBatterySettings();
 }

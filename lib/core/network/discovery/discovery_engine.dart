@@ -180,6 +180,7 @@ final class DiscoveryEngine {
   StreamSubscription<ServiceCandidate>? _nsdSubscription;
   Timer? _helloTimer;
   Timer? _udpReopen;
+  bool _background = false;
   Timer? _expiryTimer;
   bool _started = false;
   bool _blocked = false;
@@ -250,6 +251,9 @@ final class DiscoveryEngine {
     await stop();
     await _snapshots.close();
   }
+
+  /// The screen is closed: announce every 15 s instead of 5 s (§6.2).
+  void setBackground({required bool background}) => _background = background;
 
   /// Updates what this device announces. A new name or claim is announced
   /// straight away.
@@ -491,7 +495,9 @@ final class DiscoveryEngine {
     if (immediately && _self.canAnnounce) _broadcast(_hello());
     final jitter = DiscoveryTiming.helloJitter.inMilliseconds;
     final delay =
-        DiscoveryTiming.helloInterval +
+        (_background
+            ? DiscoveryTiming.backgroundHelloInterval
+            : DiscoveryTiming.helloInterval) +
         Duration(milliseconds: _random.nextInt(2 * jitter + 1) - jitter);
     _helloTimer = Timer(delay, () {
       if (_udp == null) return;

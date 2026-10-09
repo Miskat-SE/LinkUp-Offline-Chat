@@ -9,6 +9,7 @@ import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/identity/identity_repository.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
+import 'package:resqmesh/core/platform/background.dart';
 import 'package:resqmesh/core/platform/file_actions.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
 import 'package:resqmesh/core/platform/platform_api.g.dart';
@@ -17,6 +18,7 @@ import 'package:resqmesh/core/storage/database_providers.dart';
 import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
 import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
 
+import 'fake_background_service.dart';
 import 'fake_file_actions.dart';
 import 'fake_file_picker.dart';
 import 'fake_network_monitor.dart';
@@ -43,6 +45,7 @@ Future<void> launchApp(
   FakeTransferBackend? transfers,
   FakeFileActions? fileActions,
   FakeFilePicker? picker,
+  FakeBackgroundService? background,
   Directory? supportDirectory,
   bool settle = true,
 }) async {
@@ -96,6 +99,9 @@ Future<void> launchApp(
             fileActions ?? FakeFileActions(),
           ),
           filePickerProvider.overrideWithValue(picker ?? FakeFilePicker()),
+          backgroundServiceProvider.overrideWithValue(
+            background ?? FakeBackgroundService(),
+          ),
           appNotificationsProvider.overrideWithValue(
             notifications ?? FakeNotifications(),
           ),

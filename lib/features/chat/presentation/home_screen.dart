@@ -11,6 +11,7 @@ import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/identity/username.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
+import 'package:resqmesh/core/settings/stay_reachable.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
@@ -62,7 +63,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text(Brand.name)),
+          SliverAppBar.large(
+            title: const Text(Brand.name),
+            actions: [
+              IconButton(
+                tooltip: 'Transfers',
+                onPressed: () => context.push(Routes.activity),
+                icon: const Icon(Icons.swap_vert_rounded),
+              ),
+            ],
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.gutter),
             sliver: SliverList.list(
@@ -85,6 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   nearby: nearby,
                   onChange: () => context.push(Routes.connection),
                 ),
+                const _StayReachableOffer(),
                 const SizedBox(height: AppSpacing.xl),
                 Semantics(
                   header: true,
@@ -246,6 +257,87 @@ class _ConversationTile extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Offered once after onboarding (P8.3, §16 Q6): off unless chosen.
+class _StayReachableOffer extends ConsumerStatefulWidget {
+  const _StayReachableOffer();
+
+  @override
+  ConsumerState<_StayReachableOffer> createState() =>
+      _StayReachableOfferState();
+}
+
+class _StayReachableOfferState extends ConsumerState<_StayReachableOffer> {
+  late bool _show = !ref.read(stayReachableProvider.notifier).offered;
+
+  Future<void> _answer({required bool on}) async {
+    setState(() => _show = false);
+    final setting = ref.read(stayReachableProvider.notifier);
+    if (on) {
+      await setting.set(on: true);
+    } else {
+      await setting.dismissOffer();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_show) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.wifi_tethering_rounded,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      'Stay reachable when LinkUp is closed?',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'People nearby can still send you messages and files. A '
+                'small notification stays while it is on. You can change '
+                'this in Settings.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => _answer(on: false),
+                    child: const Text('Not now'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  FilledButton.tonal(
+                    onPressed: () => _answer(on: true),
+                    child: const Text('Turn on'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

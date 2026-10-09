@@ -1,7 +1,6 @@
 package com.resqmesh.resqmesh.bridge
 
 import android.Manifest
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Context
@@ -19,6 +18,7 @@ import android.util.Log
 import android.util.Size
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.resqmesh.resqmesh.CurrentActivity
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.coroutines.resume
@@ -32,9 +32,8 @@ import kotlinx.coroutines.withContext
  * so other apps get a hard link with the real name in `files/shared/`,
  * served through a FileProvider: no copy, and nothing outside the app.
  */
-class FileBridge(private val activity: Activity) : FileHostApi {
-    private val context: Context = activity.applicationContext
-    private var permissionResult: ((Boolean) -> Unit)? = null
+class FileBridge(context: Context) : FileHostApi {
+    private val context: Context = context.applicationContext
 
     override fun freeBytes(): Long = StatFs(context.filesDir.path).availableBytes
 
@@ -45,7 +44,7 @@ class FileBridge(private val activity: Activity) : FileHostApi {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         return try {
-            activity.startActivity(intent)
+            context.startActivity(intent)
             true
         } catch (e: ActivityNotFoundException) {
             false
@@ -59,7 +58,9 @@ class FileBridge(private val activity: Activity) : FileHostApi {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        activity.startActivity(Intent.createChooser(send, null))
+        context.startActivity(
+            Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     override suspend fun saveToDownloads(
@@ -96,14 +97,6 @@ class FileBridge(private val activity: Activity) : FileHostApi {
                 false
             }
         }
-
-    fun onPermissionResult(requestCode: Int, grantResults: IntArray) {
-        if (requestCode != WRITE_REQUEST) return
-        val granted = grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED
-        permissionResult?.invoke(granted)
-        permissionResult = null
-    }
 
     /** A content URI showing [displayName] for the stored file. */
     private fun expose(path: String, displayName: String): Uri? {
@@ -178,13 +171,10 @@ class FileBridge(private val activity: Activity) : FileHostApi {
 
     private suspend fun requestLegacyWritePermission(): Boolean =
         suspendCancellableCoroutine { continuation ->
-            permissionResult = { granted ->
-                if (continuation.isActive) continuation.resume(granted)
-            }
-            activity.requestPermissions(
-                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+            CurrentActivity.requestPermission(
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 WRITE_REQUEST,
-            )
+            ) { granted -> if (continuation.isActive) continuation.resume(granted) }
         }
 
     private companion object {

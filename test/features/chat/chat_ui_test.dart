@@ -321,11 +321,16 @@ void main() {
     await tester.tap(find.text('Settings'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.scrollUntilVisible(
-      find.text('Storage').last,
+      find.text('2 messages'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.ensureVisible(find.text('2 messages'));
+    // Centred, clear of the pinned title bar and the tab bar.
+    await Scrollable.ensureVisible(
+      tester.element(find.text('2 messages')),
+      alignment: 0.5,
+    );
+    await tester.pump();
     await tester.tap(find.text('2 messages'));
     await until(find.text('2 messages saved'));
     expect(find.text('2 messages saved'), findsOneWidget);

@@ -142,6 +142,17 @@ final class DriftFileTransferRepository implements FileTransferRepository {
   }
 
   @override
+  Stream<List<FileTransfer>> watchRecent({int limit = 50}) =>
+      (_db.select(_files)
+            ..orderBy([
+              (f) => OrderingTerm.desc(f.updatedAt),
+              (f) => OrderingTerm.desc(f.id),
+            ])
+            ..limit(limit))
+          .watch()
+          .map((rows) => rows.map(_toTransfer).toList());
+
+  @override
   Future<void> delete(String fileId) =>
       (_db.delete(_files)..where((f) => f.fileId.equals(fileId))).go();
 

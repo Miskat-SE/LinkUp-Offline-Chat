@@ -98,6 +98,19 @@ final class TransferService {
   /// Outgoing files whose preparation finished: their MESSAGE can go out.
   Stream<String> get ready => _ready.stream;
 
+  /// Something about running transfers changed (progress, start, end);
+  /// read [activeTransfers] for the details.
+  Stream<void> get changes => _progressChanged.stream;
+
+  /// Transfers moving bytes or preparing, with live progress, oldest first.
+  Future<List<(FileTransfer, TransferProgress?)>> activeTransfers() async => [
+    for (final t in await _repository.withStatus({
+      TransferStatus.preparing,
+      TransferStatus.inProgress,
+    }))
+      (t, _progress[t.fileId]?.snapshot),
+  ];
+
   Future<void> start() async {
     if (_events != null) return;
     _events = _backend.events.listen((e) => _serial(() => _onEvent(e)));
@@ -175,6 +188,7 @@ final class TransferService {
     );
     await _repository.insert(transfer);
     unawaited(_hash(transfer));
+    if (!_progressChanged.isClosed) _progressChanged.add(fileId);
     return transfer;
   });
 
@@ -890,6 +904,7 @@ final class TransferService {
           sha256: sha256,
         );
         if (!_ready.isClosed) _ready.add(t.fileId);
+        if (!_progressChanged.isClosed) _progressChanged.add(t.fileId);
       }
     });
   }

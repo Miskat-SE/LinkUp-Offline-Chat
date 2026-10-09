@@ -58,6 +58,11 @@ final fileTransferProvider = StreamProvider.family<FileTransfer?, String>(
   (ref, fileId) => ref.watch(fileTransferRepositoryProvider).watch(fileId),
 );
 
+/// Recent transfers, newest first (Activity screen).
+final recentTransfersProvider = StreamProvider<List<FileTransfer>>(
+  (ref) => ref.watch(fileTransferRepositoryProvider).watchRecent(),
+);
+
 /// Live progress while bytes are moving; null otherwise.
 final transferProgressProvider =
     StreamProvider.family<TransferProgress?, String>(

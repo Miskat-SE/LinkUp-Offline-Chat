@@ -20,11 +20,11 @@ abstract interface class AppNotifications {
 
   Future<void> cancelConversation(String conversationId);
 
-  /// The chat a notification tap launched the app with, once.
-  Future<String?> takeLaunchConversation();
+  /// The screen a notification tap asked for (an app route), once.
+  Future<String?> takeOpenedRoute();
 
-  /// Chats opened by tapping a notification while the app runs.
-  Stream<String> get opened;
+  /// A notification was tapped; collect it with [takeOpenedRoute].
+  Stream<void> get opened;
 }
 
 final class PlatformNotifications
@@ -35,14 +35,13 @@ final class PlatformNotifications
   }
 
   final NotificationHostApi _host;
-  final StreamController<String> _opened = StreamController.broadcast();
+  final StreamController<void> _opened = StreamController.broadcast();
 
   @override
-  Stream<String> get opened => _opened.stream;
+  Stream<void> get opened => _opened.stream;
 
   @override
-  void onNotificationOpened(String conversationId) =>
-      _opened.add(conversationId);
+  void onNotificationOpened() => _opened.add(null);
 
   @override
   Future<bool> allowed() => _guard(_host.notificationsAllowed, false);
@@ -72,8 +71,7 @@ final class PlatformNotifications
       _guard(() => _host.cancelConversation(conversationId), null);
 
   @override
-  Future<String?> takeLaunchConversation() =>
-      _guard(_host.takeLaunchConversation, null);
+  Future<String?> takeOpenedRoute() => _guard(_host.takeOpenedRoute, null);
 
   /// Notifications are never worth crashing over.
   static Future<T> _guard<T>(Future<T> Function() call, T fallback) async {

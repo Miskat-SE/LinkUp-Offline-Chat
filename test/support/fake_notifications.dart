@@ -10,14 +10,22 @@ final class FakeNotifications implements AppNotifications {
   int permissionRequests = 0;
   final List<({String conversationId, String title, String body})> shown = [];
   final List<String> cancelled = [];
-  String? launchConversation;
-  final StreamController<String> _opened = StreamController.broadcast();
 
-  /// Simulates tapping a notification.
-  void tap(String conversationId) => _opened.add(conversationId);
+  /// The route a notification tap is waiting to deliver.
+  String? openedRoute;
+  final StreamController<void> _opened = StreamController.broadcast();
+
+  /// Simulates tapping a chat's notification.
+  void tap(String conversationId) => tapRoute('/chat/$conversationId');
+
+  /// Simulates tapping a notification that opens [route].
+  void tapRoute(String route) {
+    openedRoute = route;
+    _opened.add(null);
+  }
 
   @override
-  Stream<String> get opened => _opened.stream;
+  Stream<void> get opened => _opened.stream;
 
   @override
   Future<bool> allowed() async => permitted;
@@ -41,9 +49,9 @@ final class FakeNotifications implements AppNotifications {
       cancelled.add(conversationId);
 
   @override
-  Future<String?> takeLaunchConversation() async {
-    final id = launchConversation;
-    launchConversation = null;
-    return id;
+  Future<String?> takeOpenedRoute() async {
+    final route = openedRoute;
+    openedRoute = null;
+    return route;
   }
 }

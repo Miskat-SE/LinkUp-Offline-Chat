@@ -20,6 +20,8 @@ abstract final class StoreKeys {
   static const connectionMethod = 'settings.connectionMethod';
   static const developerMode = 'settings.developerMode';
   static const notificationsAsked = 'settings.notificationsAsked';
+  static const stayReachable = 'settings.stayReachable';
+  static const stayReachableOffered = 'settings.stayReachableOffered';
 
   static const all = {
     deviceId,
@@ -29,6 +31,8 @@ abstract final class StoreKeys {
     connectionMethod,
     developerMode,
     notificationsAsked,
+    stayReachable,
+    stayReachableOffered,
   };
 }
 

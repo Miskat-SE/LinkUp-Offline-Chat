@@ -40,4 +40,7 @@ abstract interface class FileTransferRepository {
   Future<int> countUsing(String localPath);
 
   Future<void> delete(String fileId);
+
+  /// The most recently changed transfers, newest first (Activity screen).
+  Stream<List<FileTransfer>> watchRecent({int limit = 50});
 }
