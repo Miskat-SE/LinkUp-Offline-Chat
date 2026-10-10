@@ -125,6 +125,7 @@ DiscoveryEngine ──online peers──▶ ConnectionManager (PeerLinks) ──
 - **`PeerConnection`** (`lib/core/network/connection/peer_connection.dart`) is one TCP control connection:
   - Both sides send HELLO first, within 5 s. Anything else first, our own ID, an unexpected device ID or an incompatible protocol closes it.
   - After the handshake, every packet's sender must match the HELLO.
+  - Packets are buffered until the connection manager listens, so a message sent in the same burst as the HELLO (an outbox flushed on connect) is not lost.
   - PING every 15 s; 45 s of silence closes it.
   - 3 malformed frames in a row, a bad frame kind or an oversized length close it at once.
 - **`ConnectionManager`**:

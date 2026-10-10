@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: v0.9.0-beta, feature complete (P9 security hardening done).** Phase P8: Transfers keep going with the screen off or the app in the background, with a progress notification; *Stay reachable* (Settings) keeps LinkUp reachable while it is closed. Phase P7: Send one message or file to *Everyone* online, with "Delivered to 2 of 3", or to selected people, each in their own chat. Earlier: Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks. They share files of any type and size up to 4 GB: photos, videos, documents, apps. Progress, pause, resume and cancel are shown, and every file is checked with SHA-256. Chats and files are saved on the phone, and anything sent to someone offline goes when they come back. Names are unique on the network. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for how to test with one or two phones.
+> **Status: v1.0.0-rc1, release candidate.** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks, or message *Everyone* nearby with "Delivered to 2 of 3". They share files of any type and size up to 4 GB (photos, videos, documents, apps) with pause, resume and a SHA-256 check. Transfers keep going with the screen off, and *Stay reachable* keeps LinkUp reachable while it is closed. Chats and files stay on the phone; anything sent to someone offline goes when they come back. Names are unique on the network. Light and dark themes, large text and TalkBack are supported, and wide screens show the chat beside the list. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for testing.
 
 ## Documents
 
@@ -16,6 +16,8 @@ Offline messaging and file sharing for Android phones on the same Wi-Fi network.
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Code layout, layers, start-up, logging |
 | [`TESTING.md`](TESTING.md) | Automated tests, the simulated peer, device test results |
 | [`docs/adr/`](docs/adr/README.md) | One record per technical decision |
+| [`docs/PLAY_STORE.md`](docs/PLAY_STORE.md) | Publishing on Google Play: decisions, listing text, policy answers, checklist |
+| [`docs/PRIVACY_POLICY.md`](docs/PRIVACY_POLICY.md) | The app's privacy policy (to publish at a public URL) |
 
 ## Requirements
 
@@ -36,10 +38,11 @@ flutter run
 These must all pass before a phase is closed (plan §15.1):
 
 ```sh
-dart format --output=none --set-exit-if-changed lib test
+dart format --output=none --set-exit-if-changed lib test integration_test
 flutter analyze
-flutter test
-flutter build apk --release
+flutter test --timeout 120s
+flutter test integration_test -d <device>   # on a phone or emulator
+tool/build_apk.sh
 ```
 
 **Generated code** is committed, so a fresh clone builds as is. After changing the database tables, run `dart run build_runner build`; after a schema version change, also `dart run drift_dev make-migrations` (see ARCHITECTURE.md, *Storage*). After changing `pigeons/platform_api.dart`, run `dart run pigeon --input pigeons/platform_api.dart`.
@@ -49,19 +52,18 @@ flutter build apk --release
 ## Build an APK
 
 ```sh
-tool/build_apk.sh
+tool/build_apk.sh            # APK
+tool/build_apk.sh --bundle   # APK and the Play Store bundle (.aab)
 ```
 
-Each run raises the build number in `pubspec.yaml` by one, builds a release APK that works on every phone, and saves it as `releases/LINKUP_version-N.apk` (for example `LINKUP_version-4.apk`). The build number is also Android's version code, so a newer APK installs as an update over an older one. `releases/` is not committed.
+Each run raises the build number in `pubspec.yaml` by one, builds an obfuscated release APK that works on every phone, and saves it as `releases/LINKUP_version-N.apk` (with `--bundle`, also `LINKUP_version-N.aab`). The symbols for reading crash stack traces go to `releases/symbols/version-N/`; keep them for every build you hand out. The build number is also Android's version code, so a newer APK installs as an update over an older one. `releases/` is not committed. Publishing: [`docs/PLAY_STORE.md`](docs/PLAY_STORE.md).
 
-For smaller per-CPU APKs: `flutter build apk --release --split-per-abi` (written to `build/app/outputs/flutter-apk/`).
-
-**Signing.** Without `android/key.properties`, release builds are signed with the debug key so they can be installed for testing. For a real release, create a keystore outside the repository and add `android/key.properties` (it is gitignored):
+**Signing.** Release builds are signed with the key named in `android/key.properties` (git-ignored); the keystore lives outside the repository, in `~/LinkUpKeys/` (its `README.txt` has the details). **Back that folder up:** without it, installed copies can never be updated. Without `key.properties`, builds fall back to the debug key, and such an APK can't update a release-signed install (uninstall first).
 
 ```properties
-storeFile=/absolute/path/to/resqmesh-release.jks
+storeFile=/Users/<you>/LinkUpKeys/linkup-release.jks
 storePassword=…
-keyAlias=resqmesh
+keyAlias=linkup
 keyPassword=…
 ```
 
@@ -75,9 +77,9 @@ LinkUp is made for a local network you trust (a home, office or event Wi-Fi, or 
 
 ## Router isolation
 
-Some routers, especially guest networks and hotel or office Wi-Fi, block phones from talking to each other. ResQMesh can't fix that from the phone. After 30 seconds with nobody found, it shows a hint to check the router. A phone hotspot is a reliable alternative.
+Some routers, especially guest networks and hotel or office Wi-Fi, block phones from talking to each other. LinkUp can't fix that from the phone. After 30 seconds with nobody found, it shows a hint to check the router. A phone hotspot is a reliable alternative.
 
-## Known limitations (so far)
+## Known limitations (v1.0)
 
 - With *Stay reachable* off, LinkUp is reachable only while it is open or a transfer is running; Android freezes it soon after it goes to the background, and messages to it wait until it is opened.
 - Force-stopping the app, restarting the phone, or an aggressive battery saver stops LinkUp until it is opened again (no start on boot). Partial files are kept for resume. If your phone stops LinkUp in the background, allow it in Settings → Battery settings.
@@ -85,5 +87,5 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 - Only the sender can pause. Cancelling a file that is still waiting (the other person is offline) isn't announced to them; their card keeps waiting.
 - *Everyone* reaches only the people online when you send; there are no replies inside the Everyone thread.
 - Wi-Fi Direct and Bluetooth are shown as *Coming soon* (P13–P14).
-- Discovery and messages work while the app is open; background reachability arrives in P8.
+- Messages and files are not encrypted on the local network (see *Security and privacy*).
 - Android only. iOS, desktop and web are out of scope.

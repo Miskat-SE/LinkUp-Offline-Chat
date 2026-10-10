@@ -236,6 +236,32 @@ void main() {
     expect(a.links.current.links, isEmpty);
   });
 
+  test('a message sent right behind HELLO is not lost', () async {
+    // A phone flushing its outbox on connect sends both in one burst; the
+    // message must not fall into the gap before the connection is watched.
+    final a = await Node(idA, 'Yusuf').start();
+    final got = a.links.packets.first;
+    final raw = await RawClient.connect(a.port);
+    addTearDown(raw.close);
+    raw
+      ..sendHello()
+      ..sendPacket(
+        MessagePacket(
+          PacketHeader.create(
+            senderId: idC,
+            senderName: 'Raw',
+            receiverId: idA,
+          ),
+          kind: MessageKind.text,
+          audience: MessageAudience.direct,
+          text: 'queued while you were away',
+        ),
+      );
+    final packet = await got.timeout(const Duration(seconds: 2));
+    expect(packet.from, idC);
+    expect((packet.packet as MessagePacket).text, 'queued while you were away');
+  });
+
   test('three malformed frames in a row close the connection', () async {
     final a = await Node(idA, 'Yusuf').start();
     final raw = await RawClient.connect(a.port);

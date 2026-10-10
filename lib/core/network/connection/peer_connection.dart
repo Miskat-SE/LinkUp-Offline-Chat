@@ -126,8 +126,9 @@ final class PeerConnection {
   final FrameDecoder _decoder = FrameDecoder();
   final Completer<HelloPacket> _hello = Completer();
   final Completer<String> _closed = Completer();
-  final StreamController<Packet> _packets =
-      StreamController<Packet>.broadcast();
+  // Single-subscription, so packets that arrive in the same burst as the
+  // HELLO wait until the connection manager listens instead of being lost.
+  final StreamController<Packet> _packets = StreamController<Packet>();
   final Random _random = Random();
   Timer? _keepAlive;
   int _malformedInARow = 0;

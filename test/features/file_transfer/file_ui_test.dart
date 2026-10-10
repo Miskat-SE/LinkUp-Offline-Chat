@@ -217,6 +217,24 @@ void main() {
     await s.finish(tester);
   });
 
+  testWidgets('People → Send file opens the chat with the picker', (
+    tester,
+  ) async {
+    final s = await FileScenario.start(tester);
+    s.picker.next = [s.cacheFile('photo.jpg', 'jpg bytes')];
+    await tester.tap(find.text('People'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.text('Send file'));
+    await pumpFor(tester, const Duration(milliseconds: 800));
+    expect(find.text('Send to Rahim'), findsOneWidget);
+    await tester.tap(find.text('Send'));
+    await s.work(tester);
+    await s.work(tester);
+    expect(find.byType(FileMessageCard), findsOneWidget);
+    expect(find.text('photo.jpg'), findsOneWidget);
+    await s.finish(tester);
+  });
+
   testWidgets('a received file shows progress, then opens in the preview', (
     tester,
   ) async {

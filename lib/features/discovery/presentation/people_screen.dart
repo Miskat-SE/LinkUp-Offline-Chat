@@ -250,20 +250,13 @@ class _PersonCard extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: null,
+                    onPressed: () =>
+                        context.push(Routes.chat(peer.deviceId, attach: true)),
                     icon: const Icon(Icons.attach_file_rounded),
                     label: const Text('Send file'),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'File sharing is coming in a next update.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
             ),
           ],
         ),

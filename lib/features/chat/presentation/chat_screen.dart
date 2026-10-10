@@ -27,9 +27,12 @@ import 'package:resqmesh/shared/widgets/user_avatar.dart';
 
 /// One-to-one chat (spec §8, §25).
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key, required this.peerId});
+  const ChatScreen({super.key, required this.peerId, this.attach = false});
 
   final String peerId;
+
+  /// Opens the file picker right away (People → Send file).
+  final bool attach;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -68,7 +71,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _activeChat.open(_peerId);
       unawaited(ref.read(appNotificationsProvider).cancelConversation(_peerId));
       _markRead();
-      unawaited(_offerNotifications());
+      unawaited(() async {
+        await _offerNotifications();
+        if (widget.attach && mounted && !_everyone) await _attach(_name());
+      }());
     });
   }
 
@@ -123,6 +129,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           text: text,
           replyToId: replyTo?.id,
         );
+  }
+
+  String _name() {
+    for (final p in ref.read(nearbyProvider).peers) {
+      if (p.peer.deviceId == _peerId) return p.peer.name;
+    }
+    return 'Unknown';
   }
 
   /// Attach: pick files, confirm them in a sheet, send one message each.

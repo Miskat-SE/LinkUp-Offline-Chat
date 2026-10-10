@@ -33,7 +33,8 @@ abstract final class Routes {
   static const storage = '/settings/storage';
   static const about = '/settings/about';
 
-  static String chat(String peerId) => '/chat/$peerId';
+  static String chat(String peerId, {bool attach = false}) =>
+      attach ? '/chat/$peerId?attach=1' : '/chat/$peerId';
   static String filePreview(String fileId) => '/files/$fileId';
   static const activity = '/activity';
   static String selectPeople([String? preselect]) =>
@@ -93,8 +94,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat/:peerId',
-        builder: (context, state) =>
-            ChatScreen(peerId: state.pathParameters['peerId']!),
+        builder: (context, state) => ChatScreen(
+          peerId: state.pathParameters['peerId']!,
+          attach: state.uri.queryParameters['attach'] == '1',
+        ),
       ),
       GoRoute(
         path: '/activity',

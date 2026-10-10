@@ -970,11 +970,12 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 **Exit:** the UI checklist passes on 2 phones in light and dark themes.
 
 #### P12 · Release build (Week 17, 21–27 Jan)
-- [ ] **P12.1** Release signing, version `1.0.0+1`, R8 keep rules if the bridge needs them, final icon and splash
-- [ ] **P12.2** `flutter build apk --release` (plus `--split-per-abi`); install on every testbed phone
+- [x] **P12.1** Release signing, version `1.0.0+1`, R8 keep rules if the bridge needs them, final icon and splash *(upload key in `~/LinkUpKeys/`, outside the repo; version 1.0.0 keeps the running build number so every APK updates the last; obfuscated with symbols kept; the bridges work under R8 without keep rules; adaptive icon final, Play icon and feature graphic drawn from it)*
+- [x] **P12.2** `flutter build apk --release` (plus `--split-per-abi`); install on every testbed phone *(one universal APK for sideloading plus the Play bundle (AAB), which Play splits per phone; per-ABI APKs dropped because their version codes would block later universal updates. Installing on the testbed phones is with the user)*
 - [ ] **P12.3** Full real-device matrix (§13.2) on the release APK; fix anything blocking
-- [ ] **P12.4** `README.md`, `ARCHITECTURE.md`, `PROTOCOL.md`, `TESTING.md` complete (§15.5)
-- [ ] **P12.5** Tag `v1.0.0-rc1`
+- [x] **P12.4** `README.md`, `ARCHITECTURE.md`, `PROTOCOL.md`, `TESTING.md` complete (§15.5)
+- [x] **P12.5** Tag `v1.0.0-rc1`
+- [x] **P12.6** Ready for Google Play at any time (user request, 10 Oct): `docs/PLAY_STORE.md` (decisions, listing text, Data safety and permission answers, checklist), `docs/PRIVACY_POLICY.md`, store graphics and screenshots in `store/`, `tool/build_apk.sh --bundle`. Upload is not planned yet.
 
 **Exit (M6):** the release APK passes the full device matrix.
 
@@ -1017,7 +1018,7 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 | M3 | Persistent text chat with offline queue | 25 Nov (end of Week 8) | Done (emulator; chat on 2 phones) |
 | M4 | Large-file transfer; mid-term presentation | 16 Dec (Week 11) | Code done; 2 GB soak and slides open |
 | M5 | Feature complete: broadcast, background, security | 6 Jan (end of Week 14) | Done 10 Oct (`v0.9.0-beta`); real-phone checks for P7/P8 open |
-| M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | Tests and polish done (P10–P11, 10 Oct); UI checklist on 2 phones and device matrix open |
+| M6 | Release candidate: tests, polish, release APK passes the device matrix | 27 Jan (end of Week 17) | `v1.0.0-rc1` built and signed (10 Oct); device matrix on phones open |
 | M7 | v1.0.0 released with all four documents | 3 Feb (end of Week 18) | Not started |
 | M8 | Report submitted, defense | ~17 Feb (Week 20) | Not started |
 
@@ -1223,3 +1224,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 2.1 | 10 Oct 2026 | P9 done: inputs reviewed and documented (Security model); fuzz tests for codecs, frames and live connections; limits on discovery answers, half-open and per-address connections, and packet floods; logs reviewed; encryption spike (`tool/tls_spike.dart`) and decision ADR-0022 (plaintext v1.0, user's choice); Settings → Privacy; feature freeze and `v0.9.0-beta`. 302 tests. |
 | 2.2 | 10 Oct 2026 | P10 done: coverage core 82.7% and data 91.1%; on-device integration test (onboarding, text both ways, 5 MB file verified against a peer inside the test); redial backoff test; `TESTING.md` with run commands and the full device-matrix template. |
 | 2.3 | 10 Oct 2026 | P11 done (code): accessibility audit as tests (touch targets, labels, contrast in light and dark, 200% text) with one overflow fixed; navigation rail from 600 dp and chat list beside the chat from 840 dp; About screen (version, how it works, privacy, licences; 7 taps on the version unlock developer options); transitions instant with Remove animations; profile-mode frame times during a 200 MB send and cold start recorded. Exit check (UI checklist on 2 phones, light and dark) is with the user. |
+| 2.4 | 10 Oct 2026 | P12 done except the phone matrix: release signing with an upload key outside the repository; obfuscated builds with symbols; Play bundle (`--bundle`); `v1.0.0-rc1`. The release check found and fixed a dropped-message bug (a packet in the same burst as the HELLO), and a leftover *File sharing is coming* placeholder in People (now *Send file*). Play Store readiness added at the user's request (P12.6); upload not planned yet. |

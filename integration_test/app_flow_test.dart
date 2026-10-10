@@ -212,7 +212,16 @@ void main() {
     // The app shows the peer and opens a chat with it.
     await tester.tap(find.text('People'));
     await waitFor(tester, find.text('Device Peer'));
-    await tester.tap(find.text('Chat'));
+    // Only this peer's card: other phones on the same Wi-Fi may show too.
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Device Peer'),
+          matching: find.byType(Card),
+        ),
+        matching: find.text('Chat'),
+      ),
+    );
     await waitFor(tester, find.text('Say hello to Device Peer'));
 
     // Text from the app to the peer, then a reply.
