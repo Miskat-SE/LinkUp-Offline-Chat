@@ -3,4 +3,6 @@
      (FileBridge); the stored files themselves never are. -->
 <paths>
     <files-path name="shared" path="files/shared/" />
+    <!-- The camera app writes a new photo here (P15.6). -->
+    <cache-path name="camera" path="camera/" />
 </paths>

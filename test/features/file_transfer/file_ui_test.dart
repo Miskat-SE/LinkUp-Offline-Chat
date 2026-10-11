@@ -217,6 +217,27 @@ void main() {
     await s.finish(tester);
   });
 
+  testWidgets('camera: take a photo, review, send (P15.6)', (tester) async {
+    final s = await FileScenario.start(tester);
+    await s.openChat(tester);
+    // Backing out of the camera sends nothing.
+    await tester.tap(find.byTooltip('Take a photo'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(s.picker.cameraOpened, 1);
+    expect(find.text('Send to Rahim'), findsNothing);
+
+    s.picker.photo = s.cacheFile('IMG_20261011_101500.jpg', 'jpeg bytes');
+    await tester.tap(find.byTooltip('Take a photo'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Send to Rahim'), findsOneWidget);
+    await tester.tap(find.text('Send'));
+    await s.work(tester);
+    await s.work(tester);
+    expect(find.byType(FileMessageCard), findsOneWidget);
+    expect(find.text('IMG_20261011_101500.jpg'), findsOneWidget);
+    await s.finish(tester);
+  });
+
   testWidgets('People → Send file opens the chat with the picker', (
     tester,
   ) async {

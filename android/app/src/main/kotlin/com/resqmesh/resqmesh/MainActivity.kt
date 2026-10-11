@@ -41,6 +41,14 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
     }
 
+    @Deprecated("Activity result API; FlutterActivity still forwards here")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!CurrentActivity.onActivityResult(requestCode, resultCode)) {
+            @Suppress("DEPRECATION")
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,

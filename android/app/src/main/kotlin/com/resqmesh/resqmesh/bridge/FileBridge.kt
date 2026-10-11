@@ -98,6 +98,26 @@ class FileBridge(context: Context) : FileHostApi {
             }
         }
 
+    override suspend fun takePhoto(): String? {
+        val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+        val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+            .format(java.util.Date())
+        val photo = File(dir, "IMG_$stamp.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", photo)
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val ok = suspendCancellableCoroutine { continuation ->
+            CurrentActivity.startForResult(intent, CAMERA_REQUEST) { done ->
+                if (continuation.isActive) continuation.resume(done)
+            }
+        }
+        if (ok && photo.length() > 0) return photo.path
+        photo.delete()
+        return null
+    }
+
     /** A content URI showing [displayName] for the stored file. */
     private fun expose(path: String, displayName: String): Uri? {
         val source = File(path)
@@ -180,6 +200,7 @@ class FileBridge(context: Context) : FileHostApi {
     private companion object {
         const val TAG = "ResQMeshFiles"
         const val WRITE_REQUEST = 4202
+        const val CAMERA_REQUEST = 4204
         const val BUFFER = 256 * 1024
     }
 }

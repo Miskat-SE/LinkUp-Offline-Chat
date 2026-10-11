@@ -150,6 +150,11 @@ abstract class FileHostApi {
   /// can't read the video.
   @async
   bool videoThumbnail(String path, String outPath);
+
+  /// Opens the phone's camera app; the photo's path in the app cache, or
+  /// null if the user backed out or there is no camera app (P15.6).
+  @async
+  String? takePhoto();
 }
 
 /// What the background service shows and keeps alive (PROJECT_PLAN.md §5.6).

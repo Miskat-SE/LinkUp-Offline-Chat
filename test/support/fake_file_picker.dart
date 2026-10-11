@@ -11,4 +11,14 @@ final class FakeFilePicker implements FilePickerService {
     opened++;
     return next;
   }
+
+  /// What the camera returns next (null: the user backed out).
+  PickedFile? photo;
+  int cameraOpened = 0;
+
+  @override
+  Future<PickedFile?> takePhoto() async {
+    cameraOpened++;
+    return photo;
+  }
 }

@@ -16,6 +16,8 @@
         android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
+    <!-- Photos come from the phone's camera app (no camera permission). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Android 13+: asked for after an explanation, when a chat is first opened. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 8–9 only: Save to Downloads. Android 10+ uses MediaStore

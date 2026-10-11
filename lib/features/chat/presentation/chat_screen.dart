@@ -193,6 +193,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
       return;
     }
+    await _sendPicked(picked, peerName);
+  }
+
+  /// Camera (P15.6): one photo, then the same review sheet as attachments.
+  Future<void> _takePhoto(String peerName) async {
+    final photo = await ref.read(filePickerProvider).takePhoto();
+    if (photo != null) await _sendPicked([photo], peerName);
+  }
+
+  Future<void> _sendPicked(List<PickedFile> picked, String peerName) async {
     if (!mounted || picked.isEmpty) return;
     final files = await showSendFilesSheet(
       context,
@@ -457,6 +467,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onAttach: _gettingFiles || (_everyone && !connected)
                   ? null
                   : () => _attach(_everyone ? 'everyone online' : name),
+              onCamera: _gettingFiles || (_everyone && !connected)
+                  ? null
+                  : () => _takePhoto(_everyone ? 'everyone online' : name),
             ),
           ],
         ),
@@ -787,12 +800,14 @@ class _Composer extends StatefulWidget {
     required this.controller,
     required this.onSend,
     required this.onAttach,
+    required this.onCamera,
     this.enabled = true,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
+  final VoidCallback? onCamera;
   final bool enabled;
 
   @override
@@ -832,6 +847,12 @@ class _ComposerState extends State<_Composer> {
             onPressed: widget.onAttach,
             style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
             icon: const Icon(Icons.attach_file_rounded),
+          ),
+          IconButton(
+            tooltip: 'Take a photo',
+            onPressed: widget.onCamera,
+            style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
+            icon: const Icon(Icons.photo_camera_outlined),
           ),
           Expanded(
             child: TextField(

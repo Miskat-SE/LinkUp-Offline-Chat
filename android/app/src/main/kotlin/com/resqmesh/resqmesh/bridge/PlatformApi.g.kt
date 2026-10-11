@@ -1012,6 +1012,11 @@ interface FileHostApi {
    * can't read the video.
    */
   suspend fun videoThumbnail(path: String, outPath: String): Boolean
+  /**
+   * Opens the phone's camera app; the photo's path in the app cache, or
+   * null if the user backed out or there is no camera app (P15.6).
+   */
+  suspend fun takePhoto(): String?
 
   companion object {
     /** The codec used by FileHostApi. */
@@ -1107,6 +1112,23 @@ interface FileHostApi {
             CoroutineScope(Dispatchers.Main).launch {
               val wrapped: List<Any?> = try {
                 listOf(api.videoThumbnail(pathArg, outPathArg))
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.FileHostApi.takePhoto$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.takePhoto())
               } catch (exception: Throwable) {
                 PlatformApiPigeonUtils.wrapError(exception)
               }
