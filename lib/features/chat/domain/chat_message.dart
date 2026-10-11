@@ -228,15 +228,17 @@ final class DeliverySummary {
     return lowest;
   }
 
+  /// How many people have seen it (P15.1); shown beside [label].
+  int get seen => count(MessageStatus.read);
+
+  /// How far it got: sending, sent or delivered, and failures. Who has seen
+  /// it is [seen].
   String get label {
     if (total == 0) return 'Nobody was online';
-    final read = count(MessageStatus.read);
     final delivered = count(MessageStatus.delivered);
     final sent = count(MessageStatus.sent);
     final parts = <String>[
-      if (read > 0)
-        'Read by $read of $total'
-      else if (delivered > 0)
+      if (delivered > 0)
         'Delivered to $delivered of $total'
       else if (sent > 0)
         'Sent to $sent of $total'
@@ -261,4 +263,18 @@ final class ConversationSummary {
   final String peerName;
   final ChatMessage lastMessage;
   final int unreadCount;
+}
+
+/// A count in a few characters: 999, 1k, 1.5k, 12k, 1.2M.
+String compactCount(int n) {
+  String short(double value, String unit) {
+    final text = value >= 10
+        ? value.floor().toString()
+        : value.toStringAsFixed(1);
+    return '${text.endsWith('.0') ? text.substring(0, text.length - 2) : text}$unit';
+  }
+
+  if (n < 1000) return '$n';
+  if (n < 1000000) return short((n ~/ 100) / 10, 'k');
+  return short((n ~/ 100000) / 10, 'M');
 }

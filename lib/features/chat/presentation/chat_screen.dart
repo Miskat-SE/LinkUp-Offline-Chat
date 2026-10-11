@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
@@ -117,7 +118,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_everyone) {
       final sent = await ref
           .read(messagingServiceProvider)
-          .sendToEveryone(text: text, names: _onlineNames());
+          .sendToEveryone(
+            text: text,
+            names: _onlineNames(),
+            replyToId: replyTo?.id,
+          );
       if (sent.isEmpty && mounted) _nobodyOnline();
       return;
     }
@@ -181,7 +186,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context: context,
       builder: (context) => _MessageActions(
         message: message,
-        canReply: !_everyone,
+        canReply: true,
         canRetry: message.isBroadcast
             ? (ref.read(recipientsProvider(_peerId)).value?[message.id] ?? [])
                   .any((r) => r.status == MessageStatus.failed)
@@ -327,6 +332,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       peerName: name,
                       recipients: recipients,
                       onLongPress: _showActions,
+                      onReply: (m) => setState(() => _replyingTo = m),
                       onRetry: (m) =>
                           ref.read(messagingServiceProvider).retry(m.id),
                       onShowDelivery: (m) => showDeliverySheet(
@@ -348,7 +354,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (_replyingTo != null)
               _ReplyBar(
                 message: _replyingTo!,
-                author: _replyingTo!.isOutgoing ? 'You' : name,
+                author: _authorOf(_replyingTo!, name),
                 onClose: () => setState(() => _replyingTo = null),
               ),
             if (_gettingFiles) const LinearProgressIndicator(),
@@ -367,6 +373,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  /// Who wrote [message], as a quote shows it.
+  static String _authorOf(ChatMessage message, String peerName) =>
+      message.isOutgoing
+      ? 'You'
+      : (message.isBroadcast ? message.peerName : peerName);
+
   static String _presence(NearbyPeer? person) => switch (person?.link) {
     LinkState.connected => 'Online',
     LinkState.connecting => 'Connecting…',
@@ -377,11 +389,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   };
 }
 
-class _MessageList extends StatelessWidget {
+class _MessageList extends StatefulWidget {
   const _MessageList({
     required this.messages,
     required this.peerName,
     required this.onLongPress,
+    required this.onReply,
     required this.onRetry,
     required this.onShowDelivery,
     this.recipients = const {},
@@ -391,6 +404,9 @@ class _MessageList extends StatelessWidget {
   final List<ChatMessage> messages;
   final String peerName;
   final void Function(ChatMessage) onLongPress;
+
+  /// Swiping a message to the right replies to it.
+  final void Function(ChatMessage) onReply;
   final void Function(ChatMessage) onRetry;
   final void Function(ChatMessage) onShowDelivery;
 
@@ -400,7 +416,60 @@ class _MessageList extends StatelessWidget {
   static const _groupGap = Duration(minutes: 2);
 
   @override
+  State<_MessageList> createState() => _MessageListState();
+}
+
+class _MessageListState extends State<_MessageList> {
+  final ScrollController _scroll = ScrollController();
+  final Map<String, GlobalKey> _keys = {};
+  String? _highlighted;
+  Timer? _unhighlight;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _unhighlight?.cancel();
+    super.dispose();
+  }
+
+  /// Scrolls up to an older message (building the list as it goes), then
+  /// tints it for a moment.
+  Future<void> _showMessage(String id) async {
+    final duration = AppMotion.of(context, AppMotion.medium);
+    for (var step = 0; step < 40 && mounted; step++) {
+      final target = _keys[id]?.currentContext;
+      if (target != null && target.mounted) {
+        await Scrollable.ensureVisible(
+          target,
+          alignment: 0.5,
+          duration: duration,
+          curve: AppMotion.standard,
+        );
+        if (!mounted) return;
+        setState(() => _highlighted = id);
+        _unhighlight?.cancel();
+        _unhighlight = Timer(const Duration(milliseconds: 1500), () {
+          if (mounted) setState(() => _highlighted = null);
+        });
+        return;
+      }
+      final position = _scroll.position;
+      if (position.pixels >= position.maxScrollExtent) return;
+      _scroll.jumpTo(
+        min(
+          position.pixels + position.viewportDimension * 0.8,
+          position.maxScrollExtent,
+        ),
+      );
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final messages = widget.messages;
+    final peerName = widget.peerName;
+    final recipients = widget.recipients;
     final now = clock.now();
     final byId = {for (final m in messages) m.id: m};
     bool sameDay(ChatMessage a, ChatMessage b) =>
@@ -408,7 +477,7 @@ class _MessageList extends StatelessWidget {
     bool grouped(ChatMessage a, ChatMessage b) =>
         a.isOutgoing == b.isOutgoing &&
         sameDay(a, b) &&
-        b.createdAt.difference(a.createdAt).abs() < _groupGap;
+        b.createdAt.difference(a.createdAt).abs() < _MessageList._groupGap;
 
     // Built oldest first, shown newest at the bottom.
     final items = <Widget>[];
@@ -425,43 +494,53 @@ class _MessageList extends StatelessWidget {
           ? null
           : byId[message.replyToId];
       items.add(
-        MessageBubble(
-          key: ValueKey(message.id),
-          message: message,
-          peerName: peerName,
-          repliedTo: repliedTo,
-          repliedToIsMine: repliedTo?.isOutgoing ?? false,
-          groupedWithPrevious: previous != null && grouped(previous, message),
-          groupedWithNext: next != null && grouped(message, next),
-          onLongPress: () => onLongPress(message),
-          senderLabel: message.isBroadcast && !message.isOutgoing
-              ? message.peerName
-              : null,
-          delivery: message.isBroadcast && message.isOutgoing
-              ? DeliverySummary(recipients[message.id] ?? const [])
-              : null,
-          onTapDelivery: () => onShowDelivery(message),
-          attachment: message.fileId == null
-              ? null
-              : (foreground) => message.isBroadcast && message.isOutgoing
-                    ? _BroadcastFileCard(
-                        message: message,
-                        recipients: recipients[message.id] ?? const [],
-                        foreground: foreground,
-                      )
-                    : FileMessageCard(
-                        fileId: message.fileId!,
-                        peerName: message.isBroadcast
-                            ? message.peerName
-                            : peerName,
-                        foreground: foreground,
-                      ),
-          onTapFailed: () => onRetry(message),
+        _SwipeToReply(
+          key: _keys.putIfAbsent(message.id, GlobalKey.new),
+          onReply: () => widget.onReply(message),
+          child: MessageBubble(
+            message: message,
+            peerName: peerName,
+            repliedTo: repliedTo,
+            repliedToAuthor: repliedTo == null
+                ? ''
+                : _ChatScreenState._authorOf(repliedTo, peerName),
+            onTapQuote: repliedTo == null
+                ? null
+                : () => unawaited(_showMessage(repliedTo.id)),
+            highlighted: _highlighted == message.id,
+            groupedWithPrevious: previous != null && grouped(previous, message),
+            groupedWithNext: next != null && grouped(message, next),
+            onLongPress: () => widget.onLongPress(message),
+            senderLabel: message.isBroadcast && !message.isOutgoing
+                ? message.peerName
+                : null,
+            delivery: message.isBroadcast && message.isOutgoing
+                ? DeliverySummary(recipients[message.id] ?? const [])
+                : null,
+            onTapDelivery: () => widget.onShowDelivery(message),
+            attachment: message.fileId == null
+                ? null
+                : (foreground) => message.isBroadcast && message.isOutgoing
+                      ? _BroadcastFileCard(
+                          message: message,
+                          recipients: recipients[message.id] ?? const [],
+                          foreground: foreground,
+                        )
+                      : FileMessageCard(
+                          fileId: message.fileId!,
+                          peerName: message.isBroadcast
+                              ? message.peerName
+                              : peerName,
+                          foreground: foreground,
+                        ),
+            onTapFailed: () => widget.onRetry(message),
+          ),
         ),
       );
     }
     final shown = items.reversed.toList();
     return ListView.builder(
+      controller: _scroll,
       reverse: true,
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -964,3 +1043,78 @@ String _recipientStatus(MessageStatus status) => switch (status) {
   MessageStatus.failed => 'Not sent',
   MessageStatus.received => '',
 };
+
+/// Swipe a message to the right to reply (P15.2). The bubble follows the
+/// finger; past the threshold a reply icon shows and the phone ticks.
+class _SwipeToReply extends StatefulWidget {
+  const _SwipeToReply({super.key, required this.child, required this.onReply});
+
+  final Widget child;
+  final VoidCallback onReply;
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply>
+    with SingleTickerProviderStateMixin {
+  static const _trigger = 64.0;
+  static const _furthest = 96.0;
+
+  late final AnimationController _back = AnimationController(
+    vsync: this,
+    duration: AppMotion.short,
+  )..addListener(() => setState(() => _dx = _from * (1 - _back.value)));
+  double _dx = 0;
+  double _from = 0;
+  bool _armed = false;
+
+  @override
+  void dispose() {
+    _back.dispose();
+    super.dispose();
+  }
+
+  void _update(DragUpdateDetails details) {
+    _back.stop();
+    setState(() => _dx = (_dx + details.delta.dx).clamp(0, _furthest));
+    final armed = _dx >= _trigger;
+    if (armed && !_armed) unawaited(HapticFeedback.selectionClick());
+    _armed = armed;
+  }
+
+  void _release() {
+    if (_armed) widget.onReply();
+    _armed = false;
+    _from = _dx;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      setState(() => _dx = 0);
+    } else {
+      unawaited(_back.forward(from: 0));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onHorizontalDragUpdate: _update,
+    onHorizontalDragEnd: (_) => _release(),
+    onHorizontalDragCancel: _release,
+    child: Stack(
+      alignment: AlignmentDirectional.centerStart,
+      children: [
+        if (_dx > 0)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
+            child: Opacity(
+              opacity: (_dx / _trigger).clamp(0, 1),
+              child: Icon(
+                Icons.reply_rounded,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        Transform.translate(offset: Offset(_dx, 0), child: widget.child),
+      ],
+    ),
+  );
+}

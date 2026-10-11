@@ -252,6 +252,7 @@ final class MessagingService {
     String? text,
     List<PickedFile> files = const [],
     Map<String, String> names = const {},
+    String? replyToId,
   }) => _serial(() async {
     final online = {
       for (final link in _links.current.links.values)
@@ -263,7 +264,7 @@ final class MessagingService {
     final trimmed = text?.trim() ?? '';
     final sent = <ChatMessage>[];
     if (trimmed.isNotEmpty) {
-      sent.add(await _broadcast(online, text: trimmed));
+      sent.add(await _broadcast(online, text: trimmed, replyToId: replyToId));
     }
     for (final picked in files) {
       sent.add(await _broadcast(online, file: picked));
@@ -279,6 +280,7 @@ final class MessagingService {
     Map<String, String> online, {
     String text = '',
     PickedFile? file,
+    String? replyToId,
   }) async {
     final now = clock.now();
     final messageId = _uuid.v4();
@@ -319,6 +321,7 @@ final class MessagingService {
       fileId: fileIds.values.firstOrNull,
       fileName: fileName,
       audience: ChatAudience.everyone,
+      replyToId: replyToId,
     );
     final recipients = [
       for (final MapEntry(key: id, value: name) in online.entries)
@@ -480,6 +483,7 @@ final class MessagingService {
         kind: message.isFile ? MessageKind.file : MessageKind.text,
         audience: MessageAudience.broadcast,
         text: message.isFile ? null : message.text,
+        replyToId: message.replyToId,
         file: file,
       ),
     );

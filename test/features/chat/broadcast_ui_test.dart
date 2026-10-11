@@ -4,6 +4,7 @@ import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
 import 'package:resqmesh/core/storage/key_value_store.dart';
 import 'package:resqmesh/features/chat/presentation/chat_screen.dart';
+import 'package:resqmesh/features/chat/presentation/message_bubble.dart';
 
 import '../../support/fake_network_monitor.dart';
 import '../../support/fake_notifications.dart';
@@ -103,12 +104,22 @@ void main() {
       );
     await pumpFor(tester, const Duration(milliseconds: 500));
     expect(find.textContaining('Delivered to 1 of 1'), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_rounded), findsNothing);
+
+    // Rahim opens it: the seen count appears.
+    s.links.receive(
+      otherPhoneId,
+      MessageReadPacket(s.fromRahim, messageIds: [packet.header.messageId]),
+    );
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.byIcon(Icons.visibility_rounded), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Seen by 1')), findsOneWidget);
 
     await tester.tap(find.text('Meeting in hall B'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     expect(find.text('Sent to'), findsOneWidget);
     expect(find.text('Rahim'), findsWidgets);
-    expect(find.text('Delivered'), findsOneWidget);
+    expect(find.text('Read'), findsOneWidget);
     await s.finish(tester);
   });
 
@@ -175,6 +186,93 @@ void main() {
     expect(packet.text, 'Bring the charger');
     expect(packet.audience, MessageAudience.direct);
     expect(find.textContaining('Sent to Rahim'), findsOneWidget);
+    await s.finish(tester);
+  });
+
+  testWidgets('swipe to reply in Everyone; the reply quotes the sender', (
+    tester,
+  ) async {
+    final s = await Scenario.start(tester);
+    final lunch = MessagePacket(
+      s.fromRahim,
+      kind: MessageKind.text,
+      audience: MessageAudience.broadcast,
+      text: 'Lunch is here',
+    );
+    s.links.receive(otherPhoneId, lunch);
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.text('Rahim: Lunch is here'));
+    await pumpFor(tester, const Duration(seconds: 1));
+
+    await tester.drag(find.text('Lunch is here'), const Offset(120, 0));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget); // reply bar
+    await s.type(tester, 'Coming!');
+    final reply = s.links.sent
+        .map((e) => e.$2)
+        .whereType<MessagePacket>()
+        .single;
+    expect(reply.audience, MessageAudience.broadcast);
+    expect(reply.replyToId, lunch.header.messageId);
+    // The quote inside the new bubble names Rahim.
+    expect(find.text('Rahim'), findsWidgets);
+    expect(find.text('Lunch is here'), findsNWidgets(2));
+    await s.finish(tester);
+  });
+
+  testWidgets('tapping a quote scrolls back to the original', (tester) async {
+    final s = await Scenario.start(tester);
+    PacketHeader header() => PacketHeader.create(
+      senderId: otherPhoneId,
+      senderName: 'Rahim',
+      receiverId: s.myId,
+    );
+    final first = MessagePacket(
+      header(),
+      kind: MessageKind.text,
+      audience: MessageAudience.direct,
+      text: 'The very first message',
+    );
+    s.links.receive(otherPhoneId, first);
+    for (var i = 1; i <= 40; i++) {
+      s.links.receive(
+        otherPhoneId,
+        MessagePacket(
+          header(),
+          kind: MessageKind.text,
+          audience: MessageAudience.direct,
+          text: 'Message number $i',
+        ),
+      );
+    }
+    s.links.receive(
+      otherPhoneId,
+      MessagePacket(
+        header(),
+        kind: MessageKind.text,
+        audience: MessageAudience.direct,
+        text: 'About that',
+        replyToId: first.header.messageId,
+      ),
+    );
+    await pumpFor(tester, const Duration(milliseconds: 800));
+    await tester.tap(find.text('About that'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(find.text('The very first message'), findsOneWidget); // the quote
+
+    await tester.tap(find.text('The very first message'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    // The original is on screen now, tinted for a moment.
+    final shown = tester.widget<MessageBubble>(
+      find.byWidgetPredicate((w) => w is MessageBubble && w.highlighted),
+    );
+    expect(shown.message.text, 'The very first message');
+    expect(find.text('The very first message').hitTestable(), findsOneWidget);
+    await pumpFor(tester, const Duration(seconds: 2));
+    expect(
+      find.byWidgetPredicate((w) => w is MessageBubble && w.highlighted),
+      findsNothing,
+    );
     await s.finish(tester);
   });
 }

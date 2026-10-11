@@ -162,7 +162,8 @@ void main() {
       final summary = DeliverySummary(
         await yusuf.repository.recipients(message.id),
       );
-      expect(summary.label, 'Read by 1 of 2');
+      expect(summary.label, 'Delivered to 2 of 2');
+      expect(summary.seen, 1);
       expect(summary.overall, MessageStatus.delivered);
     },
   );

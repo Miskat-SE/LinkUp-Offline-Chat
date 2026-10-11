@@ -14,7 +14,9 @@ class MessageBubble extends StatelessWidget {
     required this.groupedWithNext,
     required this.onLongPress,
     this.repliedTo,
-    this.repliedToIsMine = false,
+    this.repliedToAuthor = '',
+    this.onTapQuote,
+    this.highlighted = false,
     this.peerName = '',
     this.onTapFailed,
     this.attachment,
@@ -35,7 +37,13 @@ class MessageBubble extends StatelessWidget {
 
   /// The message this one replies to, if it is still on this phone.
   final ChatMessage? repliedTo;
-  final bool repliedToIsMine;
+  final String repliedToAuthor;
+
+  /// Tapping the quote shows the original message.
+  final VoidCallback? onTapQuote;
+
+  /// Briefly tinted after jumping to it from a quote.
+  final bool highlighted;
   final String peerName;
 
   /// File messages: the file card, drawn in the bubble's text colour.
@@ -56,7 +64,9 @@ class MessageBubble extends StatelessWidget {
     final delivery = this.delivery;
     final status = delivery?.overall ?? message.status;
     final failed = status == MessageStatus.failed;
-    final background = mine ? scheme.primary : scheme.surfaceContainerHigh;
+    final background = highlighted
+        ? (mine ? scheme.primaryFixedDim : scheme.secondaryContainer)
+        : (mine ? scheme.primary : scheme.surfaceContainerHigh);
     final foreground = mine ? scheme.onPrimary : scheme.onSurface;
     const big = Radius.circular(22);
     const small = Radius.circular(6);
@@ -82,7 +92,8 @@ class MessageBubble extends StatelessWidget {
           label:
               '${mine ? 'You' : senderLabel ?? peerName}: '
               '${message.isFile ? 'file' : message.text}. $time'
-              '${mine ? '. $statusText' : ''}',
+              '${mine ? '. $statusText' : ''}'
+              '${(delivery?.seen ?? 0) > 0 ? '. Seen by ${delivery!.seen}' : ''}',
           // A file card keeps its own buttons reachable.
           excludeSemantics: !message.isFile,
           child: Material(
@@ -111,10 +122,13 @@ class MessageBubble extends StatelessWidget {
                       const SizedBox(height: 2),
                     ],
                     if (repliedTo != null)
-                      _Quote(
-                        message: repliedTo!,
-                        author: repliedToIsMine ? 'You' : peerName,
-                        color: failed ? scheme.onErrorContainer : foreground,
+                      GestureDetector(
+                        onTap: onTapQuote,
+                        child: _Quote(
+                          message: repliedTo!,
+                          author: repliedToAuthor,
+                          color: failed ? scheme.onErrorContainer : foreground,
+                        ),
                       ),
                     if (message.isFile && attachment != null)
                       attachment!(failed ? scheme.onErrorContainer : foreground)
@@ -143,6 +157,21 @@ class MessageBubble extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (delivery != null && delivery.seen > 0) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.visibility_rounded,
+                            size: 14,
+                            color: foreground.withValues(alpha: 0.75),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            compactCount(delivery.seen),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: foreground.withValues(alpha: 0.75),
+                            ),
+                          ),
+                        ],
                         if (mine && !failed && delivery == null) ...[
                           const SizedBox(width: 4),
                           Icon(
@@ -197,7 +226,7 @@ class _Quote extends StatelessWidget {
             style: theme.textTheme.labelMedium?.copyWith(color: color),
           ),
           Text(
-            message.preview,
+            message.body,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(

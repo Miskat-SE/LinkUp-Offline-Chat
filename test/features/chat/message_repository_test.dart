@@ -434,6 +434,15 @@ void main() {
         DeliverySummary([for (final s in statuses) r(s)]).label;
 
     expect(label([]), 'Nobody was online');
+    expect([0, 999, 1000, 1500, 12345, 999999, 1200000].map(compactCount), [
+      '0',
+      '999',
+      '1k',
+      '1.5k',
+      '12k',
+      '999k',
+      '1.2M',
+    ]);
     expect(
       label([MessageStatus.sending, MessageStatus.pending]),
       'Sending to 2',
@@ -444,7 +453,7 @@ void main() {
     );
     expect(
       label([MessageStatus.delivered, MessageStatus.read, MessageStatus.sent]),
-      'Read by 1 of 3',
+      'Delivered to 2 of 3',
     );
     expect(
       label([MessageStatus.delivered, MessageStatus.failed]),
