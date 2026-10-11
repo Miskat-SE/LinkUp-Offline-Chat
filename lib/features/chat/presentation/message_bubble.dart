@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
+import 'package:resqmesh/features/chat/domain/mentions.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
 
 /// One message. Outgoing on the right in the primary colour, incoming on the
@@ -17,6 +18,7 @@ class MessageBubble extends StatelessWidget {
     this.repliedToAuthor = '',
     this.onTapQuote,
     this.highlighted = false,
+    this.mentionNames = const {},
     this.peerName = '',
     this.onTapFailed,
     this.attachment,
@@ -44,6 +46,9 @@ class MessageBubble extends StatelessWidget {
 
   /// Briefly tinted after jumping to it from a quote.
   final bool highlighted;
+
+  /// Everyone thread: names whose @mentions stand out (P15.5).
+  final Set<String> mentionNames;
   final String peerName;
 
   /// File messages: the file card, drawn in the bubble's text colour.
@@ -158,8 +163,24 @@ class MessageBubble extends StatelessWidget {
                     else if (message.isFile && attachment != null)
                       attachment!(failed ? scheme.onErrorContainer : foreground)
                     else
-                      Text(
-                        message.text,
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            for (final (part, mention) in mentionParts(
+                              message.text,
+                              mentionNames,
+                            ))
+                              TextSpan(
+                                text: part,
+                                style: mention
+                                    ? TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: mine ? null : scheme.primary,
+                                      )
+                                    : null,
+                              ),
+                          ],
+                        ),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: failed ? scheme.onErrorContainer : foreground,
                         ),

@@ -81,6 +81,7 @@ final class ChatMessage {
     this.audience = ChatAudience.direct,
     this.senderId,
     this.deletedAt,
+    this.mentions = const [],
   });
 
   /// The conversation ID of the Everyone thread.
@@ -129,6 +130,9 @@ final class ChatMessage {
 
   bool get isDeleted => deletedAt != null;
 
+  /// Everyone messages: device IDs @mentioned (P15.5).
+  final List<String> mentions;
+
   bool get isOutgoing => direction == MessageDirection.outgoing;
 
   bool get isBroadcast => audience == ChatAudience.everyone;
@@ -173,6 +177,7 @@ final class ChatMessage {
     audience: audience,
     senderId: senderId,
     deletedAt: deletedAt,
+    mentions: mentions,
   );
 }
 

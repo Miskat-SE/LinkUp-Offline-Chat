@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
 import 'package:resqmesh/core/storage/database_providers.dart';
@@ -92,9 +93,11 @@ final messageAlertsProvider = Provider<void>((ref) {
       notifications.showMessage(
         // Everyone messages open the Everyone thread.
         conversationId: message.peerId,
-        title: message.isBroadcast
-            ? '${message.peerName} · Everyone'
-            : message.peerName,
+        title: !message.isBroadcast
+            ? message.peerName
+            : message.mentions.contains(ref.read(identityProvider).deviceId)
+            ? '${message.peerName} mentioned you · Everyone'
+            : '${message.peerName} · Everyone',
         body: message.body,
       ),
     );

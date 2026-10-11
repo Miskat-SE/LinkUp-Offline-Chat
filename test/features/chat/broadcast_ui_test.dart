@@ -360,4 +360,46 @@ void main() {
     expect(find.text('Delete for me'), findsOneWidget);
     await s.finish(tester);
   });
+
+  testWidgets('@mentions: pick a name, send its ID; a mention notifies', (
+    tester,
+  ) async {
+    final s = await Scenario.start(tester);
+    await s.newChat(tester, 'Everyone nearby');
+    await tester.enterText(find.byType(TextField).last, 'Hi @Ra');
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.text('@Rahim'));
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+      'Hi @Rahim ',
+    );
+    await tester.enterText(find.byType(TextField).last, 'Hi @Rahim see you');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    final sent = s.links.sent
+        .map((e) => e.$2)
+        .whereType<MessagePacket>()
+        .single;
+    expect(sent.mentions, [otherPhoneId]);
+    expect(find.textContaining('@Rahim', findRichText: true), findsOneWidget);
+
+    // Rahim mentions this phone: the notification says so.
+    await tester.pageBack();
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    s.links.receive(
+      otherPhoneId,
+      MessagePacket(
+        s.fromRahim,
+        kind: MessageKind.text,
+        audience: MessageAudience.broadcast,
+        text: '@Yusuf can you come?',
+        mentions: [s.myId],
+      ),
+    );
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(s.notifications.shown.last.title, 'Rahim mentioned you · Everyone');
+    await s.finish(tester);
+  });
 }

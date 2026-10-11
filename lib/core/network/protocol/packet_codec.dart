@@ -291,6 +291,7 @@ abstract final class PacketCodec {
       audience: audience,
       text: text,
       replyToId: p.optionalId('replyToId'),
+      mentions: _mentions(p),
       file: file,
     );
   }
@@ -331,6 +332,20 @@ abstract final class PacketCodec {
           id
         else
           throw const _Invalid('payload.messageIds must be IDs'),
+    ];
+  }
+
+  /// At most this many people @mentioned in one message.
+  static const maxMentions = 50;
+
+  static List<String> _mentions(_Reader p) {
+    if (!p.has('mentions')) return const [];
+    return [
+      for (final id in p.list('mentions', maxLength: maxMentions))
+        if (id is String && isId(id))
+          id
+        else
+          throw const _Invalid('payload.mentions must be IDs'),
     ];
   }
 
@@ -389,6 +404,7 @@ abstract final class PacketCodec {
       'audience': packet.audience.name,
       'text': packet.text,
       'replyToId': packet.replyToId,
+      if (packet.mentions.isNotEmpty) 'mentions': packet.mentions,
       if (packet.file case final file?)
         'file': {
           'fileId': file.fileId,
@@ -504,6 +520,8 @@ final class _Reader {
     }
     return value;
   }
+
+  bool has(String key) => _json[key] != null;
 
   List<Object?> list(String key, {required int maxLength}) {
     final value = _required(key);

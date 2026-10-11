@@ -66,6 +66,10 @@ class Messages extends Table {
   /// bubble says so. Outgoing ones are re-announced to recipients who come
   /// back within a week.
   IntColumn get deletedAt => integer().map(const UtcMicros()).nullable()();
+
+  /// Everyone messages: device IDs @mentioned, comma-separated (P15.5,
+  /// schema v4).
+  TextColumn get mentions => text().nullable()();
 }
 
 /// Who an outgoing Everyone message went to, each with their own status
@@ -182,9 +186,10 @@ final class AppDatabase extends _$AppDatabase {
         await m.createTable(schema.messageRecipients);
         await m.createIndex(schema.recipientsByDevice);
       },
-      // v4 (P15.4): delete for everyone.
+      // v4 (P15.4–P15.5): delete for everyone, @mentions.
       from3To4: (m, schema) async {
         await m.addColumn(schema.messages, schema.messages.deletedAt);
+        await m.addColumn(schema.messages, schema.messages.mentions);
       },
     ),
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),

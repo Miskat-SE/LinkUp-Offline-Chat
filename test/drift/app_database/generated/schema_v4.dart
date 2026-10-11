@@ -167,6 +167,14 @@ class Messages extends Table with TableInfo<Messages, MessagesData> {
     requiredDuringInsert: false,
     $customConstraints: 'NULL',
   );
+  late final GeneratedColumn<String> mentions = GeneratedColumn<String>(
+    'mentions',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'NULL',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -188,6 +196,7 @@ class Messages extends Table with TableInfo<Messages, MessagesData> {
     attempts,
     lastAttemptAt,
     deletedAt,
+    mentions,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -276,6 +285,10 @@ class Messages extends Table with TableInfo<Messages, MessagesData> {
         DriftSqlType.int,
         data['${effectivePrefix}deleted_at'],
       ),
+      mentions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mentions'],
+      ),
     );
   }
 
@@ -308,6 +321,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
   final int attempts;
   final int? lastAttemptAt;
   final int? deletedAt;
+  final String? mentions;
   const MessagesData({
     required this.id,
     required this.messageId,
@@ -328,6 +342,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     required this.attempts,
     this.lastAttemptAt,
     this.deletedAt,
+    this.mentions,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -360,6 +375,9 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     }
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    if (!nullToAbsent || mentions != null) {
+      map['mentions'] = Variable<String>(mentions);
     }
     return map;
   }
@@ -395,6 +413,9 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      mentions: mentions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mentions),
     );
   }
 
@@ -423,6 +444,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
       attempts: serializer.fromJson<int>(json['attempts']),
       lastAttemptAt: serializer.fromJson<int?>(json['lastAttemptAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      mentions: serializer.fromJson<String?>(json['mentions']),
     );
   }
   @override
@@ -448,6 +470,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
       'attempts': serializer.toJson<int>(attempts),
       'lastAttemptAt': serializer.toJson<int?>(lastAttemptAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
+      'mentions': serializer.toJson<String?>(mentions),
     };
   }
 
@@ -471,6 +494,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     int? attempts,
     Value<int?> lastAttemptAt = const Value.absent(),
     Value<int?> deletedAt = const Value.absent(),
+    Value<String?> mentions = const Value.absent(),
   }) => MessagesData(
     id: id ?? this.id,
     messageId: messageId ?? this.messageId,
@@ -493,6 +517,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
         ? lastAttemptAt.value
         : this.lastAttemptAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    mentions: mentions.present ? mentions.value : this.mentions,
   );
   MessagesData copyWithCompanion(MessagesCompanion data) {
     return MessagesData(
@@ -521,6 +546,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
           ? data.lastAttemptAt.value
           : this.lastAttemptAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      mentions: data.mentions.present ? data.mentions.value : this.mentions,
     );
   }
 
@@ -545,7 +571,8 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
           ..write('receiptSent: $receiptSent, ')
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
-          ..write('deletedAt: $deletedAt')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('mentions: $mentions')
           ..write(')'))
         .toString();
   }
@@ -571,6 +598,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     attempts,
     lastAttemptAt,
     deletedAt,
+    mentions,
   );
   @override
   bool operator ==(Object other) =>
@@ -594,7 +622,8 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
           other.receiptSent == this.receiptSent &&
           other.attempts == this.attempts &&
           other.lastAttemptAt == this.lastAttemptAt &&
-          other.deletedAt == this.deletedAt);
+          other.deletedAt == this.deletedAt &&
+          other.mentions == this.mentions);
 }
 
 class MessagesCompanion extends UpdateCompanion<MessagesData> {
@@ -617,6 +646,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
   final Value<int> attempts;
   final Value<int?> lastAttemptAt;
   final Value<int?> deletedAt;
+  final Value<String?> mentions;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.messageId = const Value.absent(),
@@ -637,6 +667,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.mentions = const Value.absent(),
   });
   MessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -658,6 +689,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.mentions = const Value.absent(),
   }) : messageId = Value(messageId),
        conversationId = Value(conversationId),
        peerName = Value(peerName),
@@ -686,6 +718,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     Expression<int>? attempts,
     Expression<int>? lastAttemptAt,
     Expression<int>? deletedAt,
+    Expression<String>? mentions,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -707,6 +740,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
       if (attempts != null) 'attempts': attempts,
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (mentions != null) 'mentions': mentions,
     });
   }
 
@@ -730,6 +764,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     Value<int>? attempts,
     Value<int?>? lastAttemptAt,
     Value<int?>? deletedAt,
+    Value<String?>? mentions,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -751,6 +786,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
       attempts: attempts ?? this.attempts,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       deletedAt: deletedAt ?? this.deletedAt,
+      mentions: mentions ?? this.mentions,
     );
   }
 
@@ -814,6 +850,9 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     if (deletedAt.present) {
       map['deleted_at'] = Variable<int>(deletedAt.value);
     }
+    if (mentions.present) {
+      map['mentions'] = Variable<String>(mentions.value);
+    }
     return map;
   }
 
@@ -838,7 +877,8 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
           ..write('receiptSent: $receiptSent, ')
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
-          ..write('deletedAt: $deletedAt')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('mentions: $mentions')
           ..write(')'))
         .toString();
   }

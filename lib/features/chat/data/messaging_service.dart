@@ -304,6 +304,7 @@ final class MessagingService {
     List<PickedFile> files = const [],
     Map<String, String> names = const {},
     String? replyToId,
+    List<String> mentions = const [],
   }) => _serial(() async {
     final online = {
       for (final link in _links.current.links.values)
@@ -315,7 +316,14 @@ final class MessagingService {
     final trimmed = text?.trim() ?? '';
     final sent = <ChatMessage>[];
     if (trimmed.isNotEmpty) {
-      sent.add(await _broadcast(online, text: trimmed, replyToId: replyToId));
+      sent.add(
+        await _broadcast(
+          online,
+          text: trimmed,
+          replyToId: replyToId,
+          mentions: mentions,
+        ),
+      );
     }
     for (final picked in files) {
       sent.add(await _broadcast(online, file: picked));
@@ -332,6 +340,7 @@ final class MessagingService {
     String text = '',
     PickedFile? file,
     String? replyToId,
+    List<String> mentions = const [],
   }) async {
     final now = clock.now();
     final messageId = _uuid.v4();
@@ -373,6 +382,7 @@ final class MessagingService {
       fileName: fileName,
       audience: ChatAudience.everyone,
       replyToId: replyToId,
+      mentions: mentions,
     );
     final recipients = [
       for (final MapEntry(key: id, value: name) in online.entries)
@@ -570,6 +580,7 @@ final class MessagingService {
         audience: MessageAudience.broadcast,
         text: message.isFile ? null : message.text,
         replyToId: message.replyToId,
+        mentions: message.mentions,
         file: file,
       ),
     );
@@ -784,6 +795,7 @@ final class MessagingService {
       content: file == null ? MessageContent.text : MessageContent.file,
       fileId: file?.fileId,
       fileName: file == null ? null : FileNameSanitizer.sanitize(file.name),
+      mentions: everyone ? packet.mentions : const [],
     );
     final isNew = await _repository.insertIncoming(message);
     // Always confirm, so a resend after a lost ACK stops.

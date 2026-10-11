@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
 import 'package:resqmesh/core/constants/brand.dart';
+import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
@@ -15,6 +16,7 @@ import 'package:resqmesh/core/storage/key_value_store.dart';
 import 'package:resqmesh/core/utils/relative_time.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
+import 'package:resqmesh/features/chat/domain/mentions.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
 import 'package:resqmesh/features/chat/presentation/forward_sheet.dart';
 import 'package:resqmesh/features/chat/presentation/message_bubble.dart';
@@ -45,6 +47,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final ActiveChat _activeChat = ref.read(activeChatProvider.notifier);
   ChatMessage? _replyingTo;
 
+  /// Everyone thread: the @word being typed, and who was picked (name → ID).
+  String? _mentionQuery;
+  final Map<String, String> _mentioned = {};
+
   /// Android is copying picked files into the app (large picks take a
   /// moment).
   bool _gettingFiles = false;
@@ -60,6 +66,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (p.link == LinkState.connected) p.peer.deviceId: p.peer.name,
   };
 
+  void _onTyping() {
+    final query = mentionQuery(_text.text, _text.selection.baseOffset);
+    if (query != _mentionQuery) setState(() => _mentionQuery = query);
+  }
+
+  void _mention(String id, String name) {
+    final (text, cursor) = insertMention(
+      _text.text,
+      _text.selection.baseOffset,
+      name,
+    );
+    _mentioned[name] = id;
+    _text.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: cursor),
+    );
+  }
+
   void _nobodyOnline() => ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('Nobody is online to receive it')),
   );
@@ -67,6 +91,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    if (_everyone) _text.addListener(_onTyping);
     // Providers can't change while widgets build, so after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -123,7 +148,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             text: text,
             names: _onlineNames(),
             replyToId: replyTo?.id,
+            mentions: [
+              for (final MapEntry(key: name, value: id) in _mentioned.entries)
+                if (text.contains('@$name')) id,
+            ],
           );
+      _mentioned.clear();
       if (sent.isEmpty && mounted) _nobodyOnline();
       return;
     }
@@ -374,6 +404,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       messages: messages,
                       peerName: name,
                       recipients: recipients,
+                      mentionNames: _everyone
+                          ? {
+                              for (final p in nearby.peers) p.peer.name,
+                              ?ref.read(identityProvider).username,
+                            }
+                          : const {},
                       onLongPress: _showActions,
                       onReply: (m) => setState(() => _replyingTo = m),
                       onRetry: (m) =>
@@ -401,6 +437,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 onClose: () => setState(() => _replyingTo = null),
               ),
             if (_gettingFiles) const LinearProgressIndicator(),
+            if (_everyone && _mentionQuery != null)
+              _MentionSuggestions(
+                people: {
+                  for (final MapEntry(key: id, value: who)
+                      in _onlineNames().entries)
+                    if (who.toLowerCase().contains(
+                      _mentionQuery!.toLowerCase(),
+                    ))
+                      id: who,
+                },
+                onPick: _mention,
+              ),
             _Composer(
               controller: _text,
               // Everyone goes only to people online now.
@@ -441,6 +489,7 @@ class _MessageList extends StatefulWidget {
     required this.onRetry,
     required this.onShowDelivery,
     this.recipients = const {},
+    this.mentionNames = const {},
   });
 
   /// Oldest first.
@@ -455,6 +504,9 @@ class _MessageList extends StatefulWidget {
 
   /// Everyone thread: who each outgoing message went to.
   final Map<String, List<MessageRecipient>> recipients;
+
+  /// Everyone thread: names whose @mentions are highlighted.
+  final Set<String> mentionNames;
 
   static const _groupGap = Duration(minutes: 2);
 
@@ -551,6 +603,7 @@ class _MessageListState extends State<_MessageList> {
                 ? null
                 : () => unawaited(_showMessage(repliedTo.id)),
             highlighted: _highlighted == message.id,
+            mentionNames: widget.mentionNames,
             groupedWithPrevious: previous != null && grouped(previous, message),
             groupedWithNext: next != null && grouped(message, next),
             onLongPress: () => widget.onLongPress(message),
@@ -1182,4 +1235,35 @@ class _SwipeToReplyState extends State<_SwipeToReply>
             ],
           ),
         );
+}
+
+/// People online whose name matches the @word being typed (P15.5).
+class _MentionSuggestions extends StatelessWidget {
+  const _MentionSuggestions({required this.people, required this.onPick});
+
+  /// ID → name.
+  final Map<String, String> people;
+  final void Function(String id, String name) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    if (people.isEmpty) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Row(
+        children: [
+          for (final MapEntry(key: id, value: name) in people.entries)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: ActionChip(
+                avatar: UserAvatar(name: name, seed: id, size: 24),
+                label: Text('@$name'),
+                onPressed: () => onPick(id, name),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

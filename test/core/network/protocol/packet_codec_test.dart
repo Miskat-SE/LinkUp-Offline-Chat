@@ -512,4 +512,40 @@ void main() {
     final empty = MessageDeletePacket(header, messageIds: const []);
     expect(PacketCodec.decode(PacketCodec.encode(empty)), isA<Malformed>());
   });
+
+  test('MESSAGE mentions are optional IDs (P15.5)', () {
+    final header = PacketHeader.create(
+      senderId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      senderName: 'Yusuf',
+      receiverId: 'bbbbbbbb-0000-4000-8000-000000000002',
+    );
+    MessagePacket roundTrip(MessagePacket packet) =>
+        (PacketCodec.decode(PacketCodec.encode(packet)) as Decoded).packet
+            as MessagePacket;
+    const rahim = 'bbbbbbbb-0000-4000-8000-000000000002';
+    final withMention = MessagePacket(
+      header,
+      kind: MessageKind.text,
+      audience: MessageAudience.broadcast,
+      text: 'Hi @Rahim',
+      mentions: const [rahim],
+    );
+    expect(roundTrip(withMention).mentions, [rahim]);
+    final plain = MessagePacket(
+      header,
+      kind: MessageKind.text,
+      audience: MessageAudience.broadcast,
+      text: 'Hi all',
+    );
+    expect(utf8.decode(PacketCodec.encode(plain)), isNot(contains('mentions')));
+    expect(roundTrip(plain).mentions, isEmpty);
+    final bad = MessagePacket(
+      header,
+      kind: MessageKind.text,
+      audience: MessageAudience.broadcast,
+      text: 'Hi',
+      mentions: const ['not-an-id'],
+    );
+    expect(PacketCodec.decode(PacketCodec.encode(bad)), isA<Malformed>());
+  });
 }

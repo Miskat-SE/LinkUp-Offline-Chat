@@ -282,6 +282,7 @@ final class MessagePacket extends Packet {
     this.text,
     this.replyToId,
     this.file,
+    this.mentions = const [],
   });
 
   final MessageKind kind;
@@ -289,6 +290,9 @@ final class MessagePacket extends Packet {
   final String? text;
   final String? replyToId;
   final FileRef? file;
+
+  /// Device IDs @mentioned in an Everyone message (P15.5; optional).
+  final List<String> mentions;
 
   @override
   String get type => PacketType.message;

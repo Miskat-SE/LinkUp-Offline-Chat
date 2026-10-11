@@ -199,6 +199,7 @@ The envelope `messageId` is the chat message ID.
 | `audience` | `direct`, `broadcast` (sent to everyone online) or `multi` (sent to selected people). A `broadcast` message is sent as one MESSAGE per recipient, each with that recipient's `receiverId` and the **same** `messageId`; receipts come back from each recipient. Receivers show it in their Everyone thread. Messages to selected people are sent as ordinary `direct` messages, one per person. |
 | `text` | Required for `text`, ≤ 16 KiB UTF-8; optional caption for `file` |
 | `replyToId` | UUID or null |
+| `mentions` | *Optional, build 20+.* `broadcast` only: up to 50 device UUIDs @mentioned in the text. The mentioned person's notification says they were mentioned. Absent when nobody is mentioned; older builds ignore it. |
 | `file` | Required for `file`. `fileId` UUID; `name` ≤ 255 UTF-8 bytes (sanitised before use); `size` ≥ 0; `mimeType` ≤ 127 characters; `sha256` 64 lowercase hex characters |
 
 #### MESSAGE_ACK — TCP control

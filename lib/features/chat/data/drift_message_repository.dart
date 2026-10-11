@@ -457,6 +457,7 @@ final class DriftMessageRepository implements MessageRepository {
             : ChatAudience.direct,
         senderId: row.senderId,
         deletedAt: row.deletedAt,
+        mentions: row.mentions?.split(',') ?? const [],
       );
 
   static MessagesCompanion _toRow(ChatMessage message) =>
@@ -476,5 +477,8 @@ final class DriftMessageRepository implements MessageRepository {
         fileId: Value(message.fileId),
         audience: Value(message.isBroadcast ? _everyone : 'direct'),
         senderId: Value(message.senderId),
+        mentions: Value(
+          message.mentions.isEmpty ? null : message.mentions.join(','),
+        ),
       );
 }
