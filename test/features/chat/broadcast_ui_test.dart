@@ -275,4 +275,50 @@ void main() {
     );
     await s.finish(tester);
   });
+
+  testWidgets('long-press → Forward → pick a person', (tester) async {
+    final s = await Scenario.start(tester);
+    s.links.receive(
+      otherPhoneId,
+      MessagePacket(
+        s.fromRahim,
+        kind: MessageKind.text,
+        audience: MessageAudience.broadcast,
+        text: 'Bus leaves at 5',
+      ),
+    );
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.text('Rahim: Bus leaves at 5'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    await tester.longPress(find.text('Bus leaves at 5'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.text('Forward'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Forward to'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(CheckboxListTile),
+        matching: find.text('1 online now'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(CheckboxListTile),
+        matching: find.text('Rahim'),
+      ),
+    );
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(FilledButton, 'Forward'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    final sent = s.links.sent
+        .map((e) => e.$2)
+        .whereType<MessagePacket>()
+        .single;
+    expect(sent.text, 'Bus leaves at 5');
+    expect(sent.audience, MessageAudience.direct);
+    expect(find.text('Forwarded to Rahim'), findsOneWidget);
+    await s.finish(tester);
+  });
 }

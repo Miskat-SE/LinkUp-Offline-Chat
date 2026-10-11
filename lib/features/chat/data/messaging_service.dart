@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
@@ -175,6 +176,54 @@ final class MessagingService {
   /// Sends the same text and files to each of [people] as their own direct
   /// message (multi-select, P7.3); those offline get them when they're
   /// back. Each file is copied and hashed once.
+  /// Sends [message] again (P15.3) to [people], to everyone online, or
+  /// both. A file goes from this phone's copy; returns false if the file
+  /// isn't on this phone (still arriving, or deleted).
+  Future<bool> forward(
+    ChatMessage message, {
+    Map<String, String> people = const {},
+    bool everyone = false,
+    Map<String, String> names = const {},
+  }) async {
+    final transfers = _transfers;
+    final copies = <PickedFile>[];
+    Future<List<PickedFile>> files() async {
+      if (!message.isFile) return const [];
+      final copy = await transfers?.copyForSending(message.fileId!);
+      if (copy == null) return const [];
+      copies.add(copy);
+      return [copy];
+    }
+
+    final text = message.isFile ? null : message.text;
+    try {
+      if (people.isNotEmpty) {
+        final picked = await files();
+        if (message.isFile && picked.isEmpty) return false;
+        await sendToPeople(people: people, text: text, files: picked);
+      }
+      if (everyone) {
+        final picked = await files();
+        if (message.isFile && picked.isEmpty) return false;
+        await sendToEveryone(text: text, files: picked, names: names);
+      }
+      _logger.info(LogTag.message, 'Forwarded', {
+        'people': people.length,
+        'everyone': everyone,
+      });
+      return true;
+    } finally {
+      // Sending moved the copies into sent/; drop their folders.
+      for (final copy in copies) {
+        try {
+          await File(copy.path).parent.delete(recursive: true);
+        } on FileSystemException {
+          // Already gone.
+        }
+      }
+    }
+  }
+
   Future<void> sendToPeople({
     required Map<String, String> people,
     String? text,

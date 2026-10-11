@@ -151,4 +151,59 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 1)),
   );
+
+  test('a received file is forwarded from the copy on the phone', () async {
+    final mesh = LinkedMesh([yusufId, rahimId, karimId]);
+    final yusuf = await Phone.start(mesh, yusufId, 'Yusuf');
+    final rahim = await Phone.start(mesh, rahimId, 'Rahim');
+    final karim = await Phone.start(mesh, karimId, 'Karim');
+    mesh.connectAll();
+
+    final source = File(p.join(yusuf.store.root.path, 'cache', 'map.pdf'));
+    await source.parent.create(recursive: true);
+    final random = Random(4);
+    await source.writeAsBytes(
+      Uint8List.fromList(List.generate(1 << 20, (_) => random.nextInt(256))),
+    );
+    final sha = sha256.convert(await source.readAsBytes()).toString();
+    await yusuf.messages.sendFiles(
+      peerId: rahimId,
+      peerName: 'Rahim',
+      files: [PickedFile(path: source.path, name: 'map.pdf')],
+    );
+
+    Future<ChatMessage?> fileAt(Phone phone, String chat) async {
+      final thread = await phone.repository.watchConversation(chat).first;
+      final file = thread.where((m) => m.isFile).firstOrNull;
+      if (file == null) return null;
+      final transfer = await phone.transfers.find(file.fileId!);
+      return transfer?.status == TransferStatus.completed ? file : null;
+    }
+
+    await eventually(() async => await fileAt(rahim, yusufId) != null);
+    final received = (await fileAt(rahim, yusufId))!;
+
+    // Rahim forwards it to Karim, and the text of a message to everyone.
+    expect(
+      await rahim.messages.forward(received, people: {karimId: 'Karim'}),
+      isTrue,
+    );
+    await eventually(() async => await fileAt(karim, rahimId) != null);
+    final forwarded = (await fileAt(karim, rahimId))!;
+    final transfer = (await karim.transfers.find(forwarded.fileId!))!;
+    expect(
+      sha256
+          .convert(await karim.store.file(transfer.localPath!).readAsBytes())
+          .toString(),
+      sha,
+    );
+    expect(transfer.name, 'map.pdf');
+    // Rahim's own copy is untouched and no temporary copy is left.
+    expect(await rahim.transfers.find(received.fileId!), isNotNull);
+    final leftovers = Directory(p.join(rahim.store.root.path, 'forward'));
+    expect(
+      leftovers.existsSync() ? leftovers.listSync() : const <Object>[],
+      isEmpty,
+    );
+  }, timeout: const Timeout(Duration(minutes: 1)));
 }

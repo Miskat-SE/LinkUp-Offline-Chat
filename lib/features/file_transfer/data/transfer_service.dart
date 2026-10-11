@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 import 'package:resqmesh/core/logging/app_logger.dart';
 import 'package:resqmesh/core/network/connection/peer_links.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
@@ -160,6 +161,35 @@ final class TransferService {
 
   /// Moves a picked file into `sent/` under a new [fileId], records it as
   /// Preparing and starts hashing it. [ready] fires when it can be offered.
+  /// A copy of a file on this phone, ready to be sent again (forwarding,
+  /// P15.3); sending moves it into `sent/`. Null if the file isn't here:
+  /// still arriving, or deleted.
+  Future<PickedFile?> copyForSending(String fileId) async {
+    final transfer = await _repository.find(fileId);
+    final path = transfer?.localPath;
+    if (transfer == null || path == null) return null;
+    if (!transfer.isOutgoing && transfer.status != TransferStatus.completed) {
+      return null;
+    }
+    final source = _store.file(path);
+    if (!source.existsSync()) return null;
+    final copy = _store.file(
+      p.join(
+        FileStore.forwardDir,
+        '${clock.now().microsecondsSinceEpoch}',
+        transfer.name,
+      ),
+    );
+    await copy.parent.create(recursive: true);
+    await source.copy(copy.path);
+    return PickedFile(
+      path: copy.path,
+      name: transfer.name,
+      size: transfer.size,
+      mimeType: transfer.mimeType,
+    );
+  }
+
   Future<FileTransfer> prepareOutgoing(
     PickedFile picked, {
     required String fileId,

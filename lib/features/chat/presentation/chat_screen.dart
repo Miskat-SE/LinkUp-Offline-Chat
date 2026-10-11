@@ -16,6 +16,7 @@ import 'package:resqmesh/core/utils/relative_time.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
+import 'package:resqmesh/features/chat/presentation/forward_sheet.dart';
 import 'package:resqmesh/features/chat/presentation/message_bubble.dart';
 import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
 import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
@@ -181,6 +182,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .sendFiles(peerId: _peerId, peerName: peerName, files: files);
   }
 
+  Future<void> _forward(ChatMessage message) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final target = await showForwardSheet(context);
+    if (target == null || !mounted) return;
+    final sent = await ref
+        .read(messagingServiceProvider)
+        .forward(
+          message,
+          people: target.people,
+          everyone: target.everyone,
+          names: _onlineNames(),
+        );
+    final names = [
+      if (target.everyone) 'everyone online',
+      ...target.people.values,
+    ];
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          sent
+              ? 'Forwarded to ${names.length == 1 ? names.single : '${names.first} and ${names.length - 1} more'}'
+              : "This file isn't on this phone, so it can't be forwarded",
+        ),
+      ),
+    );
+  }
+
   Future<void> _showActions(ChatMessage message) async {
     final action = await showModalBottomSheet<_Action>(
       context: context,
@@ -198,6 +226,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     switch (action) {
       case _Action.reply:
         setState(() => _replyingTo = message);
+      case _Action.forward:
+        await _forward(message);
       case _Action.copy:
         await Clipboard.setData(ClipboardData(text: message.text));
         if (!mounted) return;
@@ -785,7 +815,7 @@ class _ComposerState extends State<_Composer> {
   }
 }
 
-enum _Action { reply, copy, retry, delete }
+enum _Action { reply, forward, copy, retry, delete }
 
 class _MessageActions extends StatelessWidget {
   const _MessageActions({
@@ -811,6 +841,11 @@ class _MessageActions extends StatelessWidget {
               title: const Text('Reply'),
               onTap: () => Navigator.pop(context, _Action.reply),
             ),
+          ListTile(
+            leading: const Icon(Icons.shortcut_rounded),
+            title: const Text('Forward'),
+            onTap: () => Navigator.pop(context, _Action.forward),
+          ),
           if (!message.isFile)
             ListTile(
               leading: const Icon(Icons.copy_rounded),

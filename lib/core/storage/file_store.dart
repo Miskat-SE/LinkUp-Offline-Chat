@@ -22,6 +22,9 @@ final class FileStore {
   static const sentDir = 'sent';
   static const thumbsDir = 'thumbs';
 
+  /// Short-lived copies of files being forwarded (P15.3).
+  static const forwardDir = 'forward';
+
   static String receivedPath(String fileId) => p.join(receivedDir, fileId);
   static String partialPath(String fileId) =>
       p.join(partialDir, '$fileId.part');
