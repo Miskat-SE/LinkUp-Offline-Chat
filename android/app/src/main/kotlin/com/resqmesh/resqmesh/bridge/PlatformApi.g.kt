@@ -214,7 +214,7 @@ data class LanInterfaceInfo (
   val prefixLength: Long,
   /**
    * `wifi` (joined a Wi-Fi network), `hotspot` (this phone is the access
-   * point) or `other` (e.g. Ethernet).
+   * point), `wifiDirect` (a Wi-Fi Direct group) or `other` (e.g. Ethernet).
    */
   val kind: String
 )
@@ -466,6 +466,135 @@ data class BackgroundState (
     return "BackgroundState(transferring=$transferring, stayReachable=$stayReachable, title=$title, text=$text, progress=$progress, route=$route)"
   }
 }
+
+/**
+ * A LinkUp phone found through Wi-Fi Direct service discovery (ADR-0023).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class WifiDirectService (
+  /** The phone's Wi-Fi Direct MAC address. */
+  val deviceAddress: String,
+  /** LinkUp device ID. */
+  val deviceId: String,
+  val name: String,
+  /** It owns a group others can join. */
+  val hosting: Boolean,
+  /** The group's credentials, when [hosting]. */
+  val networkName: String? = null,
+  val passphrase: String? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): WifiDirectService {
+      val deviceAddress = pigeonVar_list[0] as String
+      val deviceId = pigeonVar_list[1] as String
+      val name = pigeonVar_list[2] as String
+      val hosting = pigeonVar_list[3] as Boolean
+      val networkName = pigeonVar_list[4] as String?
+      val passphrase = pigeonVar_list[5] as String?
+      return WifiDirectService(deviceAddress, deviceId, name, hosting, networkName, passphrase)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      deviceAddress,
+      deviceId,
+      name,
+      hosting,
+      networkName,
+      passphrase,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as WifiDirectService
+    return PlatformApiPigeonUtils.deepEquals(this.deviceAddress, other.deviceAddress) && PlatformApiPigeonUtils.deepEquals(this.deviceId, other.deviceId) && PlatformApiPigeonUtils.deepEquals(this.name, other.name) && PlatformApiPigeonUtils.deepEquals(this.hosting, other.hosting) && PlatformApiPigeonUtils.deepEquals(this.networkName, other.networkName) && PlatformApiPigeonUtils.deepEquals(this.passphrase, other.passphrase)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.deviceAddress)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.deviceId)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.name)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.hosting)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.networkName)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.passphrase)
+    return result
+  }
+  override fun toString(): String {
+    return "WifiDirectService(deviceAddress=$deviceAddress, deviceId=$deviceId, name=$name, hosting=$hosting, networkName=$networkName, passphrase=$passphrase)"
+  }
+}
+
+/**
+ * This phone's Wi-Fi Direct state.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class WifiDirectGroup (
+  /** Wi-Fi (and so Wi-Fi Direct) is on. */
+  val enabled: Boolean,
+  /** This phone is in a group. */
+  val formed: Boolean,
+  val isOwner: Boolean,
+  /** Phones joined, when [isOwner]. */
+  val clients: Long,
+  val networkName: String? = null,
+  val passphrase: String? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): WifiDirectGroup {
+      val enabled = pigeonVar_list[0] as Boolean
+      val formed = pigeonVar_list[1] as Boolean
+      val isOwner = pigeonVar_list[2] as Boolean
+      val clients = pigeonVar_list[3] as Long
+      val networkName = pigeonVar_list[4] as String?
+      val passphrase = pigeonVar_list[5] as String?
+      return WifiDirectGroup(enabled, formed, isOwner, clients, networkName, passphrase)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      enabled,
+      formed,
+      isOwner,
+      clients,
+      networkName,
+      passphrase,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as WifiDirectGroup
+    return PlatformApiPigeonUtils.deepEquals(this.enabled, other.enabled) && PlatformApiPigeonUtils.deepEquals(this.formed, other.formed) && PlatformApiPigeonUtils.deepEquals(this.isOwner, other.isOwner) && PlatformApiPigeonUtils.deepEquals(this.clients, other.clients) && PlatformApiPigeonUtils.deepEquals(this.networkName, other.networkName) && PlatformApiPigeonUtils.deepEquals(this.passphrase, other.passphrase)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.enabled)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.formed)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.isOwner)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.clients)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.networkName)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.passphrase)
+    return result
+  }
+  override fun toString(): String {
+    return "WifiDirectGroup(enabled=$enabled, formed=$formed, isOwner=$isOwner, clients=$clients, networkName=$networkName, passphrase=$passphrase)"
+  }
+}
 private open class PlatformApiPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -494,6 +623,16 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
           BackgroundState.fromList(it)
         }
       }
+      134.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          WifiDirectService.fromList(it)
+        }
+      }
+      135.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          WifiDirectGroup.fromList(it)
+        }
+      }
       else -> super.readValueOfType(type, buffer)
     }
   }
@@ -519,6 +658,14 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
         stream.write(133)
         writeValue(stream, value.toList())
       }
+      is WifiDirectService -> {
+        stream.write(134)
+        writeValue(stream, value.toList())
+      }
+      is WifiDirectGroup -> {
+        stream.write(135)
+        writeValue(stream, value.toList())
+      }
       else -> super.writeValue(stream, value)
     }
   }
@@ -538,6 +685,11 @@ interface LanHostApi {
   fun acquireMulticastLock()
   fun releaseMulticastLock()
   fun appInfo(): AppInfo
+  /**
+   * Whether to bind the process to the joined Wi-Fi (default on). Off in
+   * Wi-Fi Direct mode, where traffic goes to the P2P group (ADR-0023).
+   */
+  fun setBindToWifi(bind: Boolean)
 
   companion object {
     /** The codec used by LanHostApi. */
@@ -633,6 +785,24 @@ interface LanHostApi {
           channel.setMessageHandler { _, reply ->
             val wrapped: List<Any?> = try {
               listOf(api.appInfo())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.LanHostApi.setBindToWifi$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val bindArg = args[0] as Boolean
+            val wrapped: List<Any?> = try {
+              api.setBindToWifi(bindArg)
+              listOf(null)
             } catch (exception: Throwable) {
               PlatformApiPigeonUtils.wrapError(exception)
             }
@@ -1002,6 +1172,265 @@ interface BackgroundHostApi {
         } else {
           channel.setMessageHandler(null)
         }
+      }
+    }
+  }
+}
+/** Generated interface from Pigeon that represents a handler of messages from Flutter. */
+interface WifiDirectHostApi {
+  /** The phone has Wi-Fi Direct. */
+  fun isSupported(): Boolean
+  /** `granted`, `denied` or `locationOff` (Android 8–12 need Location on). */
+  fun permissionState(): String
+  suspend fun requestPermission(): Boolean
+  fun openLocationSettings()
+  /**
+   * Advertises this phone and looks for others; group changes and found
+   * phones arrive through [WifiDirectFlutterApi].
+   */
+  fun start(deviceId: String, name: String)
+  /** Stops looking and leaves any group. */
+  fun stop()
+  /** Updates this phone's service record (hosting and its credentials). */
+  fun advertise(hosting: Boolean, networkName: String?, passphrase: String?)
+  suspend fun createGroup(networkName: String, passphrase: String)
+  suspend fun joinGroup(deviceAddress: String, networkName: String?, passphrase: String?)
+  suspend fun leaveGroup()
+
+  companion object {
+    /** The codec used by WifiDirectHostApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+    /** Sets up an instance of `WifiDirectHostApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: WifiDirectHostApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.isSupported$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.isSupported())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.permissionState$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.permissionState())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.requestPermission$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.requestPermission())
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.openLocationSettings$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.openLocationSettings()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.start$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val deviceIdArg = args[0] as String
+            val nameArg = args[1] as String
+            val wrapped: List<Any?> = try {
+              api.start(deviceIdArg, nameArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.stop$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.stop()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.advertise$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val hostingArg = args[0] as Boolean
+            val networkNameArg = args[1] as String?
+            val passphraseArg = args[2] as String?
+            val wrapped: List<Any?> = try {
+              api.advertise(hostingArg, networkNameArg, passphraseArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.createGroup$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val networkNameArg = args[0] as String
+            val passphraseArg = args[1] as String
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.createGroup(networkNameArg, passphraseArg)
+                listOf(null)
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.joinGroup$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val deviceAddressArg = args[0] as String
+            val networkNameArg = args[1] as String?
+            val passphraseArg = args[2] as String?
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.joinGroup(deviceAddressArg, networkNameArg, passphraseArg)
+                listOf(null)
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.WifiDirectHostApi.leaveGroup$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.leaveGroup()
+                listOf(null)
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}
+/** Generated class from Pigeon that represents Flutter messages that can be called from Kotlin. */
+class WifiDirectFlutterApi(private val binaryMessenger: BinaryMessenger, private val messageChannelSuffix: String = "") {
+  companion object {
+    /** The codec used by WifiDirectFlutterApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+  }
+  suspend fun onServiceFound(serviceArg: WifiDirectService)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.WifiDirectFlutterApi.onServiceFound$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(serviceArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+  suspend fun onGroupChanged(groupArg: WifiDirectGroup)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.WifiDirectFlutterApi.onGroupChanged$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(groupArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
       }
     }
   }

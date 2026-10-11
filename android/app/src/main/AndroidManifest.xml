@@ -5,6 +5,17 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Wi-Fi Direct (ADR-0023), asked only when it is chosen. Android 13+
+         uses NEARBY_WIFI_DEVICES, which never gives the location; older
+         versions need fine location for Wi-Fi Direct discovery. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="32" />
+    <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
     <!-- Android 13+: asked for after an explanation, when a chat is first opened. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 8–9 only: Save to Downloads. Android 10+ uses MediaStore

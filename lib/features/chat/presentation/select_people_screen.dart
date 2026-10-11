@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
+import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
@@ -98,7 +99,7 @@ class _SelectPeopleScreenState extends ConsumerState<SelectPeopleScreen> {
                       icon: Icons.group_add_rounded,
                       title: 'Nobody nearby yet',
                       message:
-                          'People on the same Wi-Fi or hotspot appear here.',
+                          'People nearby who open ${Brand.name} appear here.',
                     )
                   : ListView(
                       children: [

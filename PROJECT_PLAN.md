@@ -987,9 +987,9 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 - [x] **U.5** Reduce-motion support fixed (zero-duration page and size animations crashed)
 
 #### P13 · Wi-Fi Direct (after v1.0, about 2–3 weeks)
-- [ ] **P13.1** Spike on 2 phones: discover, invite, form a group, open TCP between group owner and client
-- [ ] **P13.2** Permissions flow (`NEARBY_WIFI_DEVICES` / location ≤ 32) shown only when Wi-Fi Direct is chosen
-- [ ] **P13.3** Run the existing control and data connections over the P2P group; group-owner negotiation; reconnect
+- [ ] **P13.1** Spike on 2 phones: discover, invite, form a group, open TCP between group owner and client *(built into the app instead of a throwaway spike: Settings → Developer options → Wi-Fi Direct shows each step; to run on the testbed phones, TESTING.md §2b)*
+- [x] **P13.2** Permissions flow (`NEARBY_WIFI_DEVICES` / location ≤ 32) shown only when Wi-Fi Direct is chosen *(asked once on choosing it; then an Allow / Turn on Location button on the status card)*
+- [x] **P13.3** Run the existing control and data connections over the P2P group; group-owner negotiation; reconnect *(ADR-0023: groups form by themselves through service discovery, lowest ID hosts, joins without dialogs on Android 10+; the group is reported as a `wifiDirect` interface and the LAN stack runs unchanged; not bound to Wi-Fi in this mode)*
 - [ ] **P13.4** Device tests (§13.2 rows R1–R5, R12, R15 over Wi-Fi Direct)
 
 #### P14 · Bluetooth (after P13, about 3–4 weeks)
@@ -997,6 +997,16 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 - [ ] **P14.2** Permissions flow (`BLUETOOTH_*`) shown only when Bluetooth is chosen
 - [ ] **P14.3** Bluetooth discovery and stream behind the same packet layer; framing unchanged
 - [ ] **P14.4** File limits and warnings for slow links; device tests
+
+#### P15 · Chat features from user testing (requested 11 Oct 2026, about 2 weeks)
+Reply (long-press) and per-person delivery already exist; these build on them. Suggested order: quick wins first, voice last.
+- [ ] **P15.1** *Seen by* count on Everyone messages (1, 2, 3 … 1k), tap for who; uses the existing per-person read status
+- [ ] **P15.2** WhatsApp-style reply: swipe a message to reply, quoted message in the bubble (tap jumps to it); replies in the Everyone thread too
+- [ ] **P15.3** Forward any message or file to people or Everyone; files go from the local copy
+- [ ] **P15.4** Delete for everyone (sender only): new `MESSAGE_DELETE` packet, ignored by older builds; *This message was deleted* on every phone, files removed
+- [ ] **P15.5** @mentions in Everyone: suggestions of people online, highlighted, and the mentioned person is notified (optional `mentions` field in MESSAGE)
+- [ ] **P15.6** Camera: take a photo inside the chat and send it (Android camera app; no camera permission needed)
+- [ ] **P15.7** Voice messages: hold to record (`RECORD_AUDIO`, asked on first use), send as an audio file with its length, play inside the bubble
 
 **Schedule note:** P13 and P14 add about 5–7 weeks and don't fit inside the 20-week window. They are planned after v1.0 (Week 21 onward) unless the supervisor agrees to swap them for other work (§16 Q3).
 
@@ -1225,3 +1235,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 2.2 | 10 Oct 2026 | P10 done: coverage core 82.7% and data 91.1%; on-device integration test (onboarding, text both ways, 5 MB file verified against a peer inside the test); redial backoff test; `TESTING.md` with run commands and the full device-matrix template. |
 | 2.3 | 10 Oct 2026 | P11 done (code): accessibility audit as tests (touch targets, labels, contrast in light and dark, 200% text) with one overflow fixed; navigation rail from 600 dp and chat list beside the chat from 840 dp; About screen (version, how it works, privacy, licences; 7 taps on the version unlock developer options); transitions instant with Remove animations; profile-mode frame times during a 200 MB send and cold start recorded. Exit check (UI checklist on 2 phones, light and dark) is with the user. |
 | 2.4 | 10 Oct 2026 | P12 done except the phone matrix: release signing with an upload key outside the repository; obfuscated builds with symbols; Play bundle (`--bundle`); `v1.0.0-rc1`. The release check found and fixed a dropped-message bug (a packet in the same burst as the HELLO), and a leftover *File sharing is coming* placeholder in People (now *Send file*). Play Store readiness added at the user's request (P12.6); upload not planned yet. |
+| 2.5 | 11 Oct 2026 | P13 code done (ADR-0023): Wi-Fi Direct is selectable; phones form a group by themselves (service discovery, lowest ID hosts, joins without dialogs on Android 10+) and the existing LAN stack runs over it; permission flow and status card states; developer view. Phone tests (P13.1, P13.4) are with the user. User testing passed P6–P8 on phones; their feature requests added as P15. |

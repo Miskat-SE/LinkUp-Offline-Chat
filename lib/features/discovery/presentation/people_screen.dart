@@ -103,7 +103,7 @@ class PeopleScreen extends ConsumerWidget {
           if (nearby.peers.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: _NobodyYet(status: nearby.status),
+              child: _NobodyYet(status: nearby.status, method: method),
             )
           else
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
@@ -114,12 +114,22 @@ class PeopleScreen extends ConsumerWidget {
 }
 
 class _NobodyYet extends StatelessWidget {
-  const _NobodyYet({required this.status});
+  const _NobodyYet({required this.status, required this.method});
 
   final NearbyStatus status;
+  final ConnectionMethod method;
 
   @override
   Widget build(BuildContext context) => switch (status) {
+    // Wi-Fi Direct has no network until a group forms.
+    _ when method == ConnectionMethod.wifiDirect => const EmptyState(
+      compact: true,
+      icon: Icons.radar_rounded,
+      title: 'Looking for people nearby…',
+      message:
+          'People nearby who open ${Brand.name} with Wi-Fi Direct will appear '
+          'here.',
+    ),
     NearbyStatus.noNetwork => const EmptyState(
       compact: true,
       icon: Icons.wifi_off_rounded,

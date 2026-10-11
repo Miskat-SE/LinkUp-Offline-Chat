@@ -8,6 +8,8 @@ import com.resqmesh.resqmesh.bridge.FileHostApi
 import com.resqmesh.resqmesh.bridge.LanBridge
 import com.resqmesh.resqmesh.bridge.LanHostApi
 import com.resqmesh.resqmesh.bridge.NotificationBridge
+import com.resqmesh.resqmesh.bridge.WifiDirectBridge
+import com.resqmesh.resqmesh.bridge.WifiDirectHostApi
 import com.resqmesh.resqmesh.bridge.NotificationHostApi
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
@@ -33,6 +35,7 @@ class ResQMeshApp : Application() {
         NotificationHostApi.setUp(messenger, notifications)
         FileHostApi.setUp(messenger, FileBridge(this))
         BackgroundHostApi.setUp(messenger, BackgroundBridge(this))
+        WifiDirectHostApi.setUp(messenger, WifiDirectBridge(this, messenger))
         engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         FlutterEngineCache.getInstance().put(ENGINE_ID, engine)
     }

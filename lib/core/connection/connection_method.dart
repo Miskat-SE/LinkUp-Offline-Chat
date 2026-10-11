@@ -7,8 +7,9 @@ enum ConnectionMethod {
   /// [wifiRouter].
   hotspot(available: true),
 
-  /// Phone to phone over Android Wi-Fi Direct (P13).
-  wifiDirect(available: false),
+  /// Phone to phone over Android Wi-Fi Direct: the phones form a group by
+  /// themselves, and the LAN code runs over it (P13, ADR-0023).
+  wifiDirect(available: true),
 
   /// Bluetooth, for when Wi-Fi is off entirely (P14).
   bluetooth(available: false);

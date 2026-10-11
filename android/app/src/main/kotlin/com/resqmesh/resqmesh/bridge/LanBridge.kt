@@ -48,6 +48,9 @@ class LanBridge(
     private var multicastLock: WifiManager.MulticastLock? = null
     private var lastPublished: LanSnapshot? = null
 
+    /** Off in Wi-Fi Direct mode, where traffic goes to the P2P group. */
+    private var bindToWifi = true
+
     private val poll = object : Runnable {
         override fun run() {
             publish()
@@ -66,7 +69,7 @@ class LanBridge(
             override fun onAvailable(network: Network) {
                 main.post {
                     wifiNetwork = network
-                    connectivity.bindProcessToNetwork(network)
+                    if (bindToWifi) connectivity.bindProcessToNetwork(network)
                     publish()
                 }
             }
@@ -112,6 +115,17 @@ class LanBridge(
 
     override fun releaseMulticastLock() {
         multicastLock?.takeIf { it.isHeld }?.release()
+    }
+
+    override fun setBindToWifi(bind: Boolean) {
+        main.post {
+            if (bind == bindToWifi) return@post
+            bindToWifi = bind
+            // Bound sockets would send 192.168.49.x out through the router's
+            // Wi-Fi; unbound, Android's local-network routes reach the group.
+            connectivity.bindProcessToNetwork(if (bind) wifiNetwork else null)
+            publish()
+        }
     }
 
     override fun appInfo(): AppInfo {
@@ -169,7 +183,11 @@ class LanBridge(
             for (ni in all) {
                 if (!ni.isUp || ni.isLoopback || ni.isVirtual || ni.name == wifiInterface) continue
                 if (EXCLUDED_PREFIXES.any { ni.name.startsWith(it) }) continue
-                val kind = if (HOTSPOT_PREFIXES.any { ni.name.startsWith(it) }) "hotspot" else "other"
+                val kind = when {
+                    ni.name.startsWith(P2P_PREFIX) -> "wifiDirect"
+                    HOTSPOT_PREFIXES.any { ni.name.startsWith(it) } -> "hotspot"
+                    else -> "other"
+                }
                 for (ia in ni.interfaceAddresses) {
                     val address = ia.address as? Inet4Address ?: continue
                     if (!address.isSiteLocalAddress) continue
@@ -200,9 +218,12 @@ class LanBridge(
         // Access-point interface names used by Android and phone makers.
         val HOTSPOT_PREFIXES = listOf("ap", "swlan", "softap", "wlan", "wigig")
 
-        // Mobile data, VPN, tunnels and Wi-Fi Direct (handled in P13).
+        // Wi-Fi Direct group interfaces, e.g. p2p-wlan0-0 (ADR-0023).
+        const val P2P_PREFIX = "p2p"
+
+        // Mobile data, VPN and tunnels.
         val EXCLUDED_PREFIXES = listOf(
-            "rmnet", "ccmni", "pdp", "v4-", "clat", "tun", "ppp", "dummy", "ip6", "sit", "p2p",
+            "rmnet", "ccmni", "pdp", "v4-", "clat", "tun", "ppp", "dummy", "ip6", "sit",
         )
     }
 }

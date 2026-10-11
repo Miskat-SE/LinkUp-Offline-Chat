@@ -52,7 +52,11 @@ final class ConnectionMethodInfo {
       title: 'Wi-Fi Direct',
       summary: 'Phone to phone over Wi-Fi, without a router or a hotspot.',
       traits: ['Fast', 'No router', 'About 50 m'],
-      steps: ['Turn on Wi-Fi.', 'Accept the connection request when asked.'],
+      steps: [
+        'Turn on Wi-Fi on each phone. No network is needed.',
+        'Open LinkUp. Nearby phones connect by themselves.',
+        'On Android 9 or older, accept the connection request if asked.',
+      ],
     ),
     ConnectionMethod.bluetooth => const ConnectionMethodInfo(
       icon: Icons.bluetooth_rounded,

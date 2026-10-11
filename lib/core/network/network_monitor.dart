@@ -17,6 +17,10 @@ abstract interface class NetworkMonitor {
 
   /// Hold or release the Wi-Fi multicast lock while discovery runs.
   Future<void> setMulticastLock({required bool held});
+
+  /// Bind the app to the joined Wi-Fi (on), or not, in Wi-Fi Direct mode
+  /// (ADR-0023).
+  Future<void> setBindToWifi({required bool bind});
 }
 
 /// [NetworkMonitor] backed by the Kotlin bridge (`LanBridge.kt`).
@@ -56,6 +60,9 @@ final class PlatformNetworkMonitor implements NetworkMonitor, LanFlutterApi {
       held ? _host.acquireMulticastLock() : _host.releaseMulticastLock();
 
   @override
+  Future<void> setBindToWifi({required bool bind}) => _host.setBindToWifi(bind);
+
+  @override
   void onLanChanged(LanSnapshot snapshot) => _update(snapshot);
 
   void _update(LanSnapshot raw) {
@@ -72,6 +79,7 @@ final class PlatformNetworkMonitor implements NetworkMonitor, LanFlutterApi {
               kind: switch (i.kind) {
                 'wifi' => LanInterfaceKind.wifi,
                 'hotspot' => LanInterfaceKind.hotspot,
+                'wifiDirect' => LanInterfaceKind.wifiDirect,
                 _ => LanInterfaceKind.other,
               },
             ),

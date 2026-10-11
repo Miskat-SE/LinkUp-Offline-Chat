@@ -181,6 +181,16 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 **Fuzzing** (P9.2). Random, truncated, bit-flipped and wrongly typed input goes into the packet codec, the datagram codec and the frame decoder, and random bytes go into live control and file connections. The app never crashes, refuses the input, and keeps working (`test/security/`, connection and engine tests).
 
+## Wi-Fi Direct (P13)
+
+ADR-0023. `WifiDirectController` (`lib/core/connection/`) runs only while Wi-Fi Direct is the chosen method; `wifiDirectControllerProvider` starts and stops it, and turns off the Wi-Fi binding (`NetworkMonitor.setBindToWifi`).
+
+- **Finding phones:** `WifiDirectBridge.kt` advertises a `_linkup._tcp` Wi-Fi Direct service (device ID, name, whether it hosts, and the host's network name and passphrase) and repeats service discovery every 15 s while it has no group, or hosts one nobody joined.
+- **Deciding**, every 3 s, with everything seen in the last minute: join a visible host (lowest ID); otherwise host if this phone has the lowest ID; a lonely host gives way to a lower one, and stops after 5 minutes alone. A group that hasn't formed within 30 s is retried, skipping that host for a minute.
+- **Joining:** Android 10+ joins with the advertised credentials (`WifiP2pConfig.Builder`), with no dialog. Android 8–9 send a classic invitation, which the host accepts.
+- **After that, nothing is special:** `LanBridge` reports the `p2p-…` interface as `wifiDirect`, and discovery, connections and files use it like any LAN.
+- **States for the card:** unsupported, Wi-Fi off, permission needed, Location off (Android 8–12), searching, connecting, hosting, joined.
+
 ## Background (P8)
 
 ```

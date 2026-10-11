@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/background_coordinator.dart';
+import 'package:resqmesh/core/connection/wifi_direct_providers.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
 
@@ -56,7 +57,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref
       ..watch(messagingServiceProvider)
       ..watch(messageAlertsProvider)
-      ..watch(backgroundCoordinatorProvider);
+      ..watch(backgroundCoordinatorProvider)
+      // Forms Wi-Fi Direct groups while that is the chosen method.
+      ..watch(wifiDirectControllerProvider);
     final shell = widget.shell;
     // Tapping the current tab again returns to its first screen.
     void go(int index) =>

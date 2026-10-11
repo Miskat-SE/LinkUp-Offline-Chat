@@ -31,7 +31,7 @@ class LanInterfaceInfo {
   int prefixLength;
 
   /// `wifi` (joined a Wi-Fi network), `hotspot` (this phone is the access
-  /// point) or `other` (e.g. Ethernet).
+  /// point), `wifiDirect` (a Wi-Fi Direct group) or `other` (e.g. Ethernet).
   String kind;
 }
 
@@ -75,6 +75,10 @@ abstract class LanHostApi {
   void releaseMulticastLock();
 
   AppInfo appInfo();
+
+  /// Whether to bind the process to the joined Wi-Fi (default on). Off in
+  /// Wi-Fi Direct mode, where traffic goes to the P2P group (ADR-0023).
+  void setBindToWifi(bool bind);
 }
 
 @FlutterApi()
@@ -182,4 +186,97 @@ abstract class BackgroundHostApi {
 
   /// Opens Android's battery settings for this app.
   void openBatterySettings();
+}
+
+/// A LinkUp phone found through Wi-Fi Direct service discovery (ADR-0023).
+class WifiDirectService {
+  WifiDirectService({
+    required this.deviceAddress,
+    required this.deviceId,
+    required this.name,
+    required this.hosting,
+    this.networkName,
+    this.passphrase,
+  });
+
+  /// The phone's Wi-Fi Direct MAC address.
+  String deviceAddress;
+
+  /// LinkUp device ID.
+  String deviceId;
+
+  String name;
+
+  /// It owns a group others can join.
+  bool hosting;
+
+  /// The group's credentials, when [hosting].
+  String? networkName;
+  String? passphrase;
+}
+
+/// This phone's Wi-Fi Direct state.
+class WifiDirectGroup {
+  WifiDirectGroup({
+    required this.enabled,
+    required this.formed,
+    required this.isOwner,
+    required this.clients,
+    this.networkName,
+    this.passphrase,
+  });
+
+  /// Wi-Fi (and so Wi-Fi Direct) is on.
+  bool enabled;
+
+  /// This phone is in a group.
+  bool formed;
+
+  bool isOwner;
+
+  /// Phones joined, when [isOwner].
+  int clients;
+
+  String? networkName;
+  String? passphrase;
+}
+
+@HostApi()
+abstract class WifiDirectHostApi {
+  /// The phone has Wi-Fi Direct.
+  bool isSupported();
+
+  /// `granted`, `denied` or `locationOff` (Android 8–12 need Location on).
+  String permissionState();
+
+  @async
+  bool requestPermission();
+
+  void openLocationSettings();
+
+  /// Advertises this phone and looks for others; group changes and found
+  /// phones arrive through [WifiDirectFlutterApi].
+  void start(String deviceId, String name);
+
+  /// Stops looking and leaves any group.
+  void stop();
+
+  /// Updates this phone's service record (hosting and its credentials).
+  void advertise(bool hosting, String? networkName, String? passphrase);
+
+  @async
+  void createGroup(String networkName, String passphrase);
+
+  @async
+  void joinGroup(String deviceAddress, String? networkName, String? passphrase);
+
+  @async
+  void leaveGroup();
+}
+
+@FlutterApi()
+abstract class WifiDirectFlutterApi {
+  void onServiceFound(WifiDirectService service);
+
+  void onGroupChanged(WifiDirectGroup group);
 }

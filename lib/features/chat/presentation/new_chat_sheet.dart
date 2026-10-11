@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/router.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
+import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
 import 'package:resqmesh/core/utils/relative_time.dart';
@@ -225,7 +226,7 @@ class _PersonPicker extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 child: Text(
-                  'Nobody nearby yet. People on the same Wi-Fi or hotspot '
+                  'Nobody nearby yet. People nearby who open ${Brand.name} '
                   'appear here.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(

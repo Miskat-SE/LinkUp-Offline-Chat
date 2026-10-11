@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/app.dart';
 import 'package:resqmesh/app/restartable_app.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/wifi_direct_providers.dart';
 import 'package:resqmesh/core/identity/identity_repository.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/platform/app_info_provider.dart';
@@ -25,6 +26,7 @@ import 'fake_network_monitor.dart';
 import 'fake_notifications.dart';
 import 'fake_peer_links.dart';
 import 'fake_transfer_backend.dart';
+import 'fake_wifi_direct.dart';
 import 'memory_datagram_network.dart';
 import 'memory_key_value_store.dart';
 import 'test_database.dart';
@@ -46,6 +48,7 @@ Future<void> launchApp(
   FakeFileActions? fileActions,
   FakeFilePicker? picker,
   FakeBackgroundService? background,
+  FakeWifiDirect? wifiDirect,
   Directory? supportDirectory,
   bool settle = true,
 }) async {
@@ -99,6 +102,7 @@ Future<void> launchApp(
             fileActions ?? FakeFileActions(),
           ),
           filePickerProvider.overrideWithValue(picker ?? FakeFilePicker()),
+          wifiDirectProvider.overrideWithValue(wifiDirect ?? FakeWifiDirect()),
           backgroundServiceProvider.overrideWithValue(
             background ?? FakeBackgroundService(),
           ),

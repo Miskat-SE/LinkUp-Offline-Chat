@@ -129,7 +129,7 @@ class LanInterfaceInfo {
   int prefixLength;
 
   /// `wifi` (joined a Wi-Fi network), `hotspot` (this phone is the access
-  /// point) or `other` (e.g. Ethernet).
+  /// point), `wifiDirect` (a Wi-Fi Direct group) or `other` (e.g. Ethernet).
   String kind;
 
   List<Object?> _toList() {
@@ -408,6 +408,167 @@ class BackgroundState {
   }
 }
 
+/// A LinkUp phone found through Wi-Fi Direct service discovery (ADR-0023).
+class WifiDirectService {
+  WifiDirectService({
+    required this.deviceAddress,
+    required this.deviceId,
+    required this.name,
+    required this.hosting,
+    this.networkName,
+    this.passphrase,
+  });
+
+  /// The phone's Wi-Fi Direct MAC address.
+  String deviceAddress;
+
+  /// LinkUp device ID.
+  String deviceId;
+
+  String name;
+
+  /// It owns a group others can join.
+  bool hosting;
+
+  /// The group's credentials, when [hosting].
+  String? networkName;
+
+  String? passphrase;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      deviceAddress,
+      deviceId,
+      name,
+      hosting,
+      networkName,
+      passphrase,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static WifiDirectService decode(Object result) {
+    result as List<Object?>;
+    return WifiDirectService(
+      deviceAddress: result[0]! as String,
+      deviceId: result[1]! as String,
+      name: result[2]! as String,
+      hosting: result[3]! as bool,
+      networkName: result[4] as String?,
+      passphrase: result[5] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! WifiDirectService || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(deviceAddress, other.deviceAddress) &&
+        _deepEquals(deviceId, other.deviceId) &&
+        _deepEquals(name, other.name) &&
+        _deepEquals(hosting, other.hosting) &&
+        _deepEquals(networkName, other.networkName) &&
+        _deepEquals(passphrase, other.passphrase);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'WifiDirectService(deviceAddress: $deviceAddress, deviceId: $deviceId, name: $name, hosting: $hosting, networkName: $networkName, passphrase: $passphrase)';
+  }
+}
+
+/// This phone's Wi-Fi Direct state.
+class WifiDirectGroup {
+  WifiDirectGroup({
+    required this.enabled,
+    required this.formed,
+    required this.isOwner,
+    required this.clients,
+    this.networkName,
+    this.passphrase,
+  });
+
+  /// Wi-Fi (and so Wi-Fi Direct) is on.
+  bool enabled;
+
+  /// This phone is in a group.
+  bool formed;
+
+  bool isOwner;
+
+  /// Phones joined, when [isOwner].
+  int clients;
+
+  String? networkName;
+
+  String? passphrase;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      enabled,
+      formed,
+      isOwner,
+      clients,
+      networkName,
+      passphrase,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static WifiDirectGroup decode(Object result) {
+    result as List<Object?>;
+    return WifiDirectGroup(
+      enabled: result[0]! as bool,
+      formed: result[1]! as bool,
+      isOwner: result[2]! as bool,
+      clients: result[3]! as int,
+      networkName: result[4] as String?,
+      passphrase: result[5] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! WifiDirectGroup || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(enabled, other.enabled) &&
+        _deepEquals(formed, other.formed) &&
+        _deepEquals(isOwner, other.isOwner) &&
+        _deepEquals(clients, other.clients) &&
+        _deepEquals(networkName, other.networkName) &&
+        _deepEquals(passphrase, other.passphrase);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'WifiDirectGroup(enabled: $enabled, formed: $formed, isOwner: $isOwner, clients: $clients, networkName: $networkName, passphrase: $passphrase)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -430,6 +591,12 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is BackgroundState) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
+    } else if (value is WifiDirectService) {
+      buffer.putUint8(134);
+      writeValue(buffer, value.encode());
+    } else if (value is WifiDirectGroup) {
+      buffer.putUint8(135);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -448,6 +615,10 @@ class _PigeonCodec extends StandardMessageCodec {
         return MessageNotification.decode(readValue(buffer)!);
       case 133:
         return BackgroundState.decode(readValue(buffer)!);
+      case 134:
+        return WifiDirectService.decode(readValue(buffer)!);
+      case 135:
+        return WifiDirectGroup.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -582,6 +753,28 @@ class LanHostApi {
       isNullValid: false,
     );
     return pigeonVar_replyValue! as AppInfo;
+  }
+
+  /// Whether to bind the process to the joined Wi-Fi (default on). Off in
+  /// Wi-Fi Direct mode, where traffic goes to the P2P group (ADR-0023).
+  Future<void> setBindToWifi(bool bind) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.LanHostApi.setBindToWifi$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[bind],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 }
 
@@ -986,5 +1179,296 @@ class BackgroundHostApi {
       pigeonVar_channelName,
       isNullValid: true,
     );
+  }
+}
+
+class WifiDirectHostApi {
+  /// Constructor for [WifiDirectHostApi]. The [binaryMessenger] named argument is
+  /// available for dependency injection. If it is left null, the default
+  /// BinaryMessenger will be used which routes to the host platform.
+  WifiDirectHostApi({
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) : pigeonVar_binaryMessenger = binaryMessenger,
+       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
+           ? '.$messageChannelSuffix'
+           : '';
+
+  final BinaryMessenger? pigeonVar_binaryMessenger;
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  final String pigeonVar_messageChannelSuffix;
+
+  /// The phone has Wi-Fi Direct.
+  Future<bool> isSupported() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.isSupported$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
+  /// `granted`, `denied` or `locationOff` (Android 8–12 need Location on).
+  Future<String> permissionState() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.permissionState$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as String;
+  }
+
+  Future<bool> requestPermission() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.requestPermission$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
+  Future<void> openLocationSettings() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.openLocationSettings$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Advertises this phone and looks for others; group changes and found
+  /// phones arrive through [WifiDirectFlutterApi].
+  Future<void> start(String deviceId, String name) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.start$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[deviceId, name],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Stops looking and leaves any group.
+  Future<void> stop() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.stop$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Updates this phone's service record (hosting and its credentials).
+  Future<void> advertise(
+    bool hosting,
+    String? networkName,
+    String? passphrase,
+  ) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.advertise$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[hosting, networkName, passphrase],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> createGroup(String networkName, String passphrase) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.createGroup$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[networkName, passphrase],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> joinGroup(
+    String deviceAddress,
+    String? networkName,
+    String? passphrase,
+  ) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.joinGroup$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[deviceAddress, networkName, passphrase],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> leaveGroup() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.leaveGroup$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+}
+
+abstract class WifiDirectFlutterApi {
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  void onServiceFound(WifiDirectService service);
+
+  void onGroupChanged(WifiDirectGroup group);
+
+  static void setUp(
+    WifiDirectFlutterApi? api, {
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) {
+    messageChannelSuffix = messageChannelSuffix.isNotEmpty
+        ? '.$messageChannelSuffix'
+        : '';
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.resqmesh.WifiDirectFlutterApi.onServiceFound$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final WifiDirectService arg_service = args[0]! as WifiDirectService;
+          try {
+            api.onServiceFound(arg_service);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.resqmesh.WifiDirectFlutterApi.onGroupChanged$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final WifiDirectGroup arg_group = args[0]! as WifiDirectGroup;
+          try {
+            api.onGroupChanged(arg_group);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
   }
 }

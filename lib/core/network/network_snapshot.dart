@@ -6,6 +6,9 @@ enum LanInterfaceKind {
   /// This phone is the hotspot (access point) others join.
   hotspot,
 
+  /// A Wi-Fi Direct group, as owner or member (ADR-0023).
+  wifiDirect,
+
   /// Anything else local, e.g. Ethernet.
   other,
 }
@@ -87,6 +90,10 @@ final class NetworkSnapshot {
   /// This phone is sharing a hotspot.
   bool get isHotspotHost =>
       interfaces.any((i) => i.kind == LanInterfaceKind.hotspot);
+
+  /// This phone is in a Wi-Fi Direct group.
+  bool get inWifiDirectGroup =>
+      interfaces.any((i) => i.kind == LanInterfaceKind.wifiDirect);
 
   /// Where discovery broadcasts go: each subnet's broadcast address, plus
   /// the limited broadcast address.

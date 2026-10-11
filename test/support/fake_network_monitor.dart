@@ -28,6 +28,7 @@ final class FakeNetworkMonitor implements NetworkMonitor {
   final StreamController<NetworkSnapshot> _changes =
       StreamController<NetworkSnapshot>.broadcast();
   bool multicastLockHeld = false;
+  bool boundToWifi = true;
 
   @override
   NetworkSnapshot get current => _current;
@@ -49,5 +50,10 @@ final class FakeNetworkMonitor implements NetworkMonitor {
   @override
   Future<void> setMulticastLock({required bool held}) async {
     multicastLockHeld = held;
+  }
+
+  @override
+  Future<void> setBindToWifi({required bool bind}) async {
+    boundToWifi = bind;
   }
 }

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/wifi_direct_controller.dart';
+import 'package:resqmesh/core/connection/wifi_direct_providers.dart';
 import 'package:resqmesh/core/constants/protocol_constants.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
@@ -21,6 +23,7 @@ class DeveloperScreen extends ConsumerWidget {
     final links = nearby.links;
     final identity = ref.watch(identityProvider);
     final logs = ref.watch(appLoggerProvider).recent;
+    final direct = ref.watch(wifiDirectStatusProvider).value;
     final net = discovery.network;
     final now = clock.now();
 
@@ -72,6 +75,15 @@ class DeveloperScreen extends ConsumerWidget {
               _yesNo(discovery.isolationSuspected),
             ),
           ]),
+          if (direct != null)
+            _Section('Wi-Fi Direct', [
+              _Row('State', direct.phase.name),
+              _Row('LinkUp phones seen', '${direct.nearby}'),
+              if (direct.phase == WifiDirectPhase.hosting)
+                _Row('Phones joined', '${direct.clients}'),
+              if (direct.hostName != null) _Row('Host', direct.hostName!),
+              _Row('In a group', _yesNo(net.inWifiDirectGroup)),
+            ]),
           _Section('Ports', [
             _Row(
               'UDP discovery',

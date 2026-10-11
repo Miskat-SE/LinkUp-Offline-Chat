@@ -37,7 +37,7 @@ void main() {
     expect(store.getString(StoreKeys.username), 'Yusuf');
 
     expect(find.text('How do you want to connect?'), findsOneWidget);
-    expect(find.text('Coming soon'), findsNWidgets(2));
+    expect(find.text('Coming soon'), findsOneWidget); // Bluetooth
     await tester.tap(find.text('Phone hotspot'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Start'));

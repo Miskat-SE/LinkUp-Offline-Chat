@@ -5,7 +5,7 @@ How the app is tested, and the record of tests on real devices. Started in phase
 ## 1. Automated tests
 
 ```sh
-flutter test --timeout 120s                 # 314 tests, about 40 seconds (the 200 MB transfer test takes most of it)
+flutter test --timeout 120s                 # 334 tests, about 40 seconds (the 200 MB transfer test takes most of it)
 flutter test --coverage --timeout 120s      # writes coverage/lcov.info
 flutter test integration_test -d <device>   # on a phone or emulator, about 20 seconds
 flutter analyze && dart format --set-exit-if-changed lib test integration_test
@@ -45,6 +45,8 @@ Cold start: install the release APK, then `adb shell am force-stop com.resqmesh.
 | Message store | `test/features/chat/message_repository_test.dart` | SQLite on the real schema: round trip (Bangla, emoji, microseconds); duplicates refused; chat list query and order; live updates; unread counts; status never moves backwards; outbox order; restart recovery; owed receipts; stable stored codes; unknown codes; Clear chat history; data kept after reopening the file |
 | Schema | `test/drift/app_database/migration_test.dart` | Every schema version has a snapshot; a new install creates exactly the latest schema; v1 and v2 databases with data migrate to the latest and keep every row |
 | Accessibility and layouts (P11) | `test/accessibility/accessibility_test.dart` | 11 main screens in light and dark meet Android's 48 dp touch target, label and 4.5:1 contrast guidelines; every screen lays out at 200% text; landscape phone gets a side rail; on a tablet the chat opens beside the list; About with privacy and licences |
+| Wi-Fi Direct decisions (P13) | `test/core/connection/wifi_direct_controller_test.dart` | On fake time: no support, permission asked and granted, Location and Wi-Fi off; the lowest ID hosts and advertises Android's credentials; others wait, then join (the lowest host if several); a group that never forms is retried after a pause; refusals go back to searching; a lonely host gives way to a lower one or stops after 5 minutes; phones are forgotten after a minute |
+| Wi-Fi Direct screens (P13) | `test/features/settings/wifi_direct_ui_test.dart` | Wi-Fi Direct mode unbinds from Wi-Fi and shows *Looking…*, *Joining Rahim…*, *Joined Rahim*; permission asked once, then *Allow*; Location off with its settings; switching back stops Wi-Fi Direct and binds again |
 | Platform wrappers | `test/core/platform/platform_wrappers_test.dart` | The Dart side of each Kotlin bridge (network monitor, notifications, background service, file actions) against a stand-in host API; the deferred transfer backend |
 | Messaging | `test/features/chat/messaging_service_test.dart` | Two phones on fake time, each with its own database: sent, delivered and read; offline outbox in order; lost ACK resends once stored once; fails after 5 tries and retry; connection lost mid-send; full attempts per connection; app killed mid-send and restarted; READ and DELIVERED queued until reconnect; late receipts; spoofed receipts and misaddressed messages ignored; replies; delete |
 | Chat UI | `test/features/chat/chat_ui_test.dart` | Whole app: send from People with ticks, new message badge and notification, reading sends READ, notification explainer, long-press Copy / Reply / Delete, waiting to send, tapping a notification opens the chat; chats and badges after a restart; Storage count, cancel and Clear chat history |
@@ -97,6 +99,16 @@ In this mode the emulator hears the Mac, but its broadcasts can't reach the Mac;
 
 **Developer screen.** In a release build, open Settings → About LinkUp, then tap *Version* 7 times. It shows the phone's IP, subnet, broadcast address, whether the app is bound to Wi-Fi, ports, peers with their source (UDP/NSD), packet counters, errors and recent logs. **Copy logs** puts the logs on the clipboard for bug reports.
 
+## 2b. Wi-Fi Direct on two or more phones (P13.1, P13.4)
+
+Wi-Fi Direct needs real phones; the emulator can only show *Looking for phones nearby…*.
+
+1. Install the same build on each phone. Turn Wi-Fi **on** (no network needed). On Android 12 or older, turn Location on too.
+2. On each phone: Settings → How you connect → **Wi-Fi Direct** → Save, and allow *Nearby devices* (or location).
+3. Keep both on Home. Expected within about 30 s: one phone shows *Waiting for phones to join…*, the other *Joining <name>…*, then both *Wi-Fi Direct connected · 1 nearby*. On Android 9 or older, the hosting phone may ask to accept the connection.
+4. Then run R1–R5 (text and files both ways), R12 (Wi-Fi Direct turned off mid-transfer, then back) and R15 with a third phone.
+5. If it doesn't connect: Settings → About → tap *Version* 7 times → Developer options → **Wi-Fi Direct** shows the state, phones seen, phones joined and whether this phone is in a group. Note those on both phones, plus the Android versions and models.
+
 ## 3. Real-device matrix
 
 From PROJECT_PLAN.md §13.2. Copy this table for each release candidate, name the phones (model, Android version, battery saver) and the router, and fill in one row per test. *Result* is Pass, Fail (with a link to the issue) or N/A.
@@ -137,6 +149,8 @@ From PROJECT_PLAN.md §13.2. Copy this table for each release candidate, name th
 | 9 Oct 2026 | Android 17 emulator + simulator with files | version 8 | **1 GB Mac → app**: offered, confirmed, received, checksum verified, card shows it; 1,073.7 MB in 109 s (9.8 MB/s through `adb forward`); app memory about 80 MB PSS afterwards. File picker → Send sheet (*Send to Mac Tester · 1 file · 286 MB*). Found: after the picker put the app in the background, Android cut its network and the discovery socket never recovered (fixed in version 9). | Pass, one bug found |
 | 10 Oct 2026 | **Two real phones** | version 9 | Images sent several times in both directions (run by the user). | Pass |
 | 10 Oct 2026 | Android 17 emulator + simulator | version 11 | **P8 exit:** 1 GB from the Mac started with the app open; then Home and screen off: service `connectedDevice` running, notification *Receiving bg_test_1GB.bin — 35%*; finished in 31.7 s (33.8 MB/s), checksum verified; service stopped after. *Stay reachable* on: 90 s of forced Doze (`dumpsys deviceidle force-idle`) without losing the connection; swiped from Recents: process, service and connection stayed; reopened warm in 1.3 s on the same engine. Same file offered again: answered as a duplicate at once. | Pass |
+| 11 Oct 2026 | Android 17 emulator (has Wi-Fi Direct, no second phone) | version 19 | **P13 on one device:** Wi-Fi Direct selectable in onboarding with its steps; Android's *Nearby devices* dialog shown once; after *Don't allow*, the card shows the reason and **Allow**; after allowing, *Looking for phones nearby…* with no Wi-Fi Direct errors in the system log. Group forming needs two phones (§2b). | Pass |
+| 11 Oct 2026 | **Real phones** (user) | version 18 | P6 files, P7 Everyone, P8 background and *Stay reachable* (run by the user). | Pass |
 | 10 Oct 2026 | Android 17 emulator + simulator | version 15–17 (release-signed, obfuscated) | **P12 release check.** Fresh install of the signed build; onboarding; notification permission; text both ways with echo, ✓✓ and read receipt; update 15 → 16 over the same key kept chats and identity; People → *Send file* opens the picker. **Bug found and fixed (version 17):** a message that arrived in the same burst as the HELLO was dropped (seen with a 20 MB file from the simulator; on phones, an outbox flushed on connect would have waited 10 s for its resend). After the fix the 20 MB file arrived at once, checksum verified. |  Pass after fix |
 | 10 Oct 2026 | Android 17 emulator + simulator | version 10 | New chat → Everyone nearby → *1 online now*; *Hello everyone* reached the Mac marked *(to everyone)*; bubble shows *Delivered to 1 of 1*. | Pass |
 | 9 Oct 2026 | Android 17 emulator + simulator with files | version 9 | The 300 MB file queued under version 8 was hashed again after the update, announced, confirmed and sent: **300 MB app → Mac**, SHA-256 identical, 71 s (4.2 MB/s through the emulator's network); memory about 97 MB PSS. App sent to the background for 40 s: reconnected by itself. | Pass |

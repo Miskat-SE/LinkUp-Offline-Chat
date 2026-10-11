@@ -26,3 +26,4 @@ One file per decision. Status values: Proposed, Accepted, Superseded.
 | [0020](0020-database-schema-grows-with-the-phases.md) | The database schema grows with the phases | Accepted |
 | [0021](0021-file-transfers-in-a-worker-isolate-on-their-own-port.md) | File transfers in a worker isolate, on their own port | Accepted |
 | [0022](0022-v1-ships-without-encryption.md) | v1.0 ships without encryption on the trusted LAN | Accepted |
+| [0023](0023-wifi-direct-groups-carry-the-lan-stack.md) | Wi-Fi Direct forms a group automatically and carries the existing LAN stack | Accepted |

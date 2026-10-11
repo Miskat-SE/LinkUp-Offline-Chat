@@ -39,7 +39,8 @@ final discoveryEngineProvider = Provider<DiscoveryEngine>((ref) {
       nameClaimedAt: identity.nameClaimedAt,
       announce:
           method == ConnectionMethod.wifiRouter ||
-          method == ConnectionMethod.hotspot,
+          method == ConnectionMethod.hotspot ||
+          method == ConnectionMethod.wifiDirect,
       appVersion: ref.read(appInfoProvider).value?.wireVersion ?? '',
     );
   }

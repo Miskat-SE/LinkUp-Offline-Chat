@@ -121,6 +121,13 @@ void main() {
     Future<void> settle([int ms = 50]) =>
         Future<void>.delayed(Duration(milliseconds: ms));
 
+    // Real time: under a busy test run, wait for the state, not a fixed time.
+    Future<void> until(bool Function() done) async {
+      for (var i = 0; i < 100 && !done(); i++) {
+        await settle(20);
+      }
+    }
+
     await settle();
     expect(background.running, isFalse);
 
@@ -161,7 +168,7 @@ void main() {
     for (var b = 100; b <= 600; b += 100) {
       backend.emit(TransferProgressed(id, bytes: b));
     }
-    await settle(400);
+    await until(() => background.last?.title == 'Receiving photo.jpg — 60%');
     expect(background.running, isTrue);
     expect(background.last!.transferring, isTrue);
     expect(background.last!.title, 'Receiving photo.jpg — 60%');
@@ -173,7 +180,7 @@ void main() {
 
     // Done: the service stops (Stay reachable is off).
     backend.emit(const TransferEnded(id, TransferCompleted()));
-    await settle(400);
+    await until(() => !background.running);
     expect(background.running, isFalse);
 
     // Stay reachable on: it runs while idle.

@@ -69,6 +69,8 @@ keyPassword=…
 
 ## Permissions
 
+**Wi-Fi Direct only** (asked when you choose it): *Nearby devices* (`NEARBY_WIFI_DEVICES`, Android 13+, declared so it never gives your location), or on Android 8–12 location (`ACCESS_FINE_LOCATION`), which Android requires for Wi-Fi Direct discovery, with Location turned on. LinkUp never uses or stores your location. `CHANGE_WIFI_STATE` is granted automatically.
+
 LinkUp runs a foreground service (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `WAKE_LOCK`) only while files move or *Stay reachable* is on, always with a notification. Runtime permissions: notifications (`POST_NOTIFICATIONS`), asked the first time you open a chat, after a short explanation; and on Android 8–9 only, storage, the first time you use *Save to Downloads*. Opening a received app (APK) hands it to Android's installer, which asks you to allow installs from LinkUp first (`REQUEST_INSTALL_PACKAGES`); nothing is installed without you. The app also declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
 
 ## Security and privacy
@@ -86,6 +88,6 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 - Very large files take a moment to appear in the Send sheet: Android's file picker copies them into the app first.
 - Only the sender can pause. Cancelling a file that is still waiting (the other person is offline) isn't announced to them; their card keeps waiting.
 - *Everyone* reaches only the people online when you send; there are no replies inside the Everyone thread.
-- Wi-Fi Direct and Bluetooth are shown as *Coming soon* (P13–P14).
+- Wi-Fi Direct is new and still being tested on phones; one group at a time (about 50 m). Bluetooth is *Coming soon* (P14).
 - Messages and files are not encrypted on the local network (see *Security and privacy*).
 - Android only. iOS, desktop and web are out of scope.

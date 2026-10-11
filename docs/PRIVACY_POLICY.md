@@ -28,6 +28,7 @@ Only what you send, and only to the phones you send it to, over your local netwo
 ## Permissions
 
 - **Notifications:** to tell you about new messages and file progress.
+- **Nearby devices (Android 13+) or Location (Android 8–12):** only when you choose Wi-Fi Direct, to find nearby phones. Android requires location permission for this on older versions; LinkUp never reads or stores your location.
 - **Network access, Wi-Fi state, multicast:** to find and talk to phones on the same network. Android requires the "internet" permission for any network connection, even a local one; LinkUp does not use the internet.
 - **Foreground service (connected device):** keeps transfers running, and keeps you reachable when you turn on *Stay reachable*, always with a visible notification.
 - **Install apps:** only when you choose to open an app (APK) someone sent you; Android asks you first.
