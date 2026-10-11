@@ -209,12 +209,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Future<bool> _confirmDelete(String title, String body) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
   Future<void> _showActions(ChatMessage message) async {
     final action = await showModalBottomSheet<_Action>(
       context: context,
       builder: (context) => _MessageActions(
         message: message,
-        canReply: true,
+        canReply: !message.isDeleted,
         canRetry: message.isBroadcast
             ? (ref.read(recipientsProvider(_peerId)).value?[message.id] ?? [])
                   .any((r) => r.status == MessageStatus.failed)
@@ -241,31 +265,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case _Action.retry:
         await service.retry(message.id);
       case _Action.delete:
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete message?'),
-            content: const Text(
-              'It is removed from this phone only. The other person keeps '
-              'their copy.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Theme.of(context).colorScheme.onError,
-                ),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        );
-        if (confirmed ?? false) await service.delete(message.id);
+        if (await _confirmDelete(
+          'Delete for you?',
+          'It is removed from this phone only. Others keep their copy.',
+        )) {
+          await service.delete(message.id);
+        }
+      case _Action.deleteForEveryone:
+        if (await _confirmDelete(
+          'Delete for everyone?',
+          'It is removed from every phone it reached. People offline now '
+              'see it removed when they are back.',
+        )) {
+          await service.deleteForEveryone(message);
+        }
     }
   }
 
@@ -526,7 +539,7 @@ class _MessageListState extends State<_MessageList> {
       items.add(
         _SwipeToReply(
           key: _keys.putIfAbsent(message.id, GlobalKey.new),
-          onReply: () => widget.onReply(message),
+          onReply: message.isDeleted ? null : () => widget.onReply(message),
           child: MessageBubble(
             message: message,
             peerName: peerName,
@@ -544,11 +557,12 @@ class _MessageListState extends State<_MessageList> {
             senderLabel: message.isBroadcast && !message.isOutgoing
                 ? message.peerName
                 : null,
-            delivery: message.isBroadcast && message.isOutgoing
+            delivery:
+                message.isBroadcast && message.isOutgoing && !message.isDeleted
                 ? DeliverySummary(recipients[message.id] ?? const [])
                 : null,
             onTapDelivery: () => widget.onShowDelivery(message),
-            attachment: message.fileId == null
+            attachment: message.fileId == null || message.isDeleted
                 ? null
                 : (foreground) => message.isBroadcast && message.isOutgoing
                       ? _BroadcastFileCard(
@@ -815,7 +829,7 @@ class _ComposerState extends State<_Composer> {
   }
 }
 
-enum _Action { reply, forward, copy, retry, delete }
+enum _Action { reply, forward, copy, retry, delete, deleteForEveryone }
 
 class _MessageActions extends StatelessWidget {
   const _MessageActions({
@@ -841,12 +855,13 @@ class _MessageActions extends StatelessWidget {
               title: const Text('Reply'),
               onTap: () => Navigator.pop(context, _Action.reply),
             ),
-          ListTile(
-            leading: const Icon(Icons.shortcut_rounded),
-            title: const Text('Forward'),
-            onTap: () => Navigator.pop(context, _Action.forward),
-          ),
-          if (!message.isFile)
+          if (!message.isDeleted)
+            ListTile(
+              leading: const Icon(Icons.shortcut_rounded),
+              title: const Text('Forward'),
+              onTap: () => Navigator.pop(context, _Action.forward),
+            ),
+          if (!message.isFile && !message.isDeleted)
             ListTile(
               leading: const Icon(Icons.copy_rounded),
               title: const Text('Copy'),
@@ -860,9 +875,18 @@ class _MessageActions extends StatelessWidget {
             ),
           ListTile(
             leading: Icon(Icons.delete_outline_rounded, color: error),
-            title: Text('Delete', style: TextStyle(color: error)),
+            title: Text('Delete for me', style: TextStyle(color: error)),
             onTap: () => Navigator.pop(context, _Action.delete),
           ),
+          if (message.isOutgoing && !message.isDeleted)
+            ListTile(
+              leading: Icon(Icons.delete_forever_rounded, color: error),
+              title: Text(
+                'Delete for everyone',
+                style: TextStyle(color: error),
+              ),
+              onTap: () => Navigator.pop(context, _Action.deleteForEveryone),
+            ),
         ],
       ),
     );
@@ -1082,10 +1106,12 @@ String _recipientStatus(MessageStatus status) => switch (status) {
 /// Swipe a message to the right to reply (P15.2). The bubble follows the
 /// finger; past the threshold a reply icon shows and the phone ticks.
 class _SwipeToReply extends StatefulWidget {
-  const _SwipeToReply({super.key, required this.child, required this.onReply});
+  const _SwipeToReply({super.key, required this.child, this.onReply});
 
   final Widget child;
-  final VoidCallback onReply;
+
+  /// Null: this message can't be replied to (deleted).
+  final VoidCallback? onReply;
 
   @override
   State<_SwipeToReply> createState() => _SwipeToReplyState();
@@ -1119,7 +1145,7 @@ class _SwipeToReplyState extends State<_SwipeToReply>
   }
 
   void _release() {
-    if (_armed) widget.onReply();
+    if (_armed) widget.onReply?.call();
     _armed = false;
     _from = _dx;
     if (MediaQuery.disableAnimationsOf(context)) {
@@ -1130,26 +1156,30 @@ class _SwipeToReplyState extends State<_SwipeToReply>
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onHorizontalDragUpdate: _update,
-    onHorizontalDragEnd: (_) => _release(),
-    onHorizontalDragCancel: _release,
-    child: Stack(
-      alignment: AlignmentDirectional.centerStart,
-      children: [
-        if (_dx > 0)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
-            child: Opacity(
-              opacity: (_dx / _trigger).clamp(0, 1),
-              child: Icon(
-                Icons.reply_rounded,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
+  Widget build(BuildContext context) => widget.onReply == null
+      ? widget.child
+      : GestureDetector(
+          onHorizontalDragUpdate: _update,
+          onHorizontalDragEnd: (_) => _release(),
+          onHorizontalDragCancel: _release,
+          child: Stack(
+            alignment: AlignmentDirectional.centerStart,
+            children: [
+              if (_dx > 0)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: AppSpacing.sm,
+                  ),
+                  child: Opacity(
+                    opacity: (_dx / _trigger).clamp(0, 1),
+                    child: Icon(
+                      Icons.reply_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              Transform.translate(offset: Offset(_dx, 0), child: widget.child),
+            ],
           ),
-        Transform.translate(offset: Offset(_dx, 0), child: widget.child),
-      ],
-    ),
-  );
+        );
 }

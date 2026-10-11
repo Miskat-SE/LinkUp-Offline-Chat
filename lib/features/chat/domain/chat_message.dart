@@ -80,6 +80,7 @@ final class ChatMessage {
     this.fileName,
     this.audience = ChatAudience.direct,
     this.senderId,
+    this.deletedAt,
   });
 
   /// The conversation ID of the Everyone thread.
@@ -123,6 +124,11 @@ final class ChatMessage {
   /// Incoming Everyone messages: who sent it.
   final String? senderId;
 
+  /// Deleted for everyone (P15.4).
+  final DateTime? deletedAt;
+
+  bool get isDeleted => deletedAt != null;
+
   bool get isOutgoing => direction == MessageDirection.outgoing;
 
   bool get isBroadcast => audience == ChatAudience.everyone;
@@ -138,7 +144,11 @@ final class ChatMessage {
       isBroadcast && !isOutgoing ? '$peerName: $body' : body;
 
   /// The text, or the file's name.
-  String get body => isFile ? '📎 ${fileName ?? 'File'}' : text;
+  String get body => isDeleted
+      ? (isOutgoing ? 'You deleted this message' : 'This message was deleted')
+      : isFile
+      ? '📎 ${fileName ?? 'File'}'
+      : text;
 
   ChatMessage copyWith({
     String? peerName,
@@ -162,6 +172,7 @@ final class ChatMessage {
     fileName: fileName,
     audience: audience,
     senderId: senderId,
+    deletedAt: deletedAt,
   );
 }
 

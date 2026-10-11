@@ -148,6 +148,7 @@ final class DriftMessageRepository implements MessageRepository {
                 (m) =>
                     m.conversationId.equals(peerId) &
                     m.direction.equals(_out) &
+                    m.deletedAt.isNull() &
                     m.status.isIn([
                       _statusCodes[MessageStatus.pending]!,
                       _statusCodes[MessageStatus.sending]!,
@@ -234,6 +235,37 @@ final class DriftMessageRepository implements MessageRepository {
   // ---------------------------------------------------------- Everyone
 
   $MessageRecipientsTable get _recipients => _db.messageRecipients;
+
+  @override
+  @override
+  Future<void> markDeleted(String messageId, DateTime at) =>
+      (_db.update(
+        _messages,
+      )..where((m) => m.messageId.equals(messageId))).write(
+        MessagesCompanion(deletedAt: Value(at), body: const Value('')),
+      );
+
+  @override
+  Future<List<String>> deletedSentTo(String peerId, DateTime since) async {
+    final recent =
+        _messages.direction.equals(_out) &
+        _messages.deletedAt.isBiggerOrEqualValue(since.microsecondsSinceEpoch);
+    final direct =
+        await (_db.select(_messages)
+              ..where((_) => recent & _messages.conversationId.equals(peerId)))
+            .map((m) => m.messageId)
+            .get();
+    final everyone =
+        await (_db.select(_messages).join([
+              innerJoin(
+                _recipients,
+                _recipients.messageId.equalsExp(_messages.messageId),
+              ),
+            ])..where(recent & _recipients.recipientId.equals(peerId)))
+            .map((row) => row.readTable(_messages).messageId)
+            .get();
+    return [...direct, ...everyone];
+  }
 
   @override
   Future<void> insertBroadcast(
@@ -338,6 +370,7 @@ final class DriftMessageRepository implements MessageRepository {
           ])
           ..where(
             _recipients.recipientId.equals(peerId) &
+                _messages.deletedAt.isNull() &
                 _recipients.status.isIn([
                   _statusCodes[MessageStatus.pending]!,
                   _statusCodes[MessageStatus.sending]!,
@@ -423,6 +456,7 @@ final class DriftMessageRepository implements MessageRepository {
             ? ChatAudience.everyone
             : ChatAudience.direct,
         senderId: row.senderId,
+        deletedAt: row.deletedAt,
       );
 
   static MessagesCompanion _toRow(ChatMessage message) =>

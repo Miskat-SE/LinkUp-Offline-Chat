@@ -236,7 +236,7 @@ void main() {
 
     await tester.longPress(find.text('Second message'));
     await pumpFor(tester, const Duration(milliseconds: 500));
-    await tester.tap(find.text('Delete'));
+    await tester.tap(find.text('Delete for me'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
     await pumpFor(tester, const Duration(milliseconds: 500));

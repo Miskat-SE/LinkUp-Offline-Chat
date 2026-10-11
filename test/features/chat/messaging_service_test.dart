@@ -104,6 +104,88 @@ void main() {
     return messages;
   }
 
+  group('delete for everyone (P15.4)', () {
+    void deleteOnYusuf(FakeAsync async, String id) {
+      unawaited(
+        yusuf.service.deleteForEveryone(find(async, yusuf.repository, id)),
+      );
+      async.flushMicrotasks();
+    }
+
+    test('both phones show it deleted, the text is gone', () {
+      run((async) {
+        pair.connect();
+        async.flushMicrotasks();
+        final id = send(async, 'Oops, wrong chat');
+        expect(find(async, rahim.repository, id).text, 'Oops, wrong chat');
+
+        deleteOnYusuf(async, id);
+        final mine = find(async, yusuf.repository, id);
+        final theirs = find(async, rahim.repository, id);
+        expect(mine.isDeleted, isTrue);
+        expect(mine.body, 'You deleted this message');
+        expect(theirs.isDeleted, isTrue);
+        expect(theirs.text, isEmpty);
+        expect(theirs.body, 'This message was deleted');
+        expect(
+          conversation(async, rahim.repository, idA).single.preview,
+          'This message was deleted',
+        );
+      });
+    });
+
+    test('someone offline is told when they are back', () {
+      run((async) {
+        pair.connect();
+        async.flushMicrotasks();
+        final id = send(async, 'Secret plan');
+        pair.disconnect();
+        async.flushMicrotasks();
+        deleteOnYusuf(async, id);
+        expect(find(async, rahim.repository, id).isDeleted, isFalse);
+
+        pair.connect();
+        async.flushMicrotasks();
+        expect(find(async, rahim.repository, id).isDeleted, isTrue);
+      });
+    });
+
+    test('a message deleted before it was sent is never sent', () {
+      run((async) {
+        final id = send(async, 'Never mind');
+        deleteOnYusuf(async, id);
+        pair.connect();
+        async.flushMicrotasks();
+        expect(pair.a.sent.whereType<MessagePacket>(), isEmpty);
+        expect(conversation(async, rahim.repository, idA), isEmpty);
+      });
+    });
+
+    test("only the author can delete; others' deletes are ignored", () {
+      run((async) {
+        pair.connect();
+        async.flushMicrotasks();
+        final id = send(async, 'Mine to keep');
+        // Rahim tries to delete Yusuf's message on Yusuf's phone, and on
+        // his own.
+        pair.a.inject(
+          idB,
+          MessageDeletePacket(
+            PacketHeader.create(
+              senderId: idB,
+              senderName: 'Rahim',
+              receiverId: idA,
+            ),
+            messageIds: [id],
+          ),
+        );
+        async.flushMicrotasks();
+        expect(find(async, yusuf.repository, id).isDeleted, isFalse);
+        expect(find(async, rahim.repository, id).isDeleted, isFalse);
+      });
+    });
+  });
+
   test('a message is stored, sent, delivered and read', () {
     run((async) {
       pair.connect();

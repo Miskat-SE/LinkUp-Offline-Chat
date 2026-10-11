@@ -61,6 +61,11 @@ class Messages extends Table {
   /// Outgoing only: send attempts on the current connection.
   IntColumn get attempts => integer().withDefault(const Constant(0))();
   IntColumn get lastAttemptAt => integer().map(const UtcMicros()).nullable()();
+
+  /// Deleted for everyone (P15.4, schema v4): the text is wiped and the
+  /// bubble says so. Outgoing ones are re-announced to recipients who come
+  /// back within a week.
+  IntColumn get deletedAt => integer().map(const UtcMicros()).nullable()();
 }
 
 /// Who an outgoing Everyone message went to, each with their own status
@@ -151,7 +156,7 @@ final class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -176,6 +181,10 @@ final class AppDatabase extends _$AppDatabase {
         await m.addColumn(schema.messages, schema.messages.senderId);
         await m.createTable(schema.messageRecipients);
         await m.createIndex(schema.recipientsByDevice);
+      },
+      // v4 (P15.4): delete for everyone.
+      from3To4: (m, schema) async {
+        await m.addColumn(schema.messages, schema.messages.deletedAt);
       },
     ),
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),

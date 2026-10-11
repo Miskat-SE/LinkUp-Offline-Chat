@@ -91,7 +91,11 @@ class MessageBubble extends StatelessWidget {
         child: Semantics(
           label:
               '${mine ? 'You' : senderLabel ?? peerName}: '
-              '${message.isFile ? 'file' : message.text}. $time'
+              '${message.isDeleted
+                  ? message.body
+                  : message.isFile
+                  ? 'file'
+                  : message.text}. $time'
               '${mine ? '. $statusText' : ''}'
               '${(delivery?.seen ?? 0) > 0 ? '. Seen by ${delivery!.seen}' : ''}',
           // A file card keeps its own buttons reachable.
@@ -130,7 +134,28 @@ class MessageBubble extends StatelessWidget {
                           color: failed ? scheme.onErrorContainer : foreground,
                         ),
                       ),
-                    if (message.isFile && attachment != null)
+                    if (message.isDeleted)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.block_rounded,
+                            size: 16,
+                            color: foreground.withValues(alpha: 0.7),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              message.body,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: foreground.withValues(alpha: 0.7),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (message.isFile && attachment != null)
                       attachment!(failed ? scheme.onErrorContainer : foreground)
                     else
                       Text(

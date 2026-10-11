@@ -136,6 +136,7 @@ abstract final class PacketCodec {
     PacketType.messageAck,
     PacketType.messageDelivered,
     PacketType.messageRead,
+    PacketType.messageDelete,
     PacketType.fileOffer,
     PacketType.fileAccept,
     PacketType.fileReject,
@@ -214,6 +215,8 @@ abstract final class PacketCodec {
         return MessageDeliveredPacket(header, messageIds: _ids(p));
       case PacketType.messageRead:
         return MessageReadPacket(header, messageIds: _ids(p));
+      case PacketType.messageDelete:
+        return MessageDeletePacket(header, messageIds: _ids(p));
       case PacketType.fileOffer:
         return FileOfferPacket(
           header,
@@ -397,7 +400,8 @@ abstract final class PacketCodec {
     },
     MessageAckPacket(:final ackFor) => {'ackFor': ackFor},
     MessageDeliveredPacket(:final messageIds) ||
-    MessageReadPacket(:final messageIds) => {'messageIds': messageIds},
+    MessageReadPacket(:final messageIds) ||
+    MessageDeletePacket(:final messageIds) => {'messageIds': messageIds},
     FileOfferPacket() => {
       'fileId': packet.fileId,
       'chatMessageId': packet.chatMessageId,

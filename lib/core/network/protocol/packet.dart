@@ -17,6 +17,7 @@ abstract final class PacketType {
   static const messageAck = 'MESSAGE_ACK';
   static const messageDelivered = 'MESSAGE_DELIVERED';
   static const messageRead = 'MESSAGE_READ';
+  static const messageDelete = 'MESSAGE_DELETE';
   static const fileOffer = 'FILE_OFFER';
   static const fileAccept = 'FILE_ACCEPT';
   static const fileReject = 'FILE_REJECT';
@@ -321,6 +322,17 @@ final class MessageReadPacket extends Packet {
 
   @override
   String get type => PacketType.messageRead;
+}
+
+/// The sender deleted these messages for everyone (P15.4). Receivers apply
+/// it only to messages from that sender; repeating it is harmless.
+final class MessageDeletePacket extends Packet {
+  const MessageDeletePacket(super.header, {required this.messageIds});
+
+  final List<String> messageIds;
+
+  @override
+  String get type => PacketType.messageDelete;
 }
 
 // ----------------------------------------------------- file data connection

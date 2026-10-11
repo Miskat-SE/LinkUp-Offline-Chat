@@ -51,6 +51,13 @@ abstract interface class MessageRepository {
   /// Deletes on this phone only, with its recipients.
   Future<void> delete(String messageId);
 
+  /// Deleted for everyone (P15.4): keeps the row, wipes the text.
+  Future<void> markDeleted(String messageId, DateTime at);
+
+  /// Outgoing messages deleted since [since] that reached [peerId], directly
+  /// or through Everyone; their deletion is announced again on reconnect.
+  Future<List<String>> deletedSentTo(String peerId, DateTime since);
+
   // ---------------------------------------------------------- Everyone
 
   /// Stores an outgoing Everyone message and who it goes to.

@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
 import 'package:resqmesh/core/network/connection/peer_links.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
+import 'package:resqmesh/core/network/protocol/packet_codec.dart';
 import 'package:resqmesh/core/storage/file_name_sanitizer.dart';
 import 'package:resqmesh/features/chat/domain/chat_message.dart';
 import 'package:resqmesh/features/chat/domain/message_repository.dart';
@@ -448,6 +450,41 @@ final class MessagingService {
     }
   }
 
+  /// How long a deletion is announced again to people who were away.
+  static const deleteAnnounced = Duration(days: 7);
+
+  /// Deletes one of this phone's messages on every phone that got it
+  /// (P15.4). It stays in the chat as "You deleted this message"; files
+  /// stop and are removed. People offline now are told when they are back.
+  Future<void> deleteForEveryone(ChatMessage message) => _serial(() async {
+    if (!message.isOutgoing || message.isDeleted) return;
+    final id = message.id;
+    _ackTimers.remove(id)?.cancel();
+    final recipients = await _repository.recipients(id);
+    for (final r in recipients) {
+      _ackTimers.remove(_key(id, r.recipientId))?.cancel();
+    }
+    await _repository.markDeleted(id, clock.now());
+    final fileIds = {?message.fileId, for (final r in recipients) ?r.fileId};
+    for (final fileId in fileIds) {
+      await _transfers?.discard(fileId);
+    }
+    final people = message.isBroadcast
+        ? [for (final r in recipients) r.recipientId]
+        : [message.peerId];
+    for (final peerId in people) {
+      if (isConnected(peerId)) _sendDelete(peerId, [id]);
+    }
+    _logger.info(LogTag.message, 'Deleted for everyone', {
+      'message': _short(id),
+    });
+  });
+
+  void _sendDelete(String peerId, List<String> messageIds) => _links.send(
+    peerId,
+    MessageDeletePacket(_header(peerId), messageIds: messageIds),
+  );
+
   // ----------------------------------------------------------------- sending
 
   Future<void> _transmit(ChatMessage message) async {
@@ -641,6 +678,20 @@ final class MessagingService {
         final owed = await _repository.owedReceipts(peerId, receipt);
         if (owed.isNotEmpty) await _sendReceipts(peerId, owed, receipt);
       }
+      // Deletions they may have missed; repeating one is harmless.
+      final deleted = await _repository.deletedSentTo(
+        peerId,
+        clock.now().subtract(deleteAnnounced),
+      );
+      for (var i = 0; i < deleted.length; i += PacketCodec.maxReceiptIds) {
+        _sendDelete(
+          peerId,
+          deleted.sublist(
+            i,
+            min(i + PacketCodec.maxReceiptIds, deleted.length),
+          ),
+        );
+      }
     }
   }
 
@@ -664,8 +715,27 @@ final class MessagingService {
           _ackTimers.remove(id)?.cancel();
         }
         await _advance(from, messageIds, MessageStatus.read);
+      case MessageDeletePacket(:final messageIds):
+        await _onDelete(from, messageIds);
       default:
         break;
+    }
+  }
+
+  /// Only the person who wrote a message can delete it.
+  Future<void> _onDelete(String from, List<String> messageIds) async {
+    for (final id in messageIds) {
+      final message = await _repository.find(id);
+      if (message == null || message.isOutgoing || message.isDeleted) continue;
+      if (message.sender != from) {
+        _logger.warning(LogTag.message, 'Delete from someone else ignored', {
+          'from': _short(from),
+        });
+        continue;
+      }
+      await _repository.markDeleted(id, clock.now());
+      final fileId = message.fileId;
+      if (fileId != null) await _transfers?.discard(fileId);
     }
   }
 

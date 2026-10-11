@@ -321,4 +321,43 @@ void main() {
     expect(find.text('Forwarded to Rahim'), findsOneWidget);
     await s.finish(tester);
   });
+
+  testWidgets('delete for everyone: the bubble says so and Rahim is told', (
+    tester,
+  ) async {
+    final s = await Scenario.start(tester);
+    await s.newChat(tester, 'Everyone nearby');
+    await s.type(tester, 'Wrong room, sorry');
+    final sent = s.links.sent
+        .map((e) => e.$2)
+        .whereType<MessagePacket>()
+        .single;
+
+    await tester.longPress(find.text('Wrong room, sorry'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Delete for me'), findsOneWidget);
+    await tester.tap(find.text('Delete for everyone'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Delete for everyone?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await pumpFor(tester, const Duration(seconds: 1));
+
+    expect(find.text('Wrong room, sorry'), findsNothing);
+    expect(find.text('You deleted this message'), findsOneWidget);
+    final delete = s.links.sent
+        .map((e) => e.$2)
+        .whereType<MessageDeletePacket>()
+        .single;
+    expect(delete.messageIds, [sent.header.messageId]);
+    expect(delete.header.receiverId, otherPhoneId);
+
+    // A deleted message offers only Delete for me.
+    await tester.longPress(find.text('You deleted this message'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Reply'), findsNothing);
+    expect(find.text('Forward'), findsNothing);
+    expect(find.text('Delete for everyone'), findsNothing);
+    expect(find.text('Delete for me'), findsOneWidget);
+    await s.finish(tester);
+  });
 }

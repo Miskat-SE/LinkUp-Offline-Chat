@@ -203,6 +203,15 @@ class $MessagesTable extends Messages
         requiredDuringInsert: false,
       ).withConverter<DateTime?>($MessagesTable.$converterlastAttemptAtn);
   @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> deletedAt =
+      GeneratedColumn<int>(
+        'deleted_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($MessagesTable.$converterdeletedAtn);
+  @override
   List<GeneratedColumn> get $columns => [
     id,
     messageId,
@@ -222,6 +231,7 @@ class $MessagesTable extends Messages
     receiptSent,
     attempts,
     lastAttemptAt,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -427,6 +437,12 @@ class $MessagesTable extends Messages
           data['${effectivePrefix}last_attempt_at'],
         ),
       ),
+      deletedAt: $MessagesTable.$converterdeletedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}deleted_at'],
+        ),
+      ),
     );
   }
 
@@ -441,6 +457,9 @@ class $MessagesTable extends Messages
       const UtcMicros();
   static TypeConverter<DateTime?, int?> $converterlastAttemptAtn =
       NullAwareTypeConverter.wrap($converterlastAttemptAt);
+  static TypeConverter<DateTime, int> $converterdeletedAt = const UtcMicros();
+  static TypeConverter<DateTime?, int?> $converterdeletedAtn =
+      NullAwareTypeConverter.wrap($converterdeletedAt);
 }
 
 class MessageRow extends DataClass implements Insertable<MessageRow> {
@@ -494,6 +513,11 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   /// Outgoing only: send attempts on the current connection.
   final int attempts;
   final DateTime? lastAttemptAt;
+
+  /// Deleted for everyone (P15.4, schema v4): the text is wiped and the
+  /// bubble says so. Outgoing ones are re-announced to recipients who come
+  /// back within a week.
+  final DateTime? deletedAt;
   const MessageRow({
     required this.id,
     required this.messageId,
@@ -513,6 +537,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     required this.receiptSent,
     required this.attempts,
     this.lastAttemptAt,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -553,6 +578,11 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
         $MessagesTable.$converterlastAttemptAtn.toSql(lastAttemptAt),
       );
     }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(
+        $MessagesTable.$converterdeletedAtn.toSql(deletedAt),
+      );
+    }
     return map;
   }
 
@@ -584,6 +614,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       lastAttemptAt: lastAttemptAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastAttemptAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -611,6 +644,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       receiptSent: serializer.fromJson<String>(json['receiptSent']),
       attempts: serializer.fromJson<int>(json['attempts']),
       lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -635,6 +669,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'receiptSent': serializer.toJson<String>(receiptSent),
       'attempts': serializer.toJson<int>(attempts),
       'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -657,6 +692,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     String? receiptSent,
     int? attempts,
     Value<DateTime?> lastAttemptAt = const Value.absent(),
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => MessageRow(
     id: id ?? this.id,
     messageId: messageId ?? this.messageId,
@@ -678,6 +714,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     lastAttemptAt: lastAttemptAt.present
         ? lastAttemptAt.value
         : this.lastAttemptAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   MessageRow copyWithCompanion(MessagesCompanion data) {
     return MessageRow(
@@ -705,6 +742,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       lastAttemptAt: data.lastAttemptAt.present
           ? data.lastAttemptAt.value
           : this.lastAttemptAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -728,7 +766,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('isRead: $isRead, ')
           ..write('receiptSent: $receiptSent, ')
           ..write('attempts: $attempts, ')
-          ..write('lastAttemptAt: $lastAttemptAt')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -753,6 +792,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     receiptSent,
     attempts,
     lastAttemptAt,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -775,7 +815,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.isRead == this.isRead &&
           other.receiptSent == this.receiptSent &&
           other.attempts == this.attempts &&
-          other.lastAttemptAt == this.lastAttemptAt);
+          other.lastAttemptAt == this.lastAttemptAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class MessagesCompanion extends UpdateCompanion<MessageRow> {
@@ -797,6 +838,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
   final Value<String> receiptSent;
   final Value<int> attempts;
   final Value<DateTime?> lastAttemptAt;
+  final Value<DateTime?> deletedAt;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.messageId = const Value.absent(),
@@ -816,6 +858,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.receiptSent = const Value.absent(),
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   });
   MessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -836,6 +879,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.receiptSent = const Value.absent(),
     this.attempts = const Value.absent(),
     this.lastAttemptAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   }) : messageId = Value(messageId),
        conversationId = Value(conversationId),
        peerName = Value(peerName),
@@ -863,6 +907,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Expression<String>? receiptSent,
     Expression<int>? attempts,
     Expression<int>? lastAttemptAt,
+    Expression<int>? deletedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -883,6 +928,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       if (receiptSent != null) 'receipt_sent': receiptSent,
       if (attempts != null) 'attempts': attempts,
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
 
@@ -905,6 +951,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Value<String>? receiptSent,
     Value<int>? attempts,
     Value<DateTime?>? lastAttemptAt,
+    Value<DateTime?>? deletedAt,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -925,6 +972,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       receiptSent: receiptSent ?? this.receiptSent,
       attempts: attempts ?? this.attempts,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -991,6 +1039,11 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
         $MessagesTable.$converterlastAttemptAtn.toSql(lastAttemptAt.value),
       );
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(
+        $MessagesTable.$converterdeletedAtn.toSql(deletedAt.value),
+      );
+    }
     return map;
   }
 
@@ -1014,7 +1067,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
           ..write('isRead: $isRead, ')
           ..write('receiptSent: $receiptSent, ')
           ..write('attempts: $attempts, ')
-          ..write('lastAttemptAt: $lastAttemptAt')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -2467,6 +2521,7 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<String> receiptSent,
   Value<int> attempts,
   Value<DateTime?> lastAttemptAt,
+  Value<DateTime?> deletedAt,
 });
 typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<int> id,
@@ -2487,6 +2542,7 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<String> receiptSent,
   Value<int> attempts,
   Value<DateTime?> lastAttemptAt,
+  Value<DateTime?> deletedAt,
 });
 
 class $$MessagesTableFilterComposer
@@ -2590,6 +2646,12 @@ class $$MessagesTableFilterComposer
         column: $table.lastAttemptAt,
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get deletedAt =>
+      $composableBuilder(
+        column: $table.deletedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$MessagesTableOrderingComposer
@@ -2690,6 +2752,11 @@ class $$MessagesTableOrderingComposer
     column: $table.lastAttemptAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableAnnotationComposer
@@ -2761,6 +2828,9 @@ class $$MessagesTableAnnotationComposer
         column: $table.lastAttemptAt,
         builder: (column) => column,
       );
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 }
 
 class $$MessagesTableTableManager
@@ -2812,6 +2882,7 @@ class $$MessagesTableTableManager
                 Value<String> receiptSent = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => MessagesCompanion(
                 id: id,
                 messageId: messageId,
@@ -2831,6 +2902,7 @@ class $$MessagesTableTableManager
                 receiptSent: receiptSent,
                 attempts: attempts,
                 lastAttemptAt: lastAttemptAt,
+                deletedAt: deletedAt,
               ),
           createCompanionCallback:
               ({
@@ -2852,6 +2924,7 @@ class $$MessagesTableTableManager
                 Value<String> receiptSent = const Value.absent(),
                 Value<int> attempts = const Value.absent(),
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => MessagesCompanion.insert(
                 id: id,
                 messageId: messageId,
@@ -2871,6 +2944,7 @@ class $$MessagesTableTableManager
                 receiptSent: receiptSent,
                 attempts: attempts,
                 lastAttemptAt: lastAttemptAt,
+                deletedAt: deletedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -493,4 +493,23 @@ void main() {
       );
     });
   });
+
+  test('MESSAGE_DELETE round-trips and needs IDs (P15.4)', () {
+    final header = PacketHeader.create(
+      senderId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      senderName: 'Yusuf',
+      receiverId: 'bbbbbbbb-0000-4000-8000-000000000002',
+    );
+    final packet = MessageDeletePacket(
+      header,
+      messageIds: const ['6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10'],
+    );
+    final decoded = PacketCodec.decode(PacketCodec.encode(packet));
+    expect(
+      ((decoded as Decoded).packet as MessageDeletePacket).messageIds,
+      packet.messageIds,
+    );
+    final empty = MessageDeletePacket(header, messageIds: const []);
+    expect(PacketCodec.decode(PacketCodec.encode(empty)), isA<Malformed>());
+  });
 }

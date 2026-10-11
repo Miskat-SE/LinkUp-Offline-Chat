@@ -226,6 +226,15 @@ The recipient opened the chat. The sender marks the messages **Read**.
 
 `messageIds`: 1–100 UUIDs. Receipts are idempotent; they are queued and resent after a reconnect if needed.
 
+#### MESSAGE_DELETE — TCP control
+*Added in app 1.0 build 20, within protocol v1; older builds ignore it as an unknown type.* The sender deleted these messages for everyone.
+
+```json
+"payload": { "messageIds": ["6f1c2a0e-8a4b-4d1e-9a51-2c7f0b3e9d10"] }
+```
+
+`messageIds`: 1–100 UUIDs. The receiver applies it only to messages whose author is the packet's sender (for Everyone messages, the MESSAGE's `senderId`); others are ignored. The message is kept as *This message was deleted*: its text is wiped and its file stopped and removed. A message deleted before it was ever sent is not sent. The sender repeats the packet whenever a recipient reconnects, for 7 days; applying it twice changes nothing.
+
 ### 4.4 File transfer (data connection)
 
 A transfer runs on its own TCP connection, opened by the sender to the receiver's `filePort` after the file MESSAGE was confirmed (any of MESSAGE_ACK, MESSAGE_DELIVERED or MESSAGE_READ). The receiver only accepts an offer for a file it was told about in a MESSAGE from the same sender, with the same size and SHA-256. The data connection's HELLO uses the same identity as the control connection; the sender checks that the expected device answered.

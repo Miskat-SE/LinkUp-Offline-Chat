@@ -593,6 +593,7 @@ final class DiscoveryEngine {
           MessageAckPacket() ||
           MessageDeliveredPacket() ||
           MessageReadPacket() ||
+          MessageDeletePacket() ||
           FileOfferPacket() ||
           FileAcceptPacket() ||
           FileRejectPacket() ||
