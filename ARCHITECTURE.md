@@ -181,6 +181,15 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 **Fuzzing** (P9.2). Random, truncated, bit-flipped and wrongly typed input goes into the packet codec, the datagram codec and the frame decoder, and random bytes go into live control and file connections. The app never crashes, refuses the input, and keeps working (`test/security/`, connection and engine tests).
 
+## Chat features (P15)
+
+- **Seen by:** `DeliverySummary.seen` counts recipients at *read*; the bubble shows it with an eye icon (`compactCount`: 1k, 1.2M).
+- **Replies:** `_SwipeToReply` around each bubble; Everyone messages carry `replyToId` too. A quote's tap scrolls the list (building it as it goes) to the original and tints it.
+- **Forward:** `MessagingService.forward` sends text again, or a file from `TransferService.copyForSending` (a temporary copy in `forward/`, moved into `sent/` by sending, then cleaned up).
+- **Delete for everyone:** `messages.deletedAt`; the outbox skips deleted messages; `MESSAGE_DELETE` goes to everyone who got it and is repeated on reconnect for 7 days; receivers apply it only from the author and `discard` the file.
+- **@mentions:** `mentions.dart` finds the @word at the cursor and splits text for highlighting; IDs travel in `MESSAGE.mentions` and are stored comma-separated.
+- **Camera and voice:** `FileBridge.takePhoto` (camera app, no permission) and `VoiceBridge` (MediaRecorder AAC 32 kbit/s; MediaPlayer with progress every 200 ms) behind `FilePickerService.takePhoto` and `Voice`. A voice message is a file message with `voiceMs`.
+
 ## Wi-Fi Direct (P13)
 
 ADR-0023. `WifiDirectController` (`lib/core/connection/`) runs only while Wi-Fi Direct is the chosen method; `wifiDirectControllerProvider` starts and stops it, and turns off the Wi-Fi binding (`NetworkMonitor.setBindToWifi`).

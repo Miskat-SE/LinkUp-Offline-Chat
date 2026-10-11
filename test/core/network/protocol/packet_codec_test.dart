@@ -548,4 +548,35 @@ void main() {
     );
     expect(PacketCodec.decode(PacketCodec.encode(bad)), isA<Malformed>());
   });
+
+  test('voiceMs is optional, on file messages only, within limits (P15.7)', () {
+    final header = PacketHeader.create(
+      senderId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      senderName: 'Yusuf',
+      receiverId: 'bbbbbbbb-0000-4000-8000-000000000002',
+    );
+    const file = FileRef(
+      fileId: '0a4e6c1d-2b8f-4e57-a3c9-5d1f7e2b9c80',
+      name: 'Voice.m4a',
+      size: 2048,
+      mimeType: 'audio/mp4',
+      sha256:
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    );
+    DecodeResult decode(int? ms) => PacketCodec.decode(
+      PacketCodec.encode(
+        MessagePacket(
+          header,
+          kind: MessageKind.file,
+          audience: MessageAudience.direct,
+          file: file,
+          voiceMs: ms,
+        ),
+      ),
+    );
+    expect(((decode(4200) as Decoded).packet as MessagePacket).voiceMs, 4200);
+    expect(((decode(null) as Decoded).packet as MessagePacket).voiceMs, isNull);
+    expect(decode(0), isA<Malformed>());
+    expect(decode(PacketCodec.maxVoiceMs + 1), isA<Malformed>());
+  });
 }

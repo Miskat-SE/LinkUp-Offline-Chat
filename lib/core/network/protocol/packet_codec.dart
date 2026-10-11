@@ -292,6 +292,9 @@ abstract final class PacketCodec {
       text: text,
       replyToId: p.optionalId('replyToId'),
       mentions: _mentions(p),
+      voiceMs: kind == MessageKind.file && p.has('voiceMs')
+          ? p.integer('voiceMs', min: 1, max: maxVoiceMs)
+          : null,
       file: file,
     );
   }
@@ -337,6 +340,9 @@ abstract final class PacketCodec {
 
   /// At most this many people @mentioned in one message.
   static const maxMentions = 50;
+
+  /// The longest voice message (P15.7): 10 minutes, with some slack.
+  static const maxVoiceMs = 11 * 60 * 1000;
 
   static List<String> _mentions(_Reader p) {
     if (!p.has('mentions')) return const [];
@@ -405,6 +411,7 @@ abstract final class PacketCodec {
       'text': packet.text,
       'replyToId': packet.replyToId,
       if (packet.mentions.isNotEmpty) 'mentions': packet.mentions,
+      'voiceMs': ?packet.voiceMs,
       if (packet.file case final file?)
         'file': {
           'fileId': file.fileId,

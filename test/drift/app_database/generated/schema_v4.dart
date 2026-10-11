@@ -175,6 +175,14 @@ class Messages extends Table with TableInfo<Messages, MessagesData> {
     requiredDuringInsert: false,
     $customConstraints: 'NULL',
   );
+  late final GeneratedColumn<int> voiceMs = GeneratedColumn<int>(
+    'voice_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'NULL',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -197,6 +205,7 @@ class Messages extends Table with TableInfo<Messages, MessagesData> {
     lastAttemptAt,
     deletedAt,
     mentions,
+    voiceMs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -289,6 +298,10 @@ class Messages extends Table with TableInfo<Messages, MessagesData> {
         DriftSqlType.string,
         data['${effectivePrefix}mentions'],
       ),
+      voiceMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}voice_ms'],
+      ),
     );
   }
 
@@ -322,6 +335,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
   final int? lastAttemptAt;
   final int? deletedAt;
   final String? mentions;
+  final int? voiceMs;
   const MessagesData({
     required this.id,
     required this.messageId,
@@ -343,6 +357,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     this.lastAttemptAt,
     this.deletedAt,
     this.mentions,
+    this.voiceMs,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -378,6 +393,9 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     }
     if (!nullToAbsent || mentions != null) {
       map['mentions'] = Variable<String>(mentions);
+    }
+    if (!nullToAbsent || voiceMs != null) {
+      map['voice_ms'] = Variable<int>(voiceMs);
     }
     return map;
   }
@@ -416,6 +434,9 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
       mentions: mentions == null && nullToAbsent
           ? const Value.absent()
           : Value(mentions),
+      voiceMs: voiceMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceMs),
     );
   }
 
@@ -445,6 +466,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
       lastAttemptAt: serializer.fromJson<int?>(json['lastAttemptAt']),
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
       mentions: serializer.fromJson<String?>(json['mentions']),
+      voiceMs: serializer.fromJson<int?>(json['voiceMs']),
     );
   }
   @override
@@ -471,6 +493,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
       'lastAttemptAt': serializer.toJson<int?>(lastAttemptAt),
       'deletedAt': serializer.toJson<int?>(deletedAt),
       'mentions': serializer.toJson<String?>(mentions),
+      'voiceMs': serializer.toJson<int?>(voiceMs),
     };
   }
 
@@ -495,6 +518,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     Value<int?> lastAttemptAt = const Value.absent(),
     Value<int?> deletedAt = const Value.absent(),
     Value<String?> mentions = const Value.absent(),
+    Value<int?> voiceMs = const Value.absent(),
   }) => MessagesData(
     id: id ?? this.id,
     messageId: messageId ?? this.messageId,
@@ -518,6 +542,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
         : this.lastAttemptAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     mentions: mentions.present ? mentions.value : this.mentions,
+    voiceMs: voiceMs.present ? voiceMs.value : this.voiceMs,
   );
   MessagesData copyWithCompanion(MessagesCompanion data) {
     return MessagesData(
@@ -547,6 +572,7 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
           : this.lastAttemptAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       mentions: data.mentions.present ? data.mentions.value : this.mentions,
+      voiceMs: data.voiceMs.present ? data.voiceMs.value : this.voiceMs,
     );
   }
 
@@ -572,13 +598,14 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('deletedAt: $deletedAt, ')
-          ..write('mentions: $mentions')
+          ..write('mentions: $mentions, ')
+          ..write('voiceMs: $voiceMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     messageId,
     conversationId,
@@ -599,7 +626,8 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
     lastAttemptAt,
     deletedAt,
     mentions,
-  );
+    voiceMs,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -623,7 +651,8 @@ class MessagesData extends DataClass implements Insertable<MessagesData> {
           other.attempts == this.attempts &&
           other.lastAttemptAt == this.lastAttemptAt &&
           other.deletedAt == this.deletedAt &&
-          other.mentions == this.mentions);
+          other.mentions == this.mentions &&
+          other.voiceMs == this.voiceMs);
 }
 
 class MessagesCompanion extends UpdateCompanion<MessagesData> {
@@ -647,6 +676,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
   final Value<int?> lastAttemptAt;
   final Value<int?> deletedAt;
   final Value<String?> mentions;
+  final Value<int?> voiceMs;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.messageId = const Value.absent(),
@@ -668,6 +698,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     this.lastAttemptAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.mentions = const Value.absent(),
+    this.voiceMs = const Value.absent(),
   });
   MessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -690,6 +721,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     this.lastAttemptAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.mentions = const Value.absent(),
+    this.voiceMs = const Value.absent(),
   }) : messageId = Value(messageId),
        conversationId = Value(conversationId),
        peerName = Value(peerName),
@@ -719,6 +751,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     Expression<int>? lastAttemptAt,
     Expression<int>? deletedAt,
     Expression<String>? mentions,
+    Expression<int>? voiceMs,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -741,6 +774,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (mentions != null) 'mentions': mentions,
+      if (voiceMs != null) 'voice_ms': voiceMs,
     });
   }
 
@@ -765,6 +799,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     Value<int?>? lastAttemptAt,
     Value<int?>? deletedAt,
     Value<String?>? mentions,
+    Value<int?>? voiceMs,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -787,6 +822,7 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       deletedAt: deletedAt ?? this.deletedAt,
       mentions: mentions ?? this.mentions,
+      voiceMs: voiceMs ?? this.voiceMs,
     );
   }
 
@@ -853,6 +889,9 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
     if (mentions.present) {
       map['mentions'] = Variable<String>(mentions.value);
     }
+    if (voiceMs.present) {
+      map['voice_ms'] = Variable<int>(voiceMs.value);
+    }
     return map;
   }
 
@@ -878,7 +917,8 @@ class MessagesCompanion extends UpdateCompanion<MessagesData> {
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('deletedAt: $deletedAt, ')
-          ..write('mentions: $mentions')
+          ..write('mentions: $mentions, ')
+          ..write('voiceMs: $voiceMs')
           ..write(')'))
         .toString();
   }

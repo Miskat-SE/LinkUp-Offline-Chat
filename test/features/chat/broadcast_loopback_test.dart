@@ -206,4 +206,31 @@ void main() {
       isEmpty,
     );
   }, timeout: const Timeout(Duration(minutes: 1)));
+
+  test('a voice message arrives with its length', () async {
+    final mesh = LinkedMesh([yusufId, rahimId]);
+    final yusuf = await Phone.start(mesh, yusufId, 'Yusuf');
+    final rahim = await Phone.start(mesh, rahimId, 'Rahim');
+    mesh.connectAll();
+    final source = File(p.join(yusuf.store.root.path, 'cache', 'VOICE_1.m4a'));
+    await source.parent.create(recursive: true);
+    await source.writeAsBytes(List.filled(4096, 3));
+    await yusuf.messages.sendFiles(
+      peerId: rahimId,
+      peerName: 'Rahim',
+      files: [
+        PickedFile(path: source.path, name: 'Voice.m4a', mimeType: 'audio/mp4'),
+      ],
+      voiceMs: 4200,
+    );
+    await eventually(() async {
+      final thread = await rahim.repository.watchConversation(yusufId).first;
+      return thread.isNotEmpty;
+    });
+    final voice =
+        (await rahim.repository.watchConversation(yusufId).first).single;
+    expect(voice.isVoice, isTrue);
+    expect(voice.voiceMs, 4200);
+    expect(voice.body, '🎤 Voice message (0:04)');
+  });
 }

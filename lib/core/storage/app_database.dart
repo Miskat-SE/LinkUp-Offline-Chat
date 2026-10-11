@@ -70,6 +70,9 @@ class Messages extends Table {
   /// Everyone messages: device IDs @mentioned, comma-separated (P15.5,
   /// schema v4).
   TextColumn get mentions => text().nullable()();
+
+  /// Voice messages: their length in milliseconds (P15.7, schema v4).
+  IntColumn get voiceMs => integer().nullable()();
 }
 
 /// Who an outgoing Everyone message went to, each with their own status
@@ -186,10 +189,11 @@ final class AppDatabase extends _$AppDatabase {
         await m.createTable(schema.messageRecipients);
         await m.createIndex(schema.recipientsByDevice);
       },
-      // v4 (P15.4–P15.5): delete for everyone, @mentions.
+      // v4 (P15): delete for everyone, @mentions, voice messages.
       from3To4: (m, schema) async {
         await m.addColumn(schema.messages, schema.messages.deletedAt);
         await m.addColumn(schema.messages, schema.messages.mentions);
+        await m.addColumn(schema.messages, schema.messages.voiceMs);
       },
     ),
     beforeOpen: (details) => customStatement('PRAGMA foreign_keys = ON'),

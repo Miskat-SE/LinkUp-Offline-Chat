@@ -1000,13 +1000,13 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 
 #### P15 · Chat features from user testing (requested 11 Oct 2026, about 2 weeks)
 Reply (long-press) and per-person delivery already exist; these build on them. Suggested order: quick wins first, voice last.
-- [ ] **P15.1** *Seen by* count on Everyone messages (1, 2, 3 … 1k), tap for who; uses the existing per-person read status
-- [ ] **P15.2** WhatsApp-style reply: swipe a message to reply, quoted message in the bubble (tap jumps to it); replies in the Everyone thread too
-- [ ] **P15.3** Forward any message or file to people or Everyone; files go from the local copy
-- [ ] **P15.4** Delete for everyone (sender only): new `MESSAGE_DELETE` packet, ignored by older builds; *This message was deleted* on every phone, files removed
-- [ ] **P15.5** @mentions in Everyone: suggestions of people online, highlighted, and the mentioned person is notified (optional `mentions` field in MESSAGE)
-- [ ] **P15.6** Camera: take a photo inside the chat and send it (Android camera app; no camera permission needed)
-- [ ] **P15.7** Voice messages: hold to record (`RECORD_AUDIO`, asked on first use), send as an audio file with its length, play inside the bubble
+- [x] **P15.1** *Seen by* count on Everyone messages (1, 2, 3 … 1k), tap for who; uses the existing per-person read status *(eye icon and compact count beside the delivery text; TalkBack reads "Seen by N")*
+- [x] **P15.2** WhatsApp-style reply: swipe a message to reply, quoted message in the bubble (tap jumps to it); replies in the Everyone thread too *(swipe right to reply; quotes name the right sender in Everyone; tapping a quote scrolls back and tints the original)*
+- [x] **P15.3** Forward any message or file to people or Everyone; files go from the local copy *(Forward sheet: Everyone nearby and/or people; files from a temporary copy of this phone's file)*
+- [x] **P15.4** Delete for everyone (sender only): new `MESSAGE_DELETE` packet, ignored by older builds; *This message was deleted* on every phone, files removed *(`MESSAGE_DELETE`, repeated to people who come back for 7 days; schema v4 `deletedAt`)*
+- [x] **P15.5** @mentions in Everyone: suggestions of people online, highlighted, and the mentioned person is notified (optional `mentions` field in MESSAGE) *(@ chips of people online; optional `mentions` IDs; "Rahim mentioned you" notification)*
+- [x] **P15.6** Camera: take a photo inside the chat and send it (Android camera app; no camera permission needed) *(camera button in the composer; the phone's camera app via a FileProvider path)*
+- [x] **P15.7** Voice messages: hold to record (`RECORD_AUDIO`, asked on first use), send as an audio file with its length, play inside the bubble *(tap the mic to record, then Send or Cancel, which also works with TalkBack; AAC 32 kbit/s, up to 10 minutes; optional `voiceMs`; player in the bubble)*
 
 **Schedule note:** P13 and P14 add about 5–7 weeks and don't fit inside the 20-week window. They are planned after v1.0 (Week 21 onward) unless the supervisor agrees to swap them for other work (§16 Q3).
 
@@ -1236,3 +1236,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 2.3 | 10 Oct 2026 | P11 done (code): accessibility audit as tests (touch targets, labels, contrast in light and dark, 200% text) with one overflow fixed; navigation rail from 600 dp and chat list beside the chat from 840 dp; About screen (version, how it works, privacy, licences; 7 taps on the version unlock developer options); transitions instant with Remove animations; profile-mode frame times during a 200 MB send and cold start recorded. Exit check (UI checklist on 2 phones, light and dark) is with the user. |
 | 2.4 | 10 Oct 2026 | P12 done except the phone matrix: release signing with an upload key outside the repository; obfuscated builds with symbols; Play bundle (`--bundle`); `v1.0.0-rc1`. The release check found and fixed a dropped-message bug (a packet in the same burst as the HELLO), and a leftover *File sharing is coming* placeholder in People (now *Send file*). Play Store readiness added at the user's request (P12.6); upload not planned yet. |
 | 2.5 | 11 Oct 2026 | P13 code done (ADR-0023): Wi-Fi Direct is selectable; phones form a group by themselves (service discovery, lowest ID hosts, joins without dialogs on Android 10+) and the existing LAN stack runs over it; permission flow and status card states; developer view. Phone tests (P13.1, P13.4) are with the user. User testing passed P6–P8 on phones; their feature requests added as P15. |
+| 2.6 | 11 Oct 2026 | P15 done (code): seen-by count, swipe replies (also in Everyone), forward, delete for everyone (`MESSAGE_DELETE`), @mentions, camera photos, voice messages. Schema v4 (`deletedAt`, `mentions`, `voiceMs`) with a migration test, and checked on the emulator by updating build 19 to 20 with a chat kept. New protocol fields are optional, so older builds keep working. |

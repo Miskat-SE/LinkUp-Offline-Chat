@@ -200,6 +200,7 @@ The envelope `messageId` is the chat message ID.
 | `text` | Required for `text`, ≤ 16 KiB UTF-8; optional caption for `file` |
 | `replyToId` | UUID or null |
 | `mentions` | *Optional, build 20+.* `broadcast` only: up to 50 device UUIDs @mentioned in the text. The mentioned person's notification says they were mentioned. Absent when nobody is mentioned; older builds ignore it. |
+| `voiceMs` | *Optional, build 20+.* File messages only: the file is a voice message (AAC in `.m4a`) this many milliseconds long, 1–660,000. New builds show a player; older builds show an ordinary audio file. |
 | `file` | Required for `file`. `fileId` UUID; `name` ≤ 255 UTF-8 bytes (sanitised before use); `size` ≥ 0; `mimeType` ≤ 127 characters; `sha256` 64 lowercase hex characters |
 
 #### MESSAGE_ACK — TCP control

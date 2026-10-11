@@ -653,6 +653,7 @@ final class Schema4 extends i0.VersionedSchema {
         _column_15,
         _column_31,
         _column_32,
+        _column_33,
       ],
       attachedDatabase: database,
     ),
@@ -777,6 +778,8 @@ class Shape4 extends i0.VersionedTable {
       columnsByName['deleted_at']! as i1.GeneratedColumn<int>;
   i1.GeneratedColumn<String> get mentions =>
       columnsByName['mentions']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get voiceMs =>
+      columnsByName['voice_ms']! as i1.GeneratedColumn<int>;
 }
 
 i1.GeneratedColumn<int> _column_31(String aliasedName) =>
@@ -793,6 +796,14 @@ i1.GeneratedColumn<String> _column_32(String aliasedName) =>
       aliasedName,
       true,
       type: i1.DriftSqlType.string,
+      $customConstraints: 'NULL',
+    );
+i1.GeneratedColumn<int> _column_33(String aliasedName) =>
+    i1.GeneratedColumn<int>(
+      'voice_ms',
+      aliasedName,
+      true,
+      type: i1.DriftSqlType.int,
       $customConstraints: 'NULL',
     );
 i0.MigrationStepWithVersion migrationSteps({

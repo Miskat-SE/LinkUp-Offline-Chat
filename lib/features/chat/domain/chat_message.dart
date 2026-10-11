@@ -82,6 +82,7 @@ final class ChatMessage {
     this.senderId,
     this.deletedAt,
     this.mentions = const [],
+    this.voiceMs,
   });
 
   /// The conversation ID of the Everyone thread.
@@ -133,6 +134,11 @@ final class ChatMessage {
   /// Everyone messages: device IDs @mentioned (P15.5).
   final List<String> mentions;
 
+  /// Voice messages (P15.7): a file message this long.
+  final int? voiceMs;
+
+  bool get isVoice => voiceMs != null;
+
   bool get isOutgoing => direction == MessageDirection.outgoing;
 
   bool get isBroadcast => audience == ChatAudience.everyone;
@@ -150,6 +156,8 @@ final class ChatMessage {
   /// The text, or the file's name.
   String get body => isDeleted
       ? (isOutgoing ? 'You deleted this message' : 'This message was deleted')
+      : isVoice
+      ? '🎤 Voice message (${voiceLength(voiceMs!)})'
       : isFile
       ? '📎 ${fileName ?? 'File'}'
       : text;
@@ -178,6 +186,7 @@ final class ChatMessage {
     senderId: senderId,
     deletedAt: deletedAt,
     mentions: mentions,
+    voiceMs: voiceMs,
   );
 }
 
@@ -293,4 +302,10 @@ String compactCount(int n) {
   if (n < 1000) return '$n';
   if (n < 1000000) return short((n ~/ 100) / 10, 'k');
   return short((n ~/ 100000) / 10, 'M');
+}
+
+/// A voice message's length: 0:07, 1:42, 10:00.
+String voiceLength(int ms) {
+  final seconds = (ms / 1000).round();
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }

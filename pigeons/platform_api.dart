@@ -285,3 +285,52 @@ abstract class WifiDirectFlutterApi {
 
   void onGroupChanged(WifiDirectGroup group);
 }
+
+/// Where a voice message's playback is (P15.7).
+class VoicePlayback {
+  VoicePlayback({
+    required this.path,
+    required this.positionMs,
+    required this.durationMs,
+    required this.playing,
+  });
+
+  String path;
+  int positionMs;
+  int durationMs;
+  bool playing;
+}
+
+/// Records and plays voice messages with Android's own MediaRecorder and
+/// MediaPlayer (P15.7).
+@HostApi()
+abstract class VoiceHostApi {
+  bool hasPermission();
+
+  @async
+  bool requestPermission();
+
+  /// Starts recording into the app cache; returns the file's path.
+  String startRecording();
+
+  /// Stops recording; its length in ms, or 0 if too short to keep (the file
+  /// is then deleted).
+  int stopRecording();
+
+  void cancelRecording();
+
+  /// Loudest level since the last call, 0–32767, for the recording meter.
+  int level();
+
+  /// Plays [path] from where it was paused, stopping anything else.
+  void play(String path);
+
+  void pause();
+
+  void stopPlayback();
+}
+
+@FlutterApi()
+abstract class VoiceFlutterApi {
+  void onPlayback(VoicePlayback state);
+}

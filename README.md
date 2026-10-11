@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: v1.0.0-rc1, release candidate.** Phones on the same Wi-Fi or hotspot find each other automatically, with no internet, and chat one to one with sent, delivered and read ticks, or message *Everyone* nearby with "Delivered to 2 of 3". They share files of any type and size up to 4 GB (photos, videos, documents, apps) with pause, resume and a SHA-256 check. Transfers keep going with the screen off, and *Stay reachable* keeps LinkUp reachable while it is closed. Chats and files stay on the phone; anything sent to someone offline goes when they come back. Names are unique on the network. Light and dark themes, large text and TalkBack are supported, and wide screens show the chat beside the list. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for the schedule and [`TESTING.md`](TESTING.md) for testing.
+> **Status: v1.0.0-rc1 plus P13–P15 (build 20).** Phones on the same Wi-Fi, a hotspot or Wi-Fi Direct find each other with no internet, and chat one to one with sent, delivered and read ticks, or message *Everyone* nearby with "Delivered to 2 of 3" and a seen count. Messages can be replied to (swipe), forwarded, deleted for everyone, and @mention people in Everyone. They share photos (also straight from the camera), voice messages and files of any type up to 4 GB, with pause, resume and a SHA-256 check. Transfers keep going with the screen off, and *Stay reachable* keeps LinkUp reachable while it is closed. Chats and files stay on the phone; anything sent to someone offline goes when they come back. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) and [`TESTING.md`](TESTING.md).
 
 ## Documents
 
@@ -69,6 +69,8 @@ keyPassword=…
 
 ## Permissions
 
+**Microphone** (`RECORD_AUDIO`): asked the first time you record a voice message; nothing is recorded otherwise. Photos come from the phone's own camera app, so LinkUp has no camera permission.
+
 **Wi-Fi Direct only** (asked when you choose it): *Nearby devices* (`NEARBY_WIFI_DEVICES`, Android 13+, declared so it never gives your location), or on Android 8–12 location (`ACCESS_FINE_LOCATION`), which Android requires for Wi-Fi Direct discovery, with Location turned on. LinkUp never uses or stores your location. `CHANGE_WIFI_STATE` is granted automatically.
 
 LinkUp runs a foreground service (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `WAKE_LOCK`) only while files move or *Stay reachable* is on, always with a notification. Runtime permissions: notifications (`POST_NOTIFICATIONS`), asked the first time you open a chat, after a short explanation; and on Android 8–9 only, storage, the first time you use *Save to Downloads*. Opening a received app (APK) hands it to Android's installer, which asks you to allow installs from LinkUp first (`REQUEST_INSTALL_PACKAGES`); nothing is installed without you. The app also declares `INTERNET`, which Android requires for any socket, even to a phone on the same Wi-Fi; the app never contacts the internet. It also declares `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` and `CHANGE_WIFI_MULTICAST_STATE`, which are granted automatically. If Android asks *"This network has no internet access. Stay connected?"*, answer **Yes**.
@@ -88,6 +90,8 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 - Very large files take a moment to appear in the Send sheet: Android's file picker copies them into the app first.
 - Only the sender can pause. Cancelling a file that is still waiting (the other person is offline) isn't announced to them; their card keeps waiting.
 - *Everyone* reaches only the people online when you send; there are no replies inside the Everyone thread.
+- *Delete for everyone* removes the message inside LinkUp on every phone; copies someone already saved to Downloads or shared to another app stay.
+- Voice messages are up to 10 minutes.
 - Wi-Fi Direct is new and still being tested on phones; one group at a time (about 50 m). Bluetooth is *Coming soon* (P14).
 - Messages and files are not encrypted on the local network (see *Security and privacy*).
 - Android only. iOS, desktop and web are out of scope.

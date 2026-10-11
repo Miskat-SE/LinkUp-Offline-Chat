@@ -12,6 +12,7 @@ import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
 import 'package:resqmesh/core/platform/notifications.dart';
+import 'package:resqmesh/core/platform/voice.dart';
 import 'package:resqmesh/core/storage/key_value_store.dart';
 import 'package:resqmesh/core/utils/relative_time.dart';
 import 'package:resqmesh/features/chat/data/chat_providers.dart';
@@ -20,6 +21,7 @@ import 'package:resqmesh/features/chat/domain/mentions.dart';
 import 'package:resqmesh/features/chat/presentation/chat_format.dart';
 import 'package:resqmesh/features/chat/presentation/forward_sheet.dart';
 import 'package:resqmesh/features/chat/presentation/message_bubble.dart';
+import 'package:resqmesh/features/chat/presentation/voice_message_card.dart';
 import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
 import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
 import 'package:resqmesh/features/file_transfer/data/transfer_service.dart';
@@ -45,6 +47,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _text = TextEditingController();
   late final ActiveChat _activeChat = ref.read(activeChatProvider.notifier);
+  // Read in initState: dispose() can't use ref.
+  late final Voice _voice;
+
+  /// A voice message being recorded (P15.7).
+  ({String path, DateTime since})? _recording;
   ChatMessage? _replyingTo;
 
   /// Everyone thread: the @word being typed, and who was picked (name → ID).
@@ -91,6 +98,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _voice = ref.read(voiceProvider);
     if (_everyone) _text.addListener(_onTyping);
     // Providers can't change while widgets build, so after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -111,6 +119,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final peerId = _peerId;
     // Not during dispose itself (see initState).
     Future.microtask(() => activeChat.close(peerId));
+    if (_recording != null) unawaited(_voice.cancelRecording());
+    unawaited(_voice.stopPlayback());
     _text.dispose();
     super.dispose();
   }
@@ -194,6 +204,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
     await _sendPicked(picked, peerName);
+  }
+
+  Future<void> _startRecording() async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!await _voice.hasPermission() && !await _voice.requestPermission()) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Allow the microphone to record voice messages'),
+          ),
+        );
+      return;
+    }
+    try {
+      final path = await _voice.startRecording();
+      if (!mounted) {
+        unawaited(_voice.cancelRecording());
+        return;
+      }
+      setState(() => _recording = (path: path, since: clock.now()));
+    } on PlatformException {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text("Couldn't start recording")),
+        );
+    }
+  }
+
+  void _cancelRecording() {
+    setState(() => _recording = null);
+    unawaited(_voice.cancelRecording());
+  }
+
+  /// Sends the recording at once, like WhatsApp; no review sheet.
+  Future<void> _sendRecording(String peerName) async {
+    final recording = _recording;
+    if (recording == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _recording = null);
+    final ms = await _voice.stopRecording();
+    if (ms == 0) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Too short to send')));
+      return;
+    }
+    String two(int n) => n.toString().padLeft(2, '0');
+    final t = recording.since.toLocal();
+    final picked = PickedFile(
+      path: recording.path,
+      name:
+          'Voice ${t.year}-${two(t.month)}-${two(t.day)} '
+          '${two(t.hour)}.${two(t.minute)}.${two(t.second)}.m4a',
+      mimeType: 'audio/mp4',
+    );
+    final service = ref.read(messagingServiceProvider);
+    if (_everyone) {
+      final sent = await service.sendToEveryone(
+        files: [picked],
+        names: _onlineNames(),
+        voiceMs: ms,
+      );
+      if (sent.isEmpty && mounted) _nobodyOnline();
+    } else {
+      await service.sendFiles(
+        peerId: _peerId,
+        peerName: peerName,
+        files: [picked],
+        voiceMs: ms,
+      );
+    }
   }
 
   /// Camera (P15.6): one photo, then the same review sheet as attachments.
@@ -470,6 +553,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onCamera: _gettingFiles || (_everyone && !connected)
                   ? null
                   : () => _takePhoto(_everyone ? 'everyone online' : name),
+              onRecord: _everyone && !connected ? null : _startRecording,
+              recordingSince: _recording?.since,
+              onCancelRecording: _cancelRecording,
+              onSendRecording: () => _sendRecording(name),
             ),
           ],
         ),
@@ -630,7 +717,16 @@ class _MessageListState extends State<_MessageList> {
             onTapDelivery: () => widget.onShowDelivery(message),
             attachment: message.fileId == null || message.isDeleted
                 ? null
-                : (foreground) => message.isBroadcast && message.isOutgoing
+                : (foreground) => message.isVoice
+                      ? VoiceMessageCard(
+                          fileId: message.fileId!,
+                          voiceMs: message.voiceMs!,
+                          peerName: message.isBroadcast
+                              ? message.peerName
+                              : peerName,
+                          foreground: foreground,
+                        )
+                      : message.isBroadcast && message.isOutgoing
                       ? _BroadcastFileCard(
                           message: message,
                           recipients: recipients[message.id] ?? const [],
@@ -801,6 +897,10 @@ class _Composer extends StatefulWidget {
     required this.onSend,
     required this.onAttach,
     required this.onCamera,
+    required this.onRecord,
+    required this.onCancelRecording,
+    required this.onSendRecording,
+    this.recordingSince,
     this.enabled = true,
   });
 
@@ -808,6 +908,14 @@ class _Composer extends StatefulWidget {
   final VoidCallback onSend;
   final VoidCallback? onAttach;
   final VoidCallback? onCamera;
+
+  /// Voice messages (P15.7): the mic shows while there is no text.
+  final VoidCallback? onRecord;
+  final VoidCallback onCancelRecording;
+  final VoidCallback onSendRecording;
+
+  /// Set while recording.
+  final DateTime? recordingSince;
   final bool enabled;
 
   @override
@@ -832,6 +940,37 @@ class _ComposerState extends State<_Composer> {
   @override
   Widget build(BuildContext context) {
     final canSend = widget.enabled && widget.controller.text.trim().isNotEmpty;
+    final since = widget.recordingSince;
+    final padding = const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.sm,
+      AppSpacing.sm,
+      AppSpacing.md,
+    );
+    if (since != null) {
+      return Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Cancel recording',
+              onPressed: widget.onCancelRecording,
+              icon: const Icon(Icons.delete_outline_rounded),
+            ),
+            Expanded(child: _RecordingTimer(since: since)),
+            IconButton.filled(
+              tooltip: 'Send voice message',
+              onPressed: widget.onSendRecording,
+              iconSize: 26,
+              style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+              icon: const Icon(Icons.send_rounded),
+            ),
+          ],
+        ),
+      );
+    }
+    final record =
+        widget.controller.text.trim().isEmpty && widget.onRecord != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -890,13 +1029,22 @@ class _ComposerState extends State<_Composer> {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          IconButton.filled(
-            tooltip: 'Send',
-            onPressed: canSend ? widget.onSend : null,
-            iconSize: 26,
-            style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
-            icon: const Icon(Icons.send_rounded),
-          ),
+          if (record)
+            IconButton.filled(
+              tooltip: 'Record a voice message',
+              onPressed: widget.enabled ? widget.onRecord : null,
+              iconSize: 26,
+              style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+              icon: const Icon(Icons.mic_rounded),
+            )
+          else
+            IconButton.filled(
+              tooltip: 'Send',
+              onPressed: canSend ? widget.onSend : null,
+              iconSize: 26,
+              style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+              icon: const Icon(Icons.send_rounded),
+            ),
         ],
       ),
     );
@@ -1283,6 +1431,63 @@ class _MentionSuggestions extends StatelessWidget {
                 onPressed: () => onPick(id, name),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The running time of a recording (P15.7).
+class _RecordingTimer extends StatefulWidget {
+  const _RecordingTimer({required this.since});
+
+  final DateTime since;
+
+  @override
+  State<_RecordingTimer> createState() => _RecordingTimerState();
+}
+
+class _RecordingTimerState extends State<_RecordingTimer> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(
+      const Duration(milliseconds: 500),
+      (_) => setState(() {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final elapsed = clock.now().difference(widget.since).inMilliseconds;
+    return Semantics(
+      liveRegion: true,
+      label: 'Recording',
+      child: Row(
+        children: [
+          const SizedBox(width: AppSpacing.sm),
+          Icon(Icons.circle, size: 12, color: theme.colorScheme.error),
+          const SizedBox(width: AppSpacing.sm),
+          Text(voiceLength(elapsed), style: theme.textTheme.titleMedium),
+          const SizedBox(width: AppSpacing.sm),
+          Flexible(
+            child: Text(
+              'Recording…',
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
     );

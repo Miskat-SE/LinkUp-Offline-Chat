@@ -222,6 +222,17 @@ class $MessagesTable extends Messages
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _voiceMsMeta = const VerificationMeta(
+    'voiceMs',
+  );
+  @override
+  late final GeneratedColumn<int> voiceMs = GeneratedColumn<int>(
+    'voice_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -244,6 +255,7 @@ class $MessagesTable extends Messages
     lastAttemptAt,
     deletedAt,
     mentions,
+    voiceMs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -368,6 +380,12 @@ class $MessagesTable extends Messages
         mentions.isAcceptableOrUnknown(data['mentions']!, _mentionsMeta),
       );
     }
+    if (data.containsKey('voice_ms')) {
+      context.handle(
+        _voiceMsMeta,
+        voiceMs.isAcceptableOrUnknown(data['voice_ms']!, _voiceMsMeta),
+      );
+    }
     return context;
   }
 
@@ -465,6 +483,10 @@ class $MessagesTable extends Messages
         DriftSqlType.string,
         data['${effectivePrefix}mentions'],
       ),
+      voiceMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}voice_ms'],
+      ),
     );
   }
 
@@ -544,6 +566,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   /// Everyone messages: device IDs @mentioned, comma-separated (P15.5,
   /// schema v4).
   final String? mentions;
+
+  /// Voice messages: their length in milliseconds (P15.7, schema v4).
+  final int? voiceMs;
   const MessageRow({
     required this.id,
     required this.messageId,
@@ -565,6 +590,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     this.lastAttemptAt,
     this.deletedAt,
     this.mentions,
+    this.voiceMs,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -613,6 +639,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     if (!nullToAbsent || mentions != null) {
       map['mentions'] = Variable<String>(mentions);
     }
+    if (!nullToAbsent || voiceMs != null) {
+      map['voice_ms'] = Variable<int>(voiceMs);
+    }
     return map;
   }
 
@@ -650,6 +679,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       mentions: mentions == null && nullToAbsent
           ? const Value.absent()
           : Value(mentions),
+      voiceMs: voiceMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceMs),
     );
   }
 
@@ -679,6 +711,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       mentions: serializer.fromJson<String?>(json['mentions']),
+      voiceMs: serializer.fromJson<int?>(json['voiceMs']),
     );
   }
   @override
@@ -705,6 +738,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'mentions': serializer.toJson<String?>(mentions),
+      'voiceMs': serializer.toJson<int?>(voiceMs),
     };
   }
 
@@ -729,6 +763,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     Value<DateTime?> lastAttemptAt = const Value.absent(),
     Value<DateTime?> deletedAt = const Value.absent(),
     Value<String?> mentions = const Value.absent(),
+    Value<int?> voiceMs = const Value.absent(),
   }) => MessageRow(
     id: id ?? this.id,
     messageId: messageId ?? this.messageId,
@@ -752,6 +787,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
         : this.lastAttemptAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     mentions: mentions.present ? mentions.value : this.mentions,
+    voiceMs: voiceMs.present ? voiceMs.value : this.voiceMs,
   );
   MessageRow copyWithCompanion(MessagesCompanion data) {
     return MessageRow(
@@ -781,6 +817,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           : this.lastAttemptAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       mentions: data.mentions.present ? data.mentions.value : this.mentions,
+      voiceMs: data.voiceMs.present ? data.voiceMs.value : this.voiceMs,
     );
   }
 
@@ -806,13 +843,14 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('deletedAt: $deletedAt, ')
-          ..write('mentions: $mentions')
+          ..write('mentions: $mentions, ')
+          ..write('voiceMs: $voiceMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     messageId,
     conversationId,
@@ -833,7 +871,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     lastAttemptAt,
     deletedAt,
     mentions,
-  );
+    voiceMs,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -857,7 +896,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.attempts == this.attempts &&
           other.lastAttemptAt == this.lastAttemptAt &&
           other.deletedAt == this.deletedAt &&
-          other.mentions == this.mentions);
+          other.mentions == this.mentions &&
+          other.voiceMs == this.voiceMs);
 }
 
 class MessagesCompanion extends UpdateCompanion<MessageRow> {
@@ -881,6 +921,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
   final Value<DateTime?> lastAttemptAt;
   final Value<DateTime?> deletedAt;
   final Value<String?> mentions;
+  final Value<int?> voiceMs;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.messageId = const Value.absent(),
@@ -902,6 +943,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.lastAttemptAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.mentions = const Value.absent(),
+    this.voiceMs = const Value.absent(),
   });
   MessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -924,6 +966,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     this.lastAttemptAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.mentions = const Value.absent(),
+    this.voiceMs = const Value.absent(),
   }) : messageId = Value(messageId),
        conversationId = Value(conversationId),
        peerName = Value(peerName),
@@ -953,6 +996,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Expression<int>? lastAttemptAt,
     Expression<int>? deletedAt,
     Expression<String>? mentions,
+    Expression<int>? voiceMs,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -975,6 +1019,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (mentions != null) 'mentions': mentions,
+      if (voiceMs != null) 'voice_ms': voiceMs,
     });
   }
 
@@ -999,6 +1044,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     Value<DateTime?>? lastAttemptAt,
     Value<DateTime?>? deletedAt,
     Value<String?>? mentions,
+    Value<int?>? voiceMs,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -1021,6 +1067,7 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       deletedAt: deletedAt ?? this.deletedAt,
       mentions: mentions ?? this.mentions,
+      voiceMs: voiceMs ?? this.voiceMs,
     );
   }
 
@@ -1095,6 +1142,9 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
     if (mentions.present) {
       map['mentions'] = Variable<String>(mentions.value);
     }
+    if (voiceMs.present) {
+      map['voice_ms'] = Variable<int>(voiceMs.value);
+    }
     return map;
   }
 
@@ -1120,7 +1170,8 @@ class MessagesCompanion extends UpdateCompanion<MessageRow> {
           ..write('attempts: $attempts, ')
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('deletedAt: $deletedAt, ')
-          ..write('mentions: $mentions')
+          ..write('mentions: $mentions, ')
+          ..write('voiceMs: $voiceMs')
           ..write(')'))
         .toString();
   }
@@ -2575,6 +2626,7 @@ typedef $$MessagesTableCreateCompanionBuilder = MessagesCompanion Function({
   Value<DateTime?> lastAttemptAt,
   Value<DateTime?> deletedAt,
   Value<String?> mentions,
+  Value<int?> voiceMs,
 });
 typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<int> id,
@@ -2597,6 +2649,7 @@ typedef $$MessagesTableUpdateCompanionBuilder = MessagesCompanion Function({
   Value<DateTime?> lastAttemptAt,
   Value<DateTime?> deletedAt,
   Value<String?> mentions,
+  Value<int?> voiceMs,
 });
 
 class $$MessagesTableFilterComposer
@@ -2711,6 +2764,11 @@ class $$MessagesTableFilterComposer
     column: $table.mentions,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<int> get voiceMs => $composableBuilder(
+    column: $table.voiceMs,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$MessagesTableOrderingComposer
@@ -2821,6 +2879,11 @@ class $$MessagesTableOrderingComposer
     column: $table.mentions,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get voiceMs => $composableBuilder(
+    column: $table.voiceMs,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableAnnotationComposer
@@ -2898,6 +2961,9 @@ class $$MessagesTableAnnotationComposer
 
   GeneratedColumn<String> get mentions =>
       $composableBuilder(column: $table.mentions, builder: (column) => column);
+
+  GeneratedColumn<int> get voiceMs =>
+      $composableBuilder(column: $table.voiceMs, builder: (column) => column);
 }
 
 class $$MessagesTableTableManager
@@ -2951,6 +3017,7 @@ class $$MessagesTableTableManager
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> mentions = const Value.absent(),
+                Value<int?> voiceMs = const Value.absent(),
               }) => MessagesCompanion(
                 id: id,
                 messageId: messageId,
@@ -2972,6 +3039,7 @@ class $$MessagesTableTableManager
                 lastAttemptAt: lastAttemptAt,
                 deletedAt: deletedAt,
                 mentions: mentions,
+                voiceMs: voiceMs,
               ),
           createCompanionCallback:
               ({
@@ -2995,6 +3063,7 @@ class $$MessagesTableTableManager
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String?> mentions = const Value.absent(),
+                Value<int?> voiceMs = const Value.absent(),
               }) => MessagesCompanion.insert(
                 id: id,
                 messageId: messageId,
@@ -3016,6 +3085,7 @@ class $$MessagesTableTableManager
                 lastAttemptAt: lastAttemptAt,
                 deletedAt: deletedAt,
                 mentions: mentions,
+                voiceMs: voiceMs,
               ),
           withReferenceMapper: (p0) => p0
               .map(

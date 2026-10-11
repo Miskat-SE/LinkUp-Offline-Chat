@@ -595,6 +595,59 @@ data class WifiDirectGroup (
     return "WifiDirectGroup(enabled=$enabled, formed=$formed, isOwner=$isOwner, clients=$clients, networkName=$networkName, passphrase=$passphrase)"
   }
 }
+
+/**
+ * Where a voice message's playback is (P15.7).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class VoicePlayback (
+  val path: String,
+  val positionMs: Long,
+  val durationMs: Long,
+  val playing: Boolean
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): VoicePlayback {
+      val path = pigeonVar_list[0] as String
+      val positionMs = pigeonVar_list[1] as Long
+      val durationMs = pigeonVar_list[2] as Long
+      val playing = pigeonVar_list[3] as Boolean
+      return VoicePlayback(path, positionMs, durationMs, playing)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      path,
+      positionMs,
+      durationMs,
+      playing,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as VoicePlayback
+    return PlatformApiPigeonUtils.deepEquals(this.path, other.path) && PlatformApiPigeonUtils.deepEquals(this.positionMs, other.positionMs) && PlatformApiPigeonUtils.deepEquals(this.durationMs, other.durationMs) && PlatformApiPigeonUtils.deepEquals(this.playing, other.playing)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.path)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.positionMs)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.durationMs)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.playing)
+    return result
+  }
+  override fun toString(): String {
+    return "VoicePlayback(path=$path, positionMs=$positionMs, durationMs=$durationMs, playing=$playing)"
+  }
+}
 private open class PlatformApiPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -633,6 +686,11 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
           WifiDirectGroup.fromList(it)
         }
       }
+      136.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          VoicePlayback.fromList(it)
+        }
+      }
       else -> super.readValueOfType(type, buffer)
     }
   }
@@ -664,6 +722,10 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
       }
       is WifiDirectGroup -> {
         stream.write(135)
+        writeValue(stream, value.toList())
+      }
+      is VoicePlayback -> {
+        stream.write(136)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1444,6 +1506,213 @@ class WifiDirectFlutterApi(private val binaryMessenger: BinaryMessenger, private
       val channelName = "dev.flutter.pigeon.resqmesh.WifiDirectFlutterApi.onGroupChanged$separatedMessageChannelSuffix"
       val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
       channel.send(listOf(groupArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+}
+/**
+ * Records and plays voice messages with Android's own MediaRecorder and
+ * MediaPlayer (P15.7).
+ *
+ * Generated interface from Pigeon that represents a handler of messages from Flutter.
+ */
+interface VoiceHostApi {
+  fun hasPermission(): Boolean
+  suspend fun requestPermission(): Boolean
+  /** Starts recording into the app cache; returns the file's path. */
+  fun startRecording(): String
+  /**
+   * Stops recording; its length in ms, or 0 if too short to keep (the file
+   * is then deleted).
+   */
+  fun stopRecording(): Long
+  fun cancelRecording()
+  /** Loudest level since the last call, 0–32767, for the recording meter. */
+  fun level(): Long
+  /** Plays [path] from where it was paused, stopping anything else. */
+  fun play(path: String)
+  fun pause()
+  fun stopPlayback()
+
+  companion object {
+    /** The codec used by VoiceHostApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+    /** Sets up an instance of `VoiceHostApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: VoiceHostApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.hasPermission$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.hasPermission())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.requestPermission$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.requestPermission())
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.startRecording$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.startRecording())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.stopRecording$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.stopRecording())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.cancelRecording$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.cancelRecording()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.level$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.level())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.play$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val pathArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              api.play(pathArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.pause$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.pause()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.VoiceHostApi.stopPlayback$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.stopPlayback()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}
+/** Generated class from Pigeon that represents Flutter messages that can be called from Kotlin. */
+class VoiceFlutterApi(private val binaryMessenger: BinaryMessenger, private val messageChannelSuffix: String = "") {
+  companion object {
+    /** The codec used by VoiceFlutterApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+  }
+  suspend fun onPlayback(stateArg: VoicePlayback)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.VoiceFlutterApi.onPlayback$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(stateArg)) {
         if (it is List<*>) {
           if (it.size > 1) {
             continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))

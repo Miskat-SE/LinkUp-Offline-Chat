@@ -142,6 +142,7 @@ final class MessagingService {
     required String peerId,
     required String peerName,
     required List<PickedFile> files,
+    int? voiceMs,
   }) => _serial(() async {
     final transfers = _transfers;
     if (transfers == null) throw StateError('file sharing is not set up');
@@ -168,6 +169,7 @@ final class MessagingService {
         content: MessageContent.file,
         fileId: fileId,
         fileName: transfer.name,
+        voiceMs: voiceMs,
       );
       await _repository.insertOutgoing(message);
       sent.add(message);
@@ -175,9 +177,6 @@ final class MessagingService {
     return sent;
   });
 
-  /// Sends the same text and files to each of [people] as their own direct
-  /// message (multi-select, P7.3); those offline get them when they're
-  /// back. Each file is copied and hashed once.
   /// Sends [message] again (P15.3) to [people], to everyone online, or
   /// both. A file goes from this phone's copy; returns false if the file
   /// isn't on this phone (still arriving, or deleted).
@@ -226,6 +225,9 @@ final class MessagingService {
     }
   }
 
+  /// Sends the same text and files to each of [people] as their own direct
+  /// message (multi-select, P7.3); those offline get them when they're
+  /// back. Each file is copied and hashed once.
   Future<void> sendToPeople({
     required Map<String, String> people,
     String? text,
@@ -305,6 +307,7 @@ final class MessagingService {
     Map<String, String> names = const {},
     String? replyToId,
     List<String> mentions = const [],
+    int? voiceMs,
   }) => _serial(() async {
     final online = {
       for (final link in _links.current.links.values)
@@ -326,7 +329,7 @@ final class MessagingService {
       );
     }
     for (final picked in files) {
-      sent.add(await _broadcast(online, file: picked));
+      sent.add(await _broadcast(online, file: picked, voiceMs: voiceMs));
     }
     _logger.info(LogTag.message, 'Sent to everyone', {
       'people': online.length,
@@ -341,6 +344,7 @@ final class MessagingService {
     PickedFile? file,
     String? replyToId,
     List<String> mentions = const [],
+    int? voiceMs,
   }) async {
     final now = clock.now();
     final messageId = _uuid.v4();
@@ -383,6 +387,7 @@ final class MessagingService {
       audience: ChatAudience.everyone,
       replyToId: replyToId,
       mentions: mentions,
+      voiceMs: voiceMs,
     );
     final recipients = [
       for (final MapEntry(key: id, value: name) in online.entries)
@@ -530,6 +535,7 @@ final class MessagingService {
         audience: MessageAudience.direct,
         text: message.isFile ? null : message.text,
         replyToId: message.replyToId,
+        voiceMs: message.voiceMs,
         file: file,
       ),
     );
@@ -581,6 +587,7 @@ final class MessagingService {
         text: message.isFile ? null : message.text,
         replyToId: message.replyToId,
         mentions: message.mentions,
+        voiceMs: message.voiceMs,
         file: file,
       ),
     );
@@ -796,6 +803,7 @@ final class MessagingService {
       fileId: file?.fileId,
       fileName: file == null ? null : FileNameSanitizer.sanitize(file.name),
       mentions: everyone ? packet.mentions : const [],
+      voiceMs: file == null ? null : packet.voiceMs,
     );
     final isNew = await _repository.insertIncoming(message);
     // Always confirm, so a resend after a lost ACK stops.

@@ -19,6 +19,7 @@ import '../../support/fake_network_monitor.dart';
 import '../../support/fake_notifications.dart';
 import '../../support/fake_peer_links.dart';
 import '../../support/fake_transfer_backend.dart';
+import '../../support/fake_voice.dart';
 import '../../support/memory_datagram_network.dart';
 import '../../support/memory_key_value_store.dart';
 import '../../support/other_phone.dart';
@@ -45,6 +46,7 @@ final class FileScenario {
     final transfers = FakeTransferBackend();
     final files = FakeFileActions();
     final picker = FakeFilePicker();
+    final voice = FakeVoice();
     final store = onboarded();
     final support = Directory.systemTemp.createTempSync('resqmesh_ui');
     addTearDown(() => support.deleteSync(recursive: true));
@@ -56,20 +58,17 @@ final class FileScenario {
       transfers: transfers,
       fileActions: files,
       picker: picker,
+      voice: voice,
       notifications: FakeNotifications(permitted: true),
       supportDirectory: support,
       network: FakeNetworkMonitor.onWifi('192.168.0.10'),
       settle: false,
     );
     await pumpFor(tester, const Duration(seconds: 1));
-    final scenario = FileScenario._(
-      store,
-      links,
-      transfers,
-      files,
-      picker,
-      support,
-    ).._rahim = rahim;
+    final scenario =
+        FileScenario._(store, links, transfers, files, picker, support)
+          .._rahim = rahim
+          ..voice = voice;
     await scenario.work(tester); // file storage set up
     return scenario;
   }
@@ -80,6 +79,7 @@ final class FileScenario {
   final FakeFileActions files;
   final FakeFilePicker picker;
   final Directory support;
+  late final FakeVoice voice;
   late final DiscoveryEngine _rahim;
 
   String get myId => store.getString(StoreKeys.deviceId)!;
@@ -214,6 +214,66 @@ void main() {
     s.transfers.emit(TransferEnded(id, const TransferCompleted()));
     await s.work(tester);
     expect(find.text('Sent'), findsOneWidget);
+    await s.finish(tester);
+  });
+
+  testWidgets('voice: record, send at once, play (P15.7)', (tester) async {
+    final s = await FileScenario.start(tester);
+    await s.openChat(tester);
+    expect(find.byTooltip('Send'), findsNothing, reason: 'mic while empty');
+    await tester.tap(find.byTooltip('Record a voice message'));
+    await pumpFor(tester, const Duration(seconds: 2));
+    expect(find.text('Recording…'), findsOneWidget);
+    expect(find.text('0:02'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Send voice message'));
+    await s.work(tester);
+    await s.work(tester);
+    expect(find.text('Recording…'), findsNothing);
+    expect(find.text('0:03'), findsOneWidget, reason: 'length shown');
+    final packet = s.links.sent
+        .map((e) => e.$2)
+        .whereType<MessagePacket>()
+        .single;
+    expect(packet.voiceMs, 3000);
+    expect(packet.file!.mimeType, 'audio/mp4');
+
+    await tester.tap(find.byTooltip('Play voice message'));
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    expect(s.voice.calls, contains('play'));
+    expect(find.byTooltip('Pause'), findsOneWidget);
+    await s.finish(tester);
+  });
+
+  testWidgets('voice: cancel, too short, and no microphone permission', (
+    tester,
+  ) async {
+    final s = await FileScenario.start(tester);
+    await s.openChat(tester);
+    await tester.tap(find.byTooltip('Record a voice message'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.byTooltip('Cancel recording'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(s.voice.calls, contains('cancel'));
+
+    s.voice.nextLength = 0;
+    await tester.tap(find.byTooltip('Record a voice message'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    await tester.tap(find.byTooltip('Send voice message'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Too short to send'), findsOneWidget);
+    await pumpFor(tester, const Duration(seconds: 5)); // snackbar gone
+
+    s.voice
+      ..permitted = false
+      ..grantOnRequest = false;
+    await tester.tap(find.byTooltip('Record a voice message'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(
+      find.text('Allow the microphone to record voice messages'),
+      findsOneWidget,
+    );
+    expect(s.links.sent.map((e) => e.$2).whereType<MessagePacket>(), isEmpty);
     await s.finish(tester);
   });
 

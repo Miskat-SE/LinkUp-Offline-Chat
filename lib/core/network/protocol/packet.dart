@@ -283,6 +283,7 @@ final class MessagePacket extends Packet {
     this.replyToId,
     this.file,
     this.mentions = const [],
+    this.voiceMs,
   });
 
   final MessageKind kind;
@@ -293,6 +294,9 @@ final class MessagePacket extends Packet {
 
   /// Device IDs @mentioned in an Everyone message (P15.5; optional).
   final List<String> mentions;
+
+  /// File messages: a voice message this long (P15.7; optional).
+  final int? voiceMs;
 
   @override
   String get type => PacketType.message;

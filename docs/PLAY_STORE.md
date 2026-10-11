@@ -46,6 +46,8 @@ Version: `versionName` 1.0.0, `versionCode` = the build number N, which only goe
 > • Pause and resume large files; every file is checked when it arrives
 > • Messages to someone who is away are sent when they are back
 > • Keeps working with the screen off; optionally stay reachable when LinkUp is closed
+> • Reply, forward, delete for everyone, and @mention people in group messages
+> • Voice messages, and photos straight from the camera
 > • Light and dark theme, large text, TalkBack support
 >
 > Great for classrooms, offices, events, travel, and places where the internet is down.
@@ -80,6 +82,7 @@ Regenerate the icon and feature graphic with `FLUTTER_ROOT=$HOME/development/flu
 | Permission | Declaration |
 |---|---|
 | `REQUEST_INSTALL_PACKAGES` | Core use: file sharing. Users receive apps (APKs) from people nearby, and LinkUp hands a received APK to Android's installer only when the user taps *Open*. Play reviews this declaration; if it is refused, remove the permission and the *Open* action for APKs, and users can still *Save to Downloads*. |
+| `RECORD_AUDIO` | Voice messages, recorded only after the user taps the mic. In Data safety: **Audio → Voice or sound recordings** is *not collected* (it goes directly to the people the user chooses, never to the developer). |
 | `ACCESS_FINE_LOCATION` (Android 12 and older only, `maxSdkVersion` 32) and `NEARBY_WIFI_DEVICES` (`neverForLocation`) | Needed by Android for Wi-Fi Direct discovery. In Data safety, location is **not collected**: the app never reads a location. If Play asks about background location: not requested. |
 | Foreground service, type `connectedDevice` | Transfers files to and keeps connections with other phones on the local network while the app is in the background, always with a notification; *Stay reachable* is off unless the user turns it on. Play asks for a short video: record a file transfer continuing with the screen off, showing the notification. |
 
