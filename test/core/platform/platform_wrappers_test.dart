@@ -96,22 +96,16 @@ final class _P2p extends WifiDirectHostApi {
   }
 
   @override
-  Future<void> advertise(
-    bool hosting,
-    String? networkName,
-    String? passphrase,
-  ) async => calls.add('advertise:$hosting:$networkName');
+  Future<void> advertise(List<String> seen) async =>
+      calls.add('advertise:${seen.join(',')}');
 
   @override
   Future<void> createGroup(String networkName, String passphrase) async =>
       calls.add('create:$networkName');
 
   @override
-  Future<void> joinGroup(
-    String deviceAddress,
-    String? networkName,
-    String? passphrase,
-  ) async => calls.add('join:$deviceAddress:$networkName');
+  Future<void> joinGroup(String networkName, String passphrase) async =>
+      calls.add('join:$networkName');
 
   @override
   Future<void> leaveGroup() async => calls.add('leave');
@@ -260,9 +254,7 @@ void main() {
           deviceAddress: '02:00:00:00:00:01',
           deviceId: 'id-1',
           name: 'Rahim',
-          hosting: true,
-          networkName: 'DIRECT-LU-abcd',
-          passphrase: 'pw',
+          seen: ['aaaaaaaa'],
         ),
       )
       ..onGroupChanged(
@@ -276,21 +268,21 @@ void main() {
       );
     await Future<void>.delayed(Duration.zero);
     expect(found.single.name, 'Rahim');
-    expect(found.single.hosting, isTrue);
+    expect(found.single.seen, {'aaaaaaaa'});
     expect(groups.single.clients, 2);
 
     await p2p.start(deviceId: 'me', name: 'Yusuf');
-    await p2p.advertise(hosting: true, networkName: 'DIRECT-LU-me');
+    await p2p.advertise(['bbbbbbbb']);
     await p2p.createGroup('DIRECT-LU-me', 'secret');
-    await p2p.joinGroup(found.single);
+    await p2p.joinGroup('DIRECT-LU-abcd', 'secret');
     await p2p.leaveGroup();
     await p2p.openLocationSettings();
     await p2p.stop(); // a detached engine is not an error
     expect(host.calls, [
       'start:Yusuf',
-      'advertise:true:DIRECT-LU-me',
+      'advertise:bbbbbbbb',
       'create:DIRECT-LU-me',
-      'join:02:00:00:00:00:01:DIRECT-LU-abcd',
+      'join:DIRECT-LU-abcd',
       'leave',
       'location',
       'stop',

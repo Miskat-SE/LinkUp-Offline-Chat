@@ -18,18 +18,19 @@ What Wi-Fi Direct adds is forming the group:
 
 ## Decision
 
-1. **Groups form by themselves.** Every phone in Wi-Fi Direct mode advertises a `_linkup._tcp` service with its device ID and name, and, when it hosts, the group's network name and passphrase.
-   - A phone that sees a LinkUp host joins it (the host with the lowest device ID if several).
-   - A phone that sees only non-hosting LinkUp phones creates a group if its device ID is the lowest among them. One phone hosts, so two phones never create competing groups at the same moment.
-   - A host with nobody joined that sees a host with a lower ID gives up its group and joins that one, so separate groups merge.
-2. **Joining uses the advertised credentials** on Android 10+, with no dialog. On Android 8–9 the joining phone connects by MAC address and the host sees Android's *Accept* dialog.
-3. **The group is just another LAN.** The bridge reports `p2p-…` interfaces as kind `wifiDirect`; discovery, connections and file transfer run over them unchanged. In Wi-Fi Direct mode the process is **not** bound to the joined Wi-Fi, so `192.168.49.x` is reachable through Android's local-network routes.
-4. **Permission is asked only when Wi-Fi Direct is chosen**, and the status card explains what is missing (Wi-Fi off, permission, Location off, not supported).
-5. The group is removed when the app stops or the user switches to another method.
+*Revised 11 Oct 2026 after the first phone test (two Android 15/16 phones): one phone found the other and created a group at once; the other had not found it yet and never could, because a group owner (here on 5 GHz) no longer answers Wi-Fi Direct service discovery.*
+
+1. **Phones advertise whom they have seen.** Every phone in Wi-Fi Direct mode advertises a `_linkup._tcp` service with its device ID, name and the short IDs (first 8 characters) of the LinkUp phones it has seen. Two phones that have seen each other are *mutual*.
+2. **The lowest mutual ID hosts; the others join it.** A phone hosts when its ID is lower than every mutual peer's; otherwise it joins the lowest mutual peer. The host waits for mutual sight, so the joining phone already knows it.
+3. **Credentials come from the host's ID**: network `DIRECT-LU-<first 8 of ID>`, passphrase from a SHA-256 of the ID. The joiner connects with them (`WifiP2pConfig.Builder`), which needs no discovery of the group and shows no dialog. A host nobody joined gives way to a lower mutual phone; a join that doesn't form within 20 s is tried again.
+4. **Android 10 or newer** (credentials need API 29); older phones show *not supported*.
+5. **The group is just another LAN.** The bridge reports `p2p-…` interfaces as kind `wifiDirect`; discovery, connections and file transfer run over them unchanged. In Wi-Fi Direct mode the process is **not** bound to the joined Wi-Fi, so `192.168.49.x` is reachable through Android's local-network routes.
+6. **Permission is asked only when Wi-Fi Direct is chosen**, and the status card explains what is missing (Wi-Fi off, permission, not supported).
+7. The group is removed when the app stops or the user switches to another method.
 
 ## Consequences
 
 - No new protocol: PROTOCOL.md is unchanged, and every test of the packet layer still applies.
-- The passphrase travels in plain text in the service record. This matches the v1.0 trust model (ADR-0022): anyone nearby running LinkUp may join, as on a shared Wi-Fi.
+- Anyone running LinkUp can work out a group's passphrase. This matches the v1.0 trust model (ADR-0022): anyone nearby running LinkUp may join, as on a shared Wi-Fi.
 - Service discovery on Android is known to be unreliable on some phones, so the bridge repeats it while no group exists, and the plan's device tests (P13.4) cover it on the testbed phones.
 - The emulator has no Wi-Fi Direct; it shows *not supported*. Real behaviour is checked on phones (P13.1, P13.4).

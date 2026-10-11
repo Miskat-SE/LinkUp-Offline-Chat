@@ -17,8 +17,9 @@ final class FakeWifiDirect implements WifiDirect {
 
   final List<String> calls = [];
   final List<({String deviceId, String name})> starts = [];
-  ({bool hosting, String? networkName, String? passphrase})? advertised;
+  List<String> advertised = const [];
   ({String networkName, String passphrase})? created;
+  ({String networkName, String passphrase})? joined;
 
   final StreamController<P2pPeer> _found = StreamController.broadcast();
   final StreamController<P2pGroup> _groups = StreamController.broadcast();
@@ -58,17 +59,7 @@ final class FakeWifiDirect implements WifiDirect {
   Future<void> stop() async => calls.add('stop');
 
   @override
-  Future<void> advertise({
-    required bool hosting,
-    String? networkName,
-    String? passphrase,
-  }) async {
-    advertised = (
-      hosting: hosting,
-      networkName: networkName,
-      passphrase: passphrase,
-    );
-  }
+  Future<void> advertise(List<String> seen) async => advertised = seen;
 
   @override
   Future<void> createGroup(String networkName, String passphrase) async {
@@ -78,9 +69,10 @@ final class FakeWifiDirect implements WifiDirect {
   }
 
   @override
-  Future<void> joinGroup(P2pPeer host) async {
-    calls.add('join:${host.name}');
+  Future<void> joinGroup(String networkName, String passphrase) async {
+    calls.add('join:$networkName');
     _refuse();
+    joined = (networkName: networkName, passphrase: passphrase);
   }
 
   @override

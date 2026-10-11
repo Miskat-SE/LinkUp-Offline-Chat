@@ -194,9 +194,8 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 ADR-0023. `WifiDirectController` (`lib/core/connection/`) runs only while Wi-Fi Direct is the chosen method; `wifiDirectControllerProvider` starts and stops it, and turns off the Wi-Fi binding (`NetworkMonitor.setBindToWifi`).
 
-- **Finding phones:** `WifiDirectBridge.kt` advertises a `_linkup._tcp` Wi-Fi Direct service (device ID, name, whether it hosts, and the host's network name and passphrase) and repeats service discovery every 15 s while it has no group, or hosts one nobody joined.
-- **Deciding**, every 3 s, with everything seen in the last minute: join a visible host (lowest ID); otherwise host if this phone has the lowest ID; a lonely host gives way to a lower one, and stops after 5 minutes alone. A group that hasn't formed within 30 s is retried, skipping that host for a minute.
-- **Joining:** Android 10+ joins with the advertised credentials (`WifiP2pConfig.Builder`), with no dialog. Android 8–9 send a classic invitation, which the host accepts.
+- **Finding phones:** `WifiDirectBridge.kt` advertises a `_linkup._tcp` Wi-Fi Direct service (device ID, name, and the short IDs of the phones it has seen) and repeats service discovery every 10 s while it has no group, or hosts one nobody joined.
+- **Deciding**, every 3 s, with phones seen in the last 2 minutes: only *mutual* phones (each has seen the other) count. The lowest mutual ID hosts; the others join it. A group owner can't be found by service discovery, so joining uses `groupCredentials(hostId)` (network name and passphrase worked out from the host's ID) and needs no discovery. A join that hasn't formed in 20 s is retried; a lonely host gives way to a lower mutual phone and stops after 5 minutes alone. Android 10+ only.
 - **After that, nothing is special:** `LanBridge` reports the `p2p-…` interface as `wifiDirect`, and discovery, connections and files use it like any LAN.
 - **States for the card:** unsupported, Wi-Fi off, permission needed, Location off (Android 8–12), searching, connecting, hosting, joined.
 

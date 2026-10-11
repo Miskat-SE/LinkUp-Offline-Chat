@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:convert';
 
 import 'package:clock/clock.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
 import 'package:resqmesh/core/platform/wifi_direct.dart';
@@ -57,10 +58,25 @@ final class WifiDirectStatus {
   int get hashCode => Object.hash(phase, hostName, clients, nearby);
 }
 
-/// Forms Wi-Fi Direct groups by itself (ADR-0023):
-/// - join a LinkUp host when one is visible (the lowest ID if several);
-/// - otherwise host, if this phone has the lowest ID of the phones seen;
-/// - a host nobody joined gives way to a host with a lower ID.
+/// A group's name and passphrase, worked out from its host's device ID, so
+/// a phone that knows the host can join without finding the group itself:
+/// a group owner can't be found by Wi-Fi Direct service discovery
+/// (ADR-0023). Anyone running LinkUp can work them out, which matches the
+/// v1.0 trust model (ADR-0022).
+({String networkName, String passphrase}) groupCredentials(String hostId) => (
+  networkName: 'DIRECT-LU-${shortId(hostId)}',
+  passphrase: sha256
+      .convert(utf8.encode('LinkUp Wi-Fi Direct 1|$hostId'))
+      .toString()
+      .substring(0, 24),
+);
+
+/// Forms Wi-Fi Direct groups by itself (ADR-0023). Phones advertise the
+/// phones they have seen; two phones that have seen each other are
+/// *mutual*. Among a phone and its mutual peers the lowest device ID hosts,
+/// and the others join it with [groupCredentials]. Because the host waits
+/// until its peers have seen it, they always know whom to join, even after
+/// the host becomes impossible to find.
 ///
 /// Once in a group, the normal LAN stack does the rest.
 final class WifiDirectController {
@@ -68,17 +84,13 @@ final class WifiDirectController {
     required this._platform,
     required this._self,
     required this._logger,
-    Random? random,
-  }) : _random = random ?? Random.secure();
+  });
 
   /// A phone not heard from for this long is forgotten.
-  static const peerExpiry = Duration(seconds: 60);
+  static const peerExpiry = Duration(minutes: 2);
 
-  /// Creating or joining a group that hasn't formed by then is retried.
-  static const connectTimeout = Duration(seconds: 30);
-
-  /// A host that failed to take us in is skipped for this long.
-  static const failedHostPause = Duration(minutes: 1);
+  /// Creating or joining a group that hasn't formed by then is tried again.
+  static const connectTimeout = Duration(seconds: 20);
 
   /// A host alone for this long, with nobody in sight, stops hosting.
   static const aloneLimit = Duration(minutes: 5);
@@ -88,10 +100,8 @@ final class WifiDirectController {
   final WifiDirect _platform;
   final ({String deviceId, String name}) Function() _self;
   final AppLogger _logger;
-  final Random _random;
 
   final Map<String, (P2pPeer, DateTime)> _peers = {};
-  final Map<String, DateTime> _failedHosts = {};
   final StreamController<WifiDirectStatus> _changes =
       StreamController.broadcast();
   final List<StreamSubscription<Object>> _subscriptions = [];
@@ -109,8 +119,9 @@ final class WifiDirectController {
 
   /// The host this phone joined.
   String? _hostName;
-  bool _advertisedHosting = false;
-  ({String networkName, String passphrase})? _credentials;
+
+  /// Short IDs last put in this phone's service record.
+  List<String> _advertised = const [];
 
   WifiDirectStatus _current = const WifiDirectStatus(WifiDirectPhase.searching);
   WifiDirectStatus get current => _current;
@@ -157,9 +168,11 @@ final class WifiDirectController {
     if (_running && _supported) await _startPlatform();
   }
 
-  Future<void> _startPlatform() {
+  Future<void> _startPlatform() async {
     final self = _self();
-    return _platform.start(deviceId: self.deviceId, name: self.name);
+    await _platform.start(deviceId: self.deviceId, name: self.name);
+    _advertised = const [];
+    await _advertiseSeen();
   }
 
   Future<void> _checkPermission() async {
@@ -184,7 +197,7 @@ final class WifiDirectController {
     _group = group;
     if (group.formed && !group.isOwner) {
       _hostName = _pending?.host?.name ?? _hostName;
-    } else {
+    } else if (!group.formed) {
       _hostName = null;
     }
     if (group.formed) _pending = null;
@@ -193,12 +206,11 @@ final class WifiDirectController {
     } else {
       _aloneSince ??= clock.now();
     }
-    unawaited(_advertise());
     _emit();
     unawaited(_step());
   }
 
-  /// One decision. Runs on every change and every few seconds.
+  /// One decision. Runs on every group change and every few seconds.
   Future<void> _step() async {
     if (!_running || _busy || !_supported) return;
     if (_permission != P2pPermission.granted) {
@@ -209,6 +221,7 @@ final class WifiDirectController {
     _busy = true;
     try {
       _forgetOld();
+      await _advertiseSeen();
       final group = _group;
       if (group.formed && group.isOwner) {
         await _whileHosting(group);
@@ -221,10 +234,19 @@ final class WifiDirectController {
     }
   }
 
+  /// Phones that have seen this phone, and that it has seen; lowest first.
+  List<P2pPeer> _mutual() {
+    final self = _self().deviceId;
+    return [
+      for (final (peer, _) in _peers.values)
+        if (peer.hasSeen(self)) peer,
+    ]..sort((a, b) => a.deviceId.compareTo(b.deviceId));
+  }
+
   Future<void> _whileHosting(P2pGroup group) async {
     if (group.clients > 0) return;
     final self = _self().deviceId;
-    final lower = _hosts().where((p) => p.deviceId.compareTo(self) < 0);
+    final lower = _mutual().where((p) => p.deviceId.compareTo(self) < 0);
     final alone = _aloneSince;
     if (lower.isNotEmpty) {
       _logger.info(LogTag.network, 'Wi-Fi Direct: joining a lower host');
@@ -243,73 +265,61 @@ final class WifiDirectController {
     if (pending != null) {
       if (clock.now().difference(pending.since) < connectTimeout) return;
       _logger.warning(LogTag.network, 'Wi-Fi Direct: group did not form');
-      final host = pending.host;
-      if (host != null) _failedHosts[host.deviceId] = clock.now();
       _pending = null;
     }
-    final hosts = _hosts()
-        .where((p) => !_failedHosts.containsKey(p.deviceId))
-        .toList();
-    if (hosts.isNotEmpty) {
-      final host = hosts.first;
-      _pending = (host: host, since: clock.now());
-      _logger.info(LogTag.network, 'Wi-Fi Direct: joining', {
-        'device': host.deviceId.substring(0, 4),
-      });
-      if (!await _try(() => _platform.joinGroup(host))) {
-        _failedHosts[host.deviceId] = clock.now();
+    final mutual = _mutual();
+    if (mutual.isEmpty) return;
+    final self = _self().deviceId;
+    final host = mutual.first;
+    if (self.compareTo(host.deviceId) < 0) {
+      // This phone is the lowest: host.
+      final credentials = groupCredentials(self);
+      _pending = (host: null, since: clock.now());
+      _logger.info(LogTag.network, 'Wi-Fi Direct: hosting a group');
+      if (!await _try(
+        () => _platform.createGroup(
+          credentials.networkName,
+          credentials.passphrase,
+        ),
+      )) {
         _pending = null;
       }
       return;
     }
-    final self = _self().deviceId;
-    final others = _peers.keys.toList();
-    if (others.isEmpty || others.any((id) => id.compareTo(self) < 0)) return;
-    final credentials = _credentials ??= (
-      networkName: 'DIRECT-LU-${self.substring(0, 4)}',
-      passphrase: _passphrase(),
-    );
-    _pending = (host: null, since: clock.now());
-    _logger.info(LogTag.network, 'Wi-Fi Direct: hosting a group');
+    // The lowest is someone else: join them. Their group may not exist yet;
+    // joining is simply tried again after the timeout.
+    final credentials = groupCredentials(host.deviceId);
+    _pending = (host: host, since: clock.now());
+    _logger.info(LogTag.network, 'Wi-Fi Direct: joining', {
+      'device': host.deviceId.substring(0, 4),
+    });
     if (!await _try(
-      () => _platform.createGroup(
-        credentials.networkName,
-        credentials.passphrase,
-      ),
+      () =>
+          _platform.joinGroup(credentials.networkName, credentials.passphrase),
     )) {
       _pending = null;
     }
   }
 
-  /// Visible hosts, lowest ID first.
-  List<P2pPeer> _hosts() => [
-    for (final (peer, _) in _peers.values)
-      if (peer.hosting) peer,
-  ]..sort((a, b) => a.deviceId.compareTo(b.deviceId));
-
   void _forgetOld() {
     final now = clock.now();
     _peers.removeWhere((_, entry) => now.difference(entry.$2) > peerExpiry);
-    _failedHosts.removeWhere((_, at) => now.difference(at) > failedHostPause);
   }
 
-  /// Tells others whether this phone hosts, with the group's real
-  /// credentials (Android 8–9 choose their own).
-  Future<void> _advertise() async {
-    final hosting = _group.formed && _group.isOwner;
-    if (!hosting && !_advertisedHosting) return;
-    _advertisedHosting = hosting;
-    await _try(
-      () => _platform.advertise(
-        hosting: hosting,
-        networkName: hosting
-            ? _group.networkName ?? _credentials?.networkName
-            : null,
-        passphrase: hosting
-            ? _group.passphrase ?? _credentials?.passphrase
-            : null,
-      ),
-    );
+  /// Tells others which phones this one has seen, when that changes.
+  Future<void> _advertiseSeen() async {
+    final seen = [for (final id in _peers.keys) shortId(id)]..sort();
+    if (_listEquals(seen, _advertised)) return;
+    _advertised = seen;
+    await _try(() => _platform.advertise(seen));
+  }
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<bool> _try(Future<void> Function() action) async {
@@ -322,14 +332,6 @@ final class WifiDirectController {
       });
       return false;
     }
-  }
-
-  String _passphrase() {
-    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return String.fromCharCodes([
-      for (var i = 0; i < 16; i++)
-        chars.codeUnitAt(_random.nextInt(chars.length)),
-    ]);
   }
 
   void _emit() {

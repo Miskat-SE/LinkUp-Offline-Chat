@@ -414,9 +414,7 @@ class WifiDirectService {
     required this.deviceAddress,
     required this.deviceId,
     required this.name,
-    required this.hosting,
-    this.networkName,
-    this.passphrase,
+    required this.seen,
   });
 
   /// The phone's Wi-Fi Direct MAC address.
@@ -427,23 +425,12 @@ class WifiDirectService {
 
   String name;
 
-  /// It owns a group others can join.
-  bool hosting;
-
-  /// The group's credentials, when [hosting].
-  String? networkName;
-
-  String? passphrase;
+  /// The first 8 characters of the device IDs it has seen: a group forms
+  /// only between phones that have seen each other.
+  List<String> seen;
 
   List<Object?> _toList() {
-    return <Object?>[
-      deviceAddress,
-      deviceId,
-      name,
-      hosting,
-      networkName,
-      passphrase,
-    ];
+    return <Object?>[deviceAddress, deviceId, name, seen];
   }
 
   Object encode() {
@@ -456,9 +443,7 @@ class WifiDirectService {
       deviceAddress: result[0]! as String,
       deviceId: result[1]! as String,
       name: result[2]! as String,
-      hosting: result[3]! as bool,
-      networkName: result[4] as String?,
-      passphrase: result[5] as String?,
+      seen: (result[3]! as List<Object?>).cast<String>(),
     );
   }
 
@@ -474,9 +459,7 @@ class WifiDirectService {
     return _deepEquals(deviceAddress, other.deviceAddress) &&
         _deepEquals(deviceId, other.deviceId) &&
         _deepEquals(name, other.name) &&
-        _deepEquals(hosting, other.hosting) &&
-        _deepEquals(networkName, other.networkName) &&
-        _deepEquals(passphrase, other.passphrase);
+        _deepEquals(seen, other.seen);
   }
 
   @override
@@ -485,7 +468,7 @@ class WifiDirectService {
 
   @override
   String toString() {
-    return 'WifiDirectService(deviceAddress: $deviceAddress, deviceId: $deviceId, name: $name, hosting: $hosting, networkName: $networkName, passphrase: $passphrase)';
+    return 'WifiDirectService(deviceAddress: $deviceAddress, deviceId: $deviceId, name: $name, seen: $seen)';
   }
 }
 
@@ -1285,7 +1268,7 @@ class WifiDirectHostApi {
 
   final String pigeonVar_messageChannelSuffix;
 
-  /// The phone has Wi-Fi Direct.
+  /// The phone has Wi-Fi Direct and runs Android 10 or newer.
   Future<bool> isSupported() async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.isSupported$pigeonVar_messageChannelSuffix';
@@ -1403,12 +1386,8 @@ class WifiDirectHostApi {
     );
   }
 
-  /// Updates this phone's service record (hosting and its credentials).
-  Future<void> advertise(
-    bool hosting,
-    String? networkName,
-    String? passphrase,
-  ) async {
+  /// Updates this phone's service record with the phones it has seen.
+  Future<void> advertise(List<String> seen) async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.advertise$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -1417,7 +1396,7 @@ class WifiDirectHostApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[hosting, networkName, passphrase],
+      <Object?>[seen],
     );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
@@ -1448,11 +1427,8 @@ class WifiDirectHostApi {
     );
   }
 
-  Future<void> joinGroup(
-    String deviceAddress,
-    String? networkName,
-    String? passphrase,
-  ) async {
+  /// Joins the group with these credentials (Android 10+, no dialog).
+  Future<void> joinGroup(String networkName, String passphrase) async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.resqmesh.WifiDirectHostApi.joinGroup$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -1461,7 +1437,7 @@ class WifiDirectHostApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[deviceAddress, networkName, passphrase],
+      <Object?>[networkName, passphrase],
     );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 

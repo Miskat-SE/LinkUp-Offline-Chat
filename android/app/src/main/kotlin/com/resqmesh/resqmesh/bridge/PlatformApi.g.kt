@@ -478,11 +478,11 @@ data class WifiDirectService (
   /** LinkUp device ID. */
   val deviceId: String,
   val name: String,
-  /** It owns a group others can join. */
-  val hosting: Boolean,
-  /** The group's credentials, when [hosting]. */
-  val networkName: String? = null,
-  val passphrase: String? = null
+  /**
+   * The first 8 characters of the device IDs it has seen: a group forms
+   * only between phones that have seen each other.
+   */
+  val seen: List<String>
 )
  {
   companion object {
@@ -490,10 +490,8 @@ data class WifiDirectService (
       val deviceAddress = pigeonVar_list[0] as String
       val deviceId = pigeonVar_list[1] as String
       val name = pigeonVar_list[2] as String
-      val hosting = pigeonVar_list[3] as Boolean
-      val networkName = pigeonVar_list[4] as String?
-      val passphrase = pigeonVar_list[5] as String?
-      return WifiDirectService(deviceAddress, deviceId, name, hosting, networkName, passphrase)
+      val seen = pigeonVar_list[3] as List<String>
+      return WifiDirectService(deviceAddress, deviceId, name, seen)
     }
   }
   fun toList(): List<Any?> {
@@ -501,9 +499,7 @@ data class WifiDirectService (
       deviceAddress,
       deviceId,
       name,
-      hosting,
-      networkName,
-      passphrase,
+      seen,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -514,7 +510,7 @@ data class WifiDirectService (
       return true
     }
     val other = other as WifiDirectService
-    return PlatformApiPigeonUtils.deepEquals(this.deviceAddress, other.deviceAddress) && PlatformApiPigeonUtils.deepEquals(this.deviceId, other.deviceId) && PlatformApiPigeonUtils.deepEquals(this.name, other.name) && PlatformApiPigeonUtils.deepEquals(this.hosting, other.hosting) && PlatformApiPigeonUtils.deepEquals(this.networkName, other.networkName) && PlatformApiPigeonUtils.deepEquals(this.passphrase, other.passphrase)
+    return PlatformApiPigeonUtils.deepEquals(this.deviceAddress, other.deviceAddress) && PlatformApiPigeonUtils.deepEquals(this.deviceId, other.deviceId) && PlatformApiPigeonUtils.deepEquals(this.name, other.name) && PlatformApiPigeonUtils.deepEquals(this.seen, other.seen)
   }
 
   override fun hashCode(): Int {
@@ -522,13 +518,11 @@ data class WifiDirectService (
     result = 31 * result + PlatformApiPigeonUtils.deepHash(this.deviceAddress)
     result = 31 * result + PlatformApiPigeonUtils.deepHash(this.deviceId)
     result = 31 * result + PlatformApiPigeonUtils.deepHash(this.name)
-    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.hosting)
-    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.networkName)
-    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.passphrase)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.seen)
     return result
   }
   override fun toString(): String {
-    return "WifiDirectService(deviceAddress=$deviceAddress, deviceId=$deviceId, name=$name, hosting=$hosting, networkName=$networkName, passphrase=$passphrase)"
+    return "WifiDirectService(deviceAddress=$deviceAddress, deviceId=$deviceId, name=$name, seen=$seen)"
   }
 }
 
@@ -1262,7 +1256,7 @@ interface BackgroundHostApi {
 }
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface WifiDirectHostApi {
-  /** The phone has Wi-Fi Direct. */
+  /** The phone has Wi-Fi Direct and runs Android 10 or newer. */
   fun isSupported(): Boolean
   /** `granted`, `denied` or `locationOff` (Android 8–12 need Location on). */
   fun permissionState(): String
@@ -1275,10 +1269,11 @@ interface WifiDirectHostApi {
   fun start(deviceId: String, name: String)
   /** Stops looking and leaves any group. */
   fun stop()
-  /** Updates this phone's service record (hosting and its credentials). */
-  fun advertise(hosting: Boolean, networkName: String?, passphrase: String?)
+  /** Updates this phone's service record with the phones it has seen. */
+  fun advertise(seen: List<String>)
   suspend fun createGroup(networkName: String, passphrase: String)
-  suspend fun joinGroup(deviceAddress: String, networkName: String?, passphrase: String?)
+  /** Joins the group with these credentials (Android 10+, no dialog). */
+  suspend fun joinGroup(networkName: String, passphrase: String)
   suspend fun leaveGroup()
 
   companion object {
@@ -1393,11 +1388,9 @@ interface WifiDirectHostApi {
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
-            val hostingArg = args[0] as Boolean
-            val networkNameArg = args[1] as String?
-            val passphraseArg = args[2] as String?
+            val seenArg = args[0] as List<String>
             val wrapped: List<Any?> = try {
-              api.advertise(hostingArg, networkNameArg, passphraseArg)
+              api.advertise(seenArg)
               listOf(null)
             } catch (exception: Throwable) {
               PlatformApiPigeonUtils.wrapError(exception)
@@ -1434,12 +1427,11 @@ interface WifiDirectHostApi {
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
-            val deviceAddressArg = args[0] as String
-            val networkNameArg = args[1] as String?
-            val passphraseArg = args[2] as String?
+            val networkNameArg = args[0] as String
+            val passphraseArg = args[1] as String
             CoroutineScope(Dispatchers.Main).launch {
               val wrapped: List<Any?> = try {
-                api.joinGroup(deviceAddressArg, networkNameArg, passphraseArg)
+                api.joinGroup(networkNameArg, passphraseArg)
                 listOf(null)
               } catch (exception: Throwable) {
                 PlatformApiPigeonUtils.wrapError(exception)

@@ -9,9 +9,7 @@ final class P2pPeer {
     required this.deviceAddress,
     required this.deviceId,
     required this.name,
-    required this.hosting,
-    this.networkName,
-    this.passphrase,
+    this.seen = const {},
   });
 
   /// Wi-Fi Direct MAC address.
@@ -19,11 +17,15 @@ final class P2pPeer {
   final String deviceId;
   final String name;
 
-  /// It owns a group others can join.
-  final bool hosting;
-  final String? networkName;
-  final String? passphrase;
+  /// The first 8 characters of the device IDs this phone has seen.
+  final Set<String> seen;
+
+  /// It has seen the phone with [deviceId].
+  bool hasSeen(String deviceId) => seen.contains(shortId(deviceId));
 }
+
+/// How phones list each other in their service records.
+String shortId(String deviceId) => deviceId.substring(0, 8);
 
 /// This phone's Wi-Fi Direct group state.
 final class P2pGroup {
@@ -69,15 +71,13 @@ abstract interface class WifiDirect {
   /// rename or once permission is granted.
   Future<void> start({required String deviceId, required String name});
   Future<void> stop();
-  Future<void> advertise({
-    required bool hosting,
-    String? networkName,
-    String? passphrase,
-  });
+
+  /// Updates this phone's record with the phones it has seen (short IDs).
+  Future<void> advertise(List<String> seen);
 
   /// These throw [PlatformException] when Android refuses.
   Future<void> createGroup(String networkName, String passphrase);
-  Future<void> joinGroup(P2pPeer host);
+  Future<void> joinGroup(String networkName, String passphrase);
   Future<void> leaveGroup();
 }
 
@@ -130,19 +130,15 @@ final class PlatformWifiDirect implements WifiDirect, WifiDirectFlutterApi {
   }
 
   @override
-  Future<void> advertise({
-    required bool hosting,
-    String? networkName,
-    String? passphrase,
-  }) => _host.advertise(hosting, networkName, passphrase);
+  Future<void> advertise(List<String> seen) => _host.advertise(seen);
 
   @override
   Future<void> createGroup(String networkName, String passphrase) =>
       _host.createGroup(networkName, passphrase);
 
   @override
-  Future<void> joinGroup(P2pPeer host) =>
-      _host.joinGroup(host.deviceAddress, host.networkName, host.passphrase);
+  Future<void> joinGroup(String networkName, String passphrase) =>
+      _host.joinGroup(networkName, passphrase);
 
   @override
   Future<void> leaveGroup() => _host.leaveGroup();
@@ -153,9 +149,7 @@ final class PlatformWifiDirect implements WifiDirect, WifiDirectFlutterApi {
       deviceAddress: service.deviceAddress,
       deviceId: service.deviceId,
       name: service.name,
-      hosting: service.hosting,
-      networkName: service.networkName,
-      passphrase: service.passphrase,
+      seen: service.seen.toSet(),
     ),
   );
 

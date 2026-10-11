@@ -21,9 +21,10 @@ void main() {
   ) async {
     final p2p = FakeWifiDirect();
     final network = FakeNetworkMonitor();
+    final store = await wifiDirectPhone();
     await launchApp(
       tester,
-      await wifiDirectPhone(),
+      store,
       wifiDirect: p2p,
       network: network,
       settle: false,
@@ -34,21 +35,20 @@ void main() {
     expect(network.boundToWifi, isFalse);
     expect(p2p.starts.single.name, 'Yusuf');
 
-    // Someone with a lower ID hosts: this phone joins.
+    // Someone with a lower ID has seen this phone: this phone joins them.
+    final me = store.getString(StoreKeys.deviceId)!;
     p2p
       ..group(P2pGroup.unknown)
       ..see(
-        const P2pPeer(
+        P2pPeer(
           deviceAddress: '02:00:00:00:00:01',
           deviceId: '00000000-0000-4000-8000-000000000001',
           name: 'Rahim',
-          hosting: true,
-          networkName: 'DIRECT-LU-0000',
-          passphrase: 'secret-pass',
+          seen: {shortId(me)},
         ),
       );
     await pumpFor(tester, const Duration(seconds: 4));
-    expect(p2p.calls, contains('join:Rahim'));
+    expect(p2p.calls, contains('join:DIRECT-LU-00000000'));
     expect(find.text('Joining Rahim…'), findsOneWidget);
     p2p.group(const P2pGroup(enabled: true, formed: true));
     await pumpFor(tester, const Duration(milliseconds: 500));

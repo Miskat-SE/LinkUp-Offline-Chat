@@ -199,9 +199,7 @@ class WifiDirectService {
     required this.deviceAddress,
     required this.deviceId,
     required this.name,
-    required this.hosting,
-    this.networkName,
-    this.passphrase,
+    required this.seen,
   });
 
   /// The phone's Wi-Fi Direct MAC address.
@@ -212,12 +210,9 @@ class WifiDirectService {
 
   String name;
 
-  /// It owns a group others can join.
-  bool hosting;
-
-  /// The group's credentials, when [hosting].
-  String? networkName;
-  String? passphrase;
+  /// The first 8 characters of the device IDs it has seen: a group forms
+  /// only between phones that have seen each other.
+  List<String> seen;
 }
 
 /// This phone's Wi-Fi Direct state.
@@ -248,7 +243,7 @@ class WifiDirectGroup {
 
 @HostApi()
 abstract class WifiDirectHostApi {
-  /// The phone has Wi-Fi Direct.
+  /// The phone has Wi-Fi Direct and runs Android 10 or newer.
   bool isSupported();
 
   /// `granted`, `denied` or `locationOff` (Android 8–12 need Location on).
@@ -266,14 +261,15 @@ abstract class WifiDirectHostApi {
   /// Stops looking and leaves any group.
   void stop();
 
-  /// Updates this phone's service record (hosting and its credentials).
-  void advertise(bool hosting, String? networkName, String? passphrase);
+  /// Updates this phone's service record with the phones it has seen.
+  void advertise(List<String> seen);
 
   @async
   void createGroup(String networkName, String passphrase);
 
+  /// Joins the group with these credentials (Android 10+, no dialog).
   @async
-  void joinGroup(String deviceAddress, String? networkName, String? passphrase);
+  void joinGroup(String networkName, String passphrase);
 
   @async
   void leaveGroup();

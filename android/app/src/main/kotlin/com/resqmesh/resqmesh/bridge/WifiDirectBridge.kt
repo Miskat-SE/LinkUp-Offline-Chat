@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.LocationManager
-import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceInfo
@@ -52,9 +51,7 @@ class WifiDirectBridge(
     private var service: WifiP2pDnsSdServiceInfo? = null
     private var deviceId = ""
     private var name = ""
-    private var hosting = false
-    private var networkName: String? = null
-    private var passphrase: String? = null
+    private var seen: List<String> = emptyList()
     private var enabled = false
     private var inGroup = false
     private var lonelyOwner = false
@@ -67,8 +64,10 @@ class WifiDirectBridge(
         }
     }
 
+    // Groups are joined with known credentials, which needs Android 10.
     override fun isSupported(): Boolean =
-        manager != null &&
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            manager != null &&
             appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_DIRECT)
 
     override fun permissionState(): String {
@@ -137,10 +136,8 @@ class WifiDirectBridge(
         channel = null
     }
 
-    override fun advertise(hosting: Boolean, networkName: String?, passphrase: String?) {
-        this.hosting = hosting
-        this.networkName = networkName
-        this.passphrase = passphrase
+    override fun advertise(seen: List<String>) {
+        this.seen = seen.take(MAX_SEEN)
         publishService()
     }
 
@@ -148,40 +145,27 @@ class WifiDirectBridge(
         val m = manager ?: throw FlutterError("unsupported", "No Wi-Fi Direct")
         val ch = channel ?: throw FlutterError("notStarted", "Wi-Fi Direct not started")
         m.stopPeerDiscovery(ch, null)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val config = WifiP2pConfig.Builder()
-                .setNetworkName(networkName)
-                .setPassphrase(passphrase)
-                .enablePersistentMode(false)
-                .build()
-            action { m.createGroup(ch, config, it) }
-        } else {
-            // Android 8–9 choose the credentials; Dart reads them from the group.
-            action { m.createGroup(ch, it) }
-        }
+        action { m.createGroup(ch, credentials(networkName, passphrase), it) }
     }
 
-    override suspend fun joinGroup(deviceAddress: String, networkName: String?, passphrase: String?) {
+    override suspend fun joinGroup(networkName: String, passphrase: String) {
         val m = manager ?: throw FlutterError("unsupported", "No Wi-Fi Direct")
         val ch = channel ?: throw FlutterError("notStarted", "Wi-Fi Direct not started")
         m.stopPeerDiscovery(ch, null)
-        val config =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && networkName != null && passphrase != null) {
-                // Joins with the host's credentials: no dialog on either phone.
-                WifiP2pConfig.Builder()
-                    .setNetworkName(networkName)
-                    .setPassphrase(passphrase)
-                    .enablePersistentMode(false)
-                    .build()
-            } else {
-                // Classic invitation: the host sees Android's Accept dialog.
-                WifiP2pConfig().apply {
-                    this.deviceAddress = deviceAddress
-                    wps.setup = WpsInfo.PBC
-                    groupOwnerIntent = 0
-                }
-            }
-        action { m.connect(ch, config, it) }
+        // Joins by credentials: works even though a group owner can't be
+        // found by service discovery, and shows no dialog on either phone.
+        action { m.connect(ch, credentials(networkName, passphrase), it) }
+    }
+
+    private fun credentials(networkName: String, passphrase: String): WifiP2pConfig {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            throw FlutterError("unsupported", "Needs Android 10")
+        }
+        return WifiP2pConfig.Builder()
+            .setNetworkName(networkName)
+            .setPassphrase(passphrase)
+            .enablePersistentMode(false)
+            .build()
     }
 
     override suspend fun leaveGroup() {
@@ -208,16 +192,12 @@ class WifiDirectBridge(
         val m = manager ?: return
         val ch = channel ?: return
         if (!granted() || deviceId.isEmpty()) return
-        val record = mutableMapOf(
-            "v" to "1",
+        val record = mapOf(
+            "v" to RECORD_VERSION,
             "id" to deviceId,
             "n" to name.take(MAX_NAME),
-            "h" to if (hosting) "1" else "0",
+            "m" to seen.joinToString(","),
         )
-        if (hosting) {
-            networkName?.let { record["s"] = it }
-            passphrase?.let { record["p"] = it }
-        }
         val next = WifiP2pDnsSdServiceInfo.newInstance(SERVICE_NAME, SERVICE_TYPE, record)
         val previous = service
         service = next
@@ -245,16 +225,14 @@ class WifiDirectBridge(
     }
 
     private fun found(record: Map<String, String>, deviceAddress: String) {
-        if (record["v"] != "1") return
+        if (record["v"] != RECORD_VERSION) return
         val id = record["id"] ?: return
         if (id == deviceId || !ID_PATTERN.matches(id)) return
         val service = WifiDirectService(
             deviceAddress = deviceAddress,
             deviceId = id,
             name = record["n"].orEmpty().take(MAX_NAME),
-            hosting = record["h"] == "1",
-            networkName = record["s"],
-            passphrase = record["p"],
+            seen = record["m"].orEmpty().split(',').filter { it.length == 8 }.take(MAX_SEEN),
         )
         scope.launch {
             try {
@@ -351,7 +329,9 @@ class WifiDirectBridge(
         const val SERVICE_NAME = "LinkUp"
         const val SERVICE_TYPE = "_linkup._tcp"
         const val PERMISSION_REQUEST = 4203
-        const val DISCOVER_INTERVAL_MS = 15_000L
+        const val DISCOVER_INTERVAL_MS = 10_000L
+        const val RECORD_VERSION = "2"
+        const val MAX_SEEN = 20
         const val MAX_NAME = 60
         val ID_PATTERN = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
