@@ -65,7 +65,9 @@ abstract interface class Bluetooth {
 
   /// Opens a link; its ID. Throws [PlatformException] when unreachable.
   Future<int> connect(String address, int channel);
-  void send(int linkId, Uint8List bytes);
+
+  /// Completes once written to the link (backpressure for files).
+  Future<void> send(int linkId, Uint8List bytes);
   void closeLink(int linkId);
 }
 
@@ -133,8 +135,7 @@ final class PlatformBluetooth implements Bluetooth, BluetoothFlutterApi {
       _host.connect(address, channel);
 
   @override
-  void send(int linkId, Uint8List bytes) =>
-      unawaited(_host.send(linkId, bytes).catchError((Object _) {}));
+  Future<void> send(int linkId, Uint8List bytes) => _host.send(linkId, bytes);
 
   @override
   void closeLink(int linkId) =>

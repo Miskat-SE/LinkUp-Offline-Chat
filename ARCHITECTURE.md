@@ -181,6 +181,15 @@ ChatScreen ─sendText─▶ MessagingService ─MESSAGE─▶ PeerLinks ──�
 
 **Fuzzing** (P9.2). Random, truncated, bit-flipped and wrongly typed input goes into the packet codec, the datagram codec and the frame decoder, and random bytes go into live control and file connections. The app never crashes, refuses the input, and keeps working (`test/security/`, connection and engine tests).
 
+## Bluetooth (P14)
+
+ADR-0024. `ByteLink` and `LinkTransport` (`lib/core/network/connection/byte_link.dart`) are what `PeerConnection`, `ConnectionManager`, `DataConnection` and `TransferEngine` read and write; `TcpTransport` wraps sockets. In Bluetooth mode:
+
+- `BluetoothBridge.kt` opens insecure L2CAP servers (one for control, one for files), advertises the service UUID with the device ID and control channel in the scan response, scans, and moves bytes: a reader thread per link sends data to Dart in order; writes go through one thread per link and complete when written (backpressure).
+- `BluetoothController` turns scan results into endpoints (address, channel) for the usual `ConnectionManager` with `ConnectionTiming.bluetooth`; `peerLinksProvider` uses `BluetoothTransport` instead of TCP and reopens the server once permission is given and Bluetooth is on.
+- `transferBackendProvider` runs `TransferEngine` in the main isolate on a `BluetoothTransport`, with 16 KB chunks.
+- In this mode a live link counts as connected whatever the Wi-Fi state (`NearbySnapshot.combine(overBluetooth:)`).
+
 ## Chat features (P15)
 
 - **Seen by:** `DeliverySummary.seen` counts recipients at *read*; the bubble shows it with an eye icon (`compactCount`: 1k, 1.2M).

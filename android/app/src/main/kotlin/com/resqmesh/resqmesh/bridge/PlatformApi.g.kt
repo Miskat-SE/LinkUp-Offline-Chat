@@ -1809,7 +1809,8 @@ interface BluetoothHostApi {
   fun stopDiscovery()
   /** Opens a link; returns its ID. Throws when the phone can't be reached. */
   suspend fun connect(address: String, channel: Long): Long
-  fun send(linkId: Long, bytes: ByteArray)
+  /** Completes once the bytes are written to the link. */
+  suspend fun send(linkId: Long, bytes: ByteArray)
   fun closeLink(linkId: Long)
 
   companion object {
@@ -2012,13 +2013,15 @@ interface BluetoothHostApi {
             val args = message as List<Any?>
             val linkIdArg = args[0] as Long
             val bytesArg = args[1] as ByteArray
-            val wrapped: List<Any?> = try {
-              api.send(linkIdArg, bytesArg)
-              listOf(null)
-            } catch (exception: Throwable) {
-              PlatformApiPigeonUtils.wrapError(exception)
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.send(linkIdArg, bytesArg)
+                listOf(null)
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
             }
-            reply.reply(wrapped)
           }
         } else {
           channel.setMessageHandler(null)

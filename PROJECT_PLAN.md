@@ -993,10 +993,10 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 - [ ] **P13.4** Device tests (§13.2 rows R1–R5, R12, R15 over Wi-Fi Direct)
 
 #### P14 · Bluetooth (after P13, about 3–4 weeks)
-- [ ] **P14.1** Spike: BLE + L2CAP versus classic RFCOMM on the testbed phones (D21)
-- [ ] **P14.2** Permissions flow (`BLUETOOTH_*`) shown only when Bluetooth is chosen
-- [ ] **P14.3** Bluetooth discovery and stream behind the same packet layer; framing unchanged
-- [ ] **P14.4** File limits and warnings for slow links; device tests
+- [x] **P14.1** Spike: BLE + L2CAP versus classic RFCOMM on the testbed phones (D21) *(decided with the user: BLE + insecure L2CAP, no pairing; ADR-0024. Phone results in P14.4)*
+- [x] **P14.2** Permissions flow (`BLUETOOTH_*`) shown only when Bluetooth is chosen
+- [x] **P14.3** Bluetooth discovery and stream behind the same packet layer; framing unchanged *(`ByteLink`/`LinkTransport` under connections and file transfer)*
+- [ ] **P14.4** File limits and warnings for slow links; device tests *(warning in the send sheet done; phone tests with the user, TESTING.md §2c)*
 
 #### P15 · Chat features from user testing (requested 11 Oct 2026, about 2 weeks)
 Reply (long-press) and per-person delivery already exist; these build on them. Suggested order: quick wins first, voice last.
@@ -1238,3 +1238,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 2.5 | 11 Oct 2026 | P13 code done (ADR-0023): Wi-Fi Direct is selectable; phones form a group by themselves (service discovery, lowest ID hosts, joins without dialogs on Android 10+) and the existing LAN stack runs over it; permission flow and status card states; developer view. Phone tests (P13.1, P13.4) are with the user. User testing passed P6–P8 on phones; their feature requests added as P15. |
 | 2.6 | 11 Oct 2026 | P15 done (code): seen-by count, swipe replies (also in Everyone), forward, delete for everyone (`MESSAGE_DELETE`), @mentions, camera photos, voice messages. Schema v4 (`deletedAt`, `mentions`, `voiceMs`) with a migration test, and checked on the emulator by updating build 19 to 20 with a chat kept. New protocol fields are optional, so older builds keep working. |
 | 2.7 | 11 Oct 2026 | P13 fix after the first phone test: a host formed its group before the other phone had found it, and a group owner can't be discovered. Groups now form only between phones that have seen each other; credentials are worked out from the host's ID, so joining needs no discovery (ADR-0023 revised). Wi-Fi Direct needs Android 10+. |
+| 2.8 | 15 Oct 2026 | P14 code done (ADR-0024): Bluetooth LE finds phones and insecure L2CAP channels carry the same connections and file transfers (no pairing, Android 10+), through a new `ByteLink`/`LinkTransport` layer. Slow-link warning for files. Phone tests (P14.4) with the user. |

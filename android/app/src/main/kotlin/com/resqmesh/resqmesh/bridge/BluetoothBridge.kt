@@ -229,19 +229,24 @@ class BluetoothBridge(
         return id
     }
 
-    override fun send(linkId: Long, bytes: ByteArray) {
+    override suspend fun send(linkId: Long, bytes: ByteArray) {
         val link = links[linkId] ?: return
-        try {
-            link.writer.execute {
-                try {
-                    link.socket.outputStream.write(bytes)
-                    link.socket.outputStream.flush()
-                } catch (e: IOException) {
-                    link.close()
+        // Queued in order on the link's writer; completes once written, so
+        // Dart can hold back a large file (backpressure).
+        suspendCancellableCoroutine { continuation ->
+            try {
+                link.writer.execute {
+                    try {
+                        link.socket.outputStream.write(bytes)
+                        link.socket.outputStream.flush()
+                    } catch (e: IOException) {
+                        link.close()
+                    }
+                    if (continuation.isActive) continuation.resume(Unit)
                 }
+            } catch (e: java.util.concurrent.RejectedExecutionException) {
+                if (continuation.isActive) continuation.resume(Unit)
             }
-        } catch (e: java.util.concurrent.RejectedExecutionException) {
-            // Closed.
         }
     }
 

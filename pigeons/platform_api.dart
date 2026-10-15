@@ -386,6 +386,8 @@ abstract class BluetoothHostApi {
   @async
   int connect(String address, int channel);
 
+  /// Completes once the bytes are written to the link.
+  @async
   void send(int linkId, Uint8List bytes);
 
   void closeLink(int linkId);

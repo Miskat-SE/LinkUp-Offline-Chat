@@ -114,7 +114,7 @@ final class FakeBluetooth implements Bluetooth {
   }
 
   @override
-  void send(int linkId, Uint8List bytes) {
+  Future<void> send(int linkId, Uint8List bytes) async {
     final other = air._pairs[(this, linkId)];
     if (other == null) return;
     final (phone, id) = other;

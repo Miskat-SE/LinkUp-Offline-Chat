@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:crypto/crypto.dart';
+import 'package:resqmesh/core/network/connection/byte_link.dart';
 import 'package:resqmesh/core/network/inbound_limits.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
 import 'package:resqmesh/features/file_transfer/data/engine/data_connection.dart';
@@ -20,6 +21,13 @@ final class TransferTiming {
     this.idleTimeout = const Duration(minutes: 2),
     this.progressInterval = const Duration(milliseconds: 100),
   });
+
+  /// Bluetooth (P14): channels take longer to open.
+  static const bluetooth = TransferTiming(
+    connectTimeout: Duration(seconds: 20),
+    helloTimeout: Duration(seconds: 15),
+    progressInterval: Duration(milliseconds: 300),
+  );
 
   final Duration connectTimeout;
   final Duration helloTimeout;
@@ -51,9 +59,12 @@ final class TransferEngine implements TransferBackend {
     this.chunkSize = 64 * 1024,
     this.flushEvery = 1024 * 1024,
     InternetAddress? bindAddress,
+    LinkTransport? transport,
     this.maxDownloads = 8,
     this.maxPending = 8,
-  }) : _bindAddress = bindAddress ?? InternetAddress.anyIPv4;
+  }) : _transport =
+           transport ??
+           TcpTransport(preferredPort: preferredPort, bindAddress: bindAddress);
 
   final int preferredPort;
   final TransferTiming timing;
@@ -68,11 +79,14 @@ final class TransferEngine implements TransferBackend {
     limit: 30,
     window: const Duration(minutes: 1),
   );
-  final InternetAddress _bindAddress;
+
+  /// TCP on Wi-Fi; Bluetooth channels in Bluetooth mode (P14).
+  final LinkTransport _transport;
 
   TransferIdentity? _self;
-  ServerSocket? _server;
-  StreamSubscription<Socket>? _serverSubscription;
+
+  /// The file port (or Bluetooth channel) while listening.
+  int? _port;
   final Map<String, _Upload> _uploads = {};
   final Map<String, _Download> _downloads = {};
   final StreamController<TransferEvent> _events =
@@ -84,7 +98,7 @@ final class TransferEngine implements TransferBackend {
   @override
   Future<int?> start(TransferIdentity self) async {
     _self = self;
-    if (_server != null) return _server!.port;
+    if (_port != null) return _port;
     return _listen();
   }
 
@@ -139,27 +153,12 @@ final class TransferEngine implements TransferBackend {
 
   // ------------------------------------------------------------------ server
 
-  Future<int?> _listen() async {
-    for (final port in {preferredPort, 0}) {
-      try {
-        final server = await ServerSocket.bind(_bindAddress, port);
-        _server = server;
-        _serverSubscription = server.listen(
-          (socket) => unawaited(_accept(socket)),
-        );
-        return server.port;
-      } on SocketException {
-        continue;
-      }
-    }
-    return null;
-  }
+  Future<int?> _listen() async =>
+      _port = await _transport.listen((link) => unawaited(_accept(link)));
 
   Future<void> _closeServer() async {
-    unawaited(_serverSubscription?.cancel());
-    _serverSubscription = null;
-    await _server?.close();
-    _server = null;
+    await _transport.close();
+    _port = null;
   }
 
   HelloPacket _hello(TransferIdentity self, {String? to}) => HelloPacket(
@@ -169,8 +168,8 @@ final class TransferEngine implements TransferBackend {
       receiverId: to ?? PacketHeader.everyone,
     ),
     Announcement(
-      tcpPort: _server?.port ?? preferredPort,
-      filePort: _server?.port,
+      tcpPort: _port ?? preferredPort,
+      filePort: _port,
       appVersion: self.appVersion,
       nameClaimedAt: self.nameClaimedAt,
     ),
@@ -217,14 +216,16 @@ final class TransferEngine implements TransferBackend {
 
     // DataConnection owns the socket and closes it.
     // ignore: close_sinks
-    final Socket socket;
+    final ByteLink socket;
     try {
-      socket = await Socket.connect(
+      socket = await _transport.connect(
         request.address,
         request.port,
-        timeout: timing.connectTimeout,
+        timing.connectTimeout,
       );
     } on SocketException catch (e) {
+      return TransferFailed(TransferFailure.connectionLost, e.message);
+    } on LinkException catch (e) {
       return TransferFailed(TransferFailure.connectionLost, e.message);
     }
     final DataConnection connection;
@@ -373,12 +374,12 @@ final class TransferEngine implements TransferBackend {
 
   // --------------------------------------------------------------- receiving
 
-  Future<void> _accept(Socket socket) async {
+  Future<void> _accept(ByteLink socket) async {
     final self = _self;
     if (self == null ||
         _downloads.length >= maxDownloads ||
         _pending >= maxPending ||
-        !_accepts.allow(socket.remoteAddress.address)) {
+        !_accepts.allow(socket.address)) {
       socket.destroy();
       return;
     }
@@ -390,7 +391,7 @@ final class TransferEngine implements TransferBackend {
     }
   }
 
-  Future<void> _receive(Socket socket, TransferIdentity self) async {
+  Future<void> _receive(ByteLink socket, TransferIdentity self) async {
     final offer = Completer<FileOfferPacket>();
     _Download? download;
     final DataConnection connection;

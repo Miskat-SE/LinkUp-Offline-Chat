@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
@@ -291,6 +292,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context,
       files: picked,
       peerName: peerName,
+      slowLink: ref.read(usesBluetoothProvider),
     );
     if (files == null || files.isEmpty) return;
     if (_everyone) {

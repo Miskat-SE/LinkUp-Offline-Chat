@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/bluetooth_providers.dart';
+import 'package:resqmesh/core/network/connection/bluetooth_transport.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/network_snapshot.dart';
 import 'package:resqmesh/core/platform/file_actions.dart';
@@ -10,14 +12,27 @@ import 'package:resqmesh/features/file_transfer/data/drift_file_transfer_reposit
 import 'package:resqmesh/features/file_transfer/data/engine/deferred_backend.dart';
 import 'package:resqmesh/features/file_transfer/data/engine/isolate_backend.dart';
 import 'package:resqmesh/features/file_transfer/data/engine/transfer_backend.dart';
+import 'package:resqmesh/features/file_transfer/data/engine/transfer_engine.dart';
 import 'package:resqmesh/features/file_transfer/data/transfer_service.dart';
 import 'package:resqmesh/features/file_transfer/domain/file_transfer.dart';
 import 'package:resqmesh/features/file_transfer/domain/file_transfer_repository.dart';
 
-/// The transfer worker isolate (ADR-0010). Tests replace it.
-final transferBackendProvider = Provider<TransferBackend>(
-  (ref) => DeferredTransferBackend(IsolateTransferBackend.spawn()),
-);
+/// The transfer worker isolate (ADR-0010). Tests replace it. In
+/// Bluetooth mode (P14) the engine runs here instead, on its own L2CAP
+/// channel: Bluetooth is slow enough that it costs the UI nothing.
+final transferBackendProvider = Provider<TransferBackend>((ref) {
+  if (!ref.watch(usesBluetoothProvider)) {
+    return DeferredTransferBackend(IsolateTransferBackend.spawn());
+  }
+  final transport = BluetoothTransport(ref.watch(bluetoothProvider));
+  ref.onDispose(() => unawaited(transport.dispose()));
+  return TransferEngine(
+    transport: transport,
+    timing: TransferTiming.bluetooth,
+    chunkSize: 16 * 1024,
+    flushEvery: 64 * 1024,
+  );
+});
 
 final fileTransferRepositoryProvider = Provider<FileTransferRepository>(
   (ref) => DriftFileTransferRepository(ref.watch(appDatabaseProvider)),

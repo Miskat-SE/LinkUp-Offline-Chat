@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
+import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/constants/brand.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
 import 'package:resqmesh/core/network/nearby.dart';
@@ -53,6 +54,7 @@ class _SelectPeopleScreenState extends ConsumerState<SelectPeopleScreen> {
           context,
           files: picked,
           peerName: _who(people),
+          slowLink: ref.read(usesBluetoothProvider),
         );
         if (chosen == null || chosen.isEmpty) return;
         await messaging.sendToPeople(people: people, files: chosen);

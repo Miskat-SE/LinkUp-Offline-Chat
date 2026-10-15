@@ -2070,6 +2070,7 @@ class BluetoothHostApi {
     return pigeonVar_replyValue! as int;
   }
 
+  /// Completes once the bytes are written to the link.
   Future<void> send(int linkId, Uint8List bytes) async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.resqmesh.BluetoothHostApi.send$pigeonVar_messageChannelSuffix';

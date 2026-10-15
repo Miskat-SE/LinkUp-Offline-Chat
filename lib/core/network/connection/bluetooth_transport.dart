@@ -118,6 +118,9 @@ final class _BtLink implements ByteLink {
   final StreamController<Uint8List> _input = StreamController();
   bool _closed = false;
 
+  /// The last write; writes complete in order.
+  Future<void> _written = Future.value();
+
   @override
   final String address;
 
@@ -127,8 +130,13 @@ final class _BtLink implements ByteLink {
   @override
   void add(List<int> bytes) {
     if (_closed) return;
-    _bt.send(_id, bytes is Uint8List ? bytes : Uint8List.fromList(bytes));
+    _written = _bt
+        .send(_id, bytes is Uint8List ? bytes : Uint8List.fromList(bytes))
+        .catchError((Object _) {});
   }
+
+  @override
+  Future<void> flush() => _written;
 
   @override
   void destroy() {

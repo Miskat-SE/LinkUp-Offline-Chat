@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
+import 'package:resqmesh/core/network/connection/byte_link.dart';
 import 'package:resqmesh/core/network/protocol/frame_codec.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
 import 'package:resqmesh/core/network/protocol/packet_codec.dart';
@@ -43,20 +43,19 @@ final class DataHandshakeException implements Exception {
 /// frame closes them.
 final class DataConnection {
   DataConnection._(this._socket, this._selfId, this._expectedPeerId)
-    : address = _socket.remoteAddress.address {
-    _subscription = _socket.listen(
+    : address = _socket.address {
+    _subscription = _socket.input.listen(
       _onData,
       onError: (Object _) => close('socket error'),
       onDone: () => close('closed by peer'),
       cancelOnError: true,
     );
-    unawaited(_socket.done.catchError((Object _) {}));
   }
 
   /// Sends [hello], waits for the other side's, and starts handing frames
   /// to [onFrame]. Throws [DataHandshakeException]; the socket is closed.
   static Future<DataConnection> open({
-    required Socket socket,
+    required ByteLink socket,
     required HelloPacket hello,
     required Future<void> Function(DataFrame frame) onFrame,
     required Duration helloTimeout,
@@ -79,7 +78,7 @@ final class DataConnection {
     return connection;
   }
 
-  final Socket _socket;
+  final ByteLink _socket;
   final String _selfId;
   final String? _expectedPeerId;
   final String address;

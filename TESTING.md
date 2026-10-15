@@ -110,6 +110,14 @@ Wi-Fi Direct needs real phones; the emulator can only show *Looking for phones n
 4. Then run R1–R5 (text and files both ways), R12 (Wi-Fi Direct turned off mid-transfer, then back) and R15 with a third phone.
 5. If it doesn't connect: Settings → About → tap *Version* 7 times → Developer options → **Wi-Fi Direct** shows the state, phones seen, phones joined and whether this phone is in a group. Note those on both phones, plus the Android versions and models.
 
+## 2c. Bluetooth on two or more phones (P14.4)
+
+1. Install the same build on each phone (Android 10 or newer). Turn **Bluetooth on**; Wi-Fi can be off. On Android 10–11, turn Location on too.
+2. On each phone: Settings → How you connect → **Bluetooth** → Save, and allow *Nearby devices* (or location).
+3. Keep the phones within a few metres, LinkUp open. Expected within about 30 s: *Found 1 nearby, connecting…*, then *Connected by Bluetooth · 1 nearby*. No pairing dialog should appear.
+4. Then: messages both ways, Everyone with a third phone, a photo, a voice message, and one file of 20–50 MB (the sheet should warn it takes minutes; note the actual time).
+5. If they don't connect, send Developer options screenshots from both phones, with models and Android versions.
+
 ## 3. Real-device matrix
 
 From PROJECT_PLAN.md §13.2. Copy this table for each release candidate, name the phones (model, Android version, battery saver) and the router, and fill in one row per test. *Result* is Pass, Fail (with a link to the issue) or N/A.

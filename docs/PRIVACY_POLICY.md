@@ -30,6 +30,7 @@ Only what you send, and only to the phones you send it to, over your local netwo
 - **Notifications:** to tell you about new messages and file progress.
 - **Microphone:** only while you record a voice message, after you tap the mic. The recording goes only to the people you send it to.
 - **Camera:** LinkUp has no camera permission; *Take a photo* opens your phone's camera app, and only the photo you confirm comes back.
+- **Bluetooth (Nearby devices on Android 12+, Location on Android 10–11):** only when you choose Bluetooth, to find and connect to nearby phones. LinkUp never reads or stores your location.
 - **Nearby devices (Android 13+) or Location (Android 8–12):** only when you choose Wi-Fi Direct, to find nearby phones. Android requires location permission for this on older versions; LinkUp never reads or stores your location.
 - **Network access, Wi-Fi state, multicast:** to find and talk to phones on the same network. Android requires the "internet" permission for any network connection, even a local one; LinkUp does not use the internet.
 - **Foreground service (connected device):** keeps transfers running, and keeps you reachable when you turn on *Stay reachable*, always with a visible notification.

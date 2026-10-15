@@ -10,15 +10,27 @@ Future<List<PickedFile>?> showSendFilesSheet(
   BuildContext context, {
   required List<PickedFile> files,
   required String peerName,
+  bool slowLink = false,
 }) => showModalBottomSheet<List<PickedFile>>(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
-  builder: (context) => _SendFilesSheet(files: files, peerName: peerName),
+  builder: (context) =>
+      _SendFilesSheet(files: files, peerName: peerName, slowLink: slowLink),
 );
 
+/// Roughly what Bluetooth carries (P14): for the time estimate only.
+const bluetoothBytesPerSecond = 80 * 1024;
+
 class _SendFilesSheet extends StatefulWidget {
-  const _SendFilesSheet({required this.files, required this.peerName});
+  const _SendFilesSheet({
+    required this.files,
+    required this.peerName,
+    this.slowLink = false,
+  });
+
+  /// Bluetooth: warn when the files will take a while.
+  final bool slowLink;
 
   final List<PickedFile> files;
   final String peerName;
@@ -74,6 +86,17 @@ class _SendFilesSheetState extends State<_SendFilesSheet> {
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
+                  if (widget.slowLink && total > 2 * 1024 * 1024) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Bluetooth is slow: about '
+                      '${_minutes(total)} for these files. Wi-Fi or a hotspot '
+                      'is much faster.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: scheme.error,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -150,4 +173,11 @@ class _PickedRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _minutes(int bytes) {
+  final minutes = (bytes / bluetoothBytesPerSecond / 60).ceil();
+  return minutes < 60
+      ? '$minutes min'
+      : '${(minutes / 60).toStringAsFixed(1)} hours';
 }

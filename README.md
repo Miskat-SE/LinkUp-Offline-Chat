@@ -69,6 +69,8 @@ keyPassword=…
 
 ## Permissions
 
+**Bluetooth only** (asked when you choose it): *Nearby devices* (`BLUETOOTH_SCAN` declared so it never gives your location, `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT`) on Android 12+, or location on Android 10–11. No pairing.
+
 **Microphone** (`RECORD_AUDIO`): asked the first time you record a voice message; nothing is recorded otherwise. Photos come from the phone's own camera app, so LinkUp has no camera permission.
 
 **Wi-Fi Direct only** (asked when you choose it): *Nearby devices* (`NEARBY_WIFI_DEVICES`, Android 13+, declared so it never gives your location), or on Android 8–12 location (`ACCESS_FINE_LOCATION`), which Android requires for Wi-Fi Direct discovery, with Location turned on. LinkUp never uses or stores your location. `CHANGE_WIFI_STATE` is granted automatically.
@@ -92,6 +94,7 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 - *Everyone* reaches only the people online when you send; there are no replies inside the Everyone thread.
 - *Delete for everyone* removes the message inside LinkUp on every phone; copies someone already saved to Downloads or shared to another app stay.
 - Voice messages are up to 10 minutes.
+- Bluetooth is new and still being tested on phones: about 10 m, and files are slow (roughly 80 KB/s), so the app warns before large ones.
 - Wi-Fi Direct is new and still being tested on phones; one group at a time (about 50 m). Bluetooth is *Coming soon* (P14).
 - Messages and files are not encrypted on the local network (see *Security and privacy*).
 - Android only. iOS, desktop and web are out of scope.

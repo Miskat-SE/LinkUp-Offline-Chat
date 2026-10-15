@@ -14,6 +14,10 @@ abstract interface class ByteLink {
 
   void add(List<int> bytes);
 
+  /// Completes once everything added so far has been written out: the
+  /// sender's backpressure for files.
+  Future<void> flush();
+
   /// Closes at once, dropping anything not yet sent.
   void destroy();
 }
@@ -59,6 +63,9 @@ final class SocketLink implements ByteLink {
 
   @override
   void add(List<int> bytes) => _socket.add(bytes);
+
+  @override
+  Future<void> flush() => _socket.flush();
 
   @override
   void destroy() => _socket.destroy();
