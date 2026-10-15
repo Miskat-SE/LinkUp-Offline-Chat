@@ -127,6 +127,13 @@ final class WifiDirectController {
   WifiDirectStatus get current => _current;
   Stream<WifiDirectStatus> get changes => _changes.stream;
 
+  /// The current status, then every change, with nothing missed between.
+  Stream<WifiDirectStatus> watch() => Stream.multi((listener) {
+    listener.add(_current);
+    final subscription = _changes.stream.listen(listener.add);
+    listener.onCancel = subscription.cancel;
+  });
+
   Future<void> start() async {
     if (_running) return;
     _running = true;

@@ -130,6 +130,14 @@ class _NobodyYet extends StatelessWidget {
           'People nearby who open ${Brand.name} with Wi-Fi Direct will appear '
           'here.',
     ),
+    _ when method == ConnectionMethod.bluetooth => const EmptyState(
+      compact: true,
+      icon: Icons.bluetooth_searching_rounded,
+      title: 'Looking for people nearby…',
+      message:
+          'People within about 10 m who open ${Brand.name} with Bluetooth '
+          'will appear here.',
+    ),
     NearbyStatus.noNetwork => const EmptyState(
       compact: true,
       icon: Icons.wifi_off_rounded,
@@ -232,7 +240,7 @@ class _PersonCard extends StatelessWidget {
                             peer.sources
                                 .map((s) => s.name.toUpperCase())
                                 .join('+'),
-                            if (info != null) 'TCP ${info.direction.name}',
+                            if (info != null) 'link ${info.direction.name}',
                             if (info?.rttMs != null) '${info!.rttMs} ms',
                             if (peer.appVersion.isNotEmpty)
                               'v${peer.appVersion}',

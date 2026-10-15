@@ -44,8 +44,9 @@ final class NearbySnapshot {
 
   factory NearbySnapshot.combine(
     DiscoverySnapshot discovery,
-    LinksSnapshot links,
-  ) {
+    LinksSnapshot links, {
+    bool overBluetooth = false,
+  }) {
     final now = clock.now();
     final peers = <NearbyPeer>[
       for (final peer in discovery.peers)
@@ -84,7 +85,11 @@ final class NearbySnapshot {
 
     final connected = peers.where((p) => p.link == LinkState.connected).length;
     final unreachable = peers.any((p) => p.link == LinkState.unreachable);
+    // Over Bluetooth (P14) the Wi-Fi state doesn't matter: a live
+    // connection is connected. On Wi-Fi, losing the network wins over
+    // connections that haven't timed out yet.
     final status = switch (discovery.state) {
+      _ when overBluetooth && connected > 0 => NearbyStatus.connected,
       LanState.blocked => NearbyStatus.blocked,
       LanState.noNetwork => NearbyStatus.noNetwork,
       _ when connected > 0 => NearbyStatus.connected,

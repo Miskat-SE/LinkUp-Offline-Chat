@@ -330,3 +330,77 @@ abstract class VoiceHostApi {
 abstract class VoiceFlutterApi {
   void onPlayback(VoicePlayback state);
 }
+
+/// A LinkUp phone found by Bluetooth LE scanning (P14).
+class BtPeer {
+  BtPeer({
+    required this.address,
+    required this.deviceId,
+    required this.channel,
+  });
+
+  /// Bluetooth address to connect to (it changes every few minutes).
+  String address;
+
+  /// LinkUp device ID.
+  String deviceId;
+
+  /// L2CAP channel (PSM) its control connections are accepted on.
+  int channel;
+}
+
+/// Bluetooth (P14): LE advertising and scanning to find phones, L2CAP
+/// channels to carry the usual byte streams. Android 10+, no pairing.
+@HostApi()
+abstract class BluetoothHostApi {
+  /// Bluetooth LE with advertising, and Android 10 or newer.
+  bool isSupported();
+
+  /// `granted`, `denied` or `locationOff` (Android 10–11 need Location on).
+  String permissionState();
+
+  @async
+  bool requestPermission();
+
+  bool isEnabled();
+
+  /// Shows Android's "Turn on Bluetooth?" dialog.
+  void requestEnable();
+
+  void openLocationSettings();
+
+  /// Opens an L2CAP server; returns its channel. Links it accepts arrive
+  /// through [BluetoothFlutterApi.onLinkOpened] with this channel.
+  @async
+  int openServer();
+
+  void closeServer(int channel);
+
+  /// Advertises this phone ([deviceId] and its control [channel]) and scans
+  /// for others.
+  void startDiscovery(String deviceId, int channel);
+
+  void stopDiscovery();
+
+  /// Opens a link; returns its ID. Throws when the phone can't be reached.
+  @async
+  int connect(String address, int channel);
+
+  void send(int linkId, Uint8List bytes);
+
+  void closeLink(int linkId);
+}
+
+@FlutterApi()
+abstract class BluetoothFlutterApi {
+  void onPeerFound(BtPeer peer);
+
+  /// A link accepted by the server on [channel].
+  void onLinkOpened(int linkId, String address, int channel);
+
+  void onData(int linkId, Uint8List bytes);
+
+  void onLinkClosed(int linkId);
+
+  void onEnabledChanged(bool enabled);
+}

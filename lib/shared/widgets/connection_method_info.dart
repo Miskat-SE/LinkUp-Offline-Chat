@@ -63,7 +63,10 @@ final class ConnectionMethodInfo {
       title: 'Bluetooth',
       summary: 'Works with Wi-Fi off. Best for messages; files send slowly.',
       traits: ['Messages', 'No Wi-Fi', 'About 10 m'],
-      steps: ['Turn on Bluetooth.', 'Keep phones close to each other.'],
+      steps: [
+        'Turn on Bluetooth on each phone. No pairing needed.',
+        'Open LinkUp. Phones within about 10 m connect by themselves.',
+      ],
     ),
   };
 }

@@ -642,6 +642,58 @@ data class VoicePlayback (
     return "VoicePlayback(path=$path, positionMs=$positionMs, durationMs=$durationMs, playing=$playing)"
   }
 }
+
+/**
+ * A LinkUp phone found by Bluetooth LE scanning (P14).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class BtPeer (
+  /** Bluetooth address to connect to (it changes every few minutes). */
+  val address: String,
+  /** LinkUp device ID. */
+  val deviceId: String,
+  /** L2CAP channel (PSM) its control connections are accepted on. */
+  val channel: Long
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): BtPeer {
+      val address = pigeonVar_list[0] as String
+      val deviceId = pigeonVar_list[1] as String
+      val channel = pigeonVar_list[2] as Long
+      return BtPeer(address, deviceId, channel)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      address,
+      deviceId,
+      channel,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as BtPeer
+    return PlatformApiPigeonUtils.deepEquals(this.address, other.address) && PlatformApiPigeonUtils.deepEquals(this.deviceId, other.deviceId) && PlatformApiPigeonUtils.deepEquals(this.channel, other.channel)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.address)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.deviceId)
+    result = 31 * result + PlatformApiPigeonUtils.deepHash(this.channel)
+    return result
+  }
+  override fun toString(): String {
+    return "BtPeer(address=$address, deviceId=$deviceId, channel=$channel)"
+  }
+}
 private open class PlatformApiPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -685,6 +737,11 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
           VoicePlayback.fromList(it)
         }
       }
+      137.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          BtPeer.fromList(it)
+        }
+      }
       else -> super.readValueOfType(type, buffer)
     }
   }
@@ -720,6 +777,10 @@ private open class PlatformApiPigeonCodec : StandardMessageCodec() {
       }
       is VoicePlayback -> {
         stream.write(136)
+        writeValue(stream, value.toList())
+      }
+      is BtPeer -> {
+        stream.write(137)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1705,6 +1766,377 @@ class VoiceFlutterApi(private val binaryMessenger: BinaryMessenger, private val 
       val channelName = "dev.flutter.pigeon.resqmesh.VoiceFlutterApi.onPlayback$separatedMessageChannelSuffix"
       val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
       channel.send(listOf(stateArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+}
+/**
+ * Bluetooth (P14): LE advertising and scanning to find phones, L2CAP
+ * channels to carry the usual byte streams. Android 10+, no pairing.
+ *
+ * Generated interface from Pigeon that represents a handler of messages from Flutter.
+ */
+interface BluetoothHostApi {
+  /** Bluetooth LE with advertising, and Android 10 or newer. */
+  fun isSupported(): Boolean
+  /** `granted`, `denied` or `locationOff` (Android 10–11 need Location on). */
+  fun permissionState(): String
+  suspend fun requestPermission(): Boolean
+  fun isEnabled(): Boolean
+  /** Shows Android's "Turn on Bluetooth?" dialog. */
+  fun requestEnable()
+  fun openLocationSettings()
+  /**
+   * Opens an L2CAP server; returns its channel. Links it accepts arrive
+   * through [BluetoothFlutterApi.onLinkOpened] with this channel.
+   */
+  suspend fun openServer(): Long
+  fun closeServer(channel: Long)
+  /**
+   * Advertises this phone ([deviceId] and its control [channel]) and scans
+   * for others.
+   */
+  fun startDiscovery(deviceId: String, channel: Long)
+  fun stopDiscovery()
+  /** Opens a link; returns its ID. Throws when the phone can't be reached. */
+  suspend fun connect(address: String, channel: Long): Long
+  fun send(linkId: Long, bytes: ByteArray)
+  fun closeLink(linkId: Long)
+
+  companion object {
+    /** The codec used by BluetoothHostApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+    /** Sets up an instance of `BluetoothHostApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: BluetoothHostApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.isSupported$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.isSupported())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.permissionState$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.permissionState())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.requestPermission$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.requestPermission())
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.isEnabled$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.isEnabled())
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.requestEnable$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.requestEnable()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.openLocationSettings$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.openLocationSettings()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.openServer$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.openServer())
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.closeServer$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val channelArg = args[0] as Long
+            val wrapped: List<Any?> = try {
+              api.closeServer(channelArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.startDiscovery$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val deviceIdArg = args[0] as String
+            val channelArg = args[1] as Long
+            val wrapped: List<Any?> = try {
+              api.startDiscovery(deviceIdArg, channelArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.stopDiscovery$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.stopDiscovery()
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.connect$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val addressArg = args[0] as String
+            val channelArg = args[1] as Long
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.connect(addressArg, channelArg))
+              } catch (exception: Throwable) {
+                PlatformApiPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.send$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val linkIdArg = args[0] as Long
+            val bytesArg = args[1] as ByteArray
+            val wrapped: List<Any?> = try {
+              api.send(linkIdArg, bytesArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.resqmesh.BluetoothHostApi.closeLink$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val linkIdArg = args[0] as Long
+            val wrapped: List<Any?> = try {
+              api.closeLink(linkIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              PlatformApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}
+/** Generated class from Pigeon that represents Flutter messages that can be called from Kotlin. */
+class BluetoothFlutterApi(private val binaryMessenger: BinaryMessenger, private val messageChannelSuffix: String = "") {
+  companion object {
+    /** The codec used by BluetoothFlutterApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      PlatformApiPigeonCodec()
+    }
+  }
+  suspend fun onPeerFound(peerArg: BtPeer)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.BluetoothFlutterApi.onPeerFound$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(peerArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+  /** A link accepted by the server on [channel]. */
+  suspend fun onLinkOpened(linkIdArg: Long, addressArg: String, channelArg: Long)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.BluetoothFlutterApi.onLinkOpened$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(linkIdArg, addressArg, channelArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+  suspend fun onData(linkIdArg: Long, bytesArg: ByteArray)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.BluetoothFlutterApi.onData$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(linkIdArg, bytesArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+  suspend fun onLinkClosed(linkIdArg: Long)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.BluetoothFlutterApi.onLinkClosed$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(linkIdArg)) {
+        if (it is List<*>) {
+          if (it.size > 1) {
+            continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))
+          } else {
+            continuation.resume(Unit)
+          }
+        } else {
+          continuation.resumeWithException(PlatformApiPigeonUtils.createConnectionError(channelName))
+        } 
+      }
+    }
+  }
+  suspend fun onEnabledChanged(enabledArg: Boolean)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    return suspendCancellableCoroutine { continuation ->
+      val channelName = "dev.flutter.pigeon.resqmesh.BluetoothFlutterApi.onEnabledChanged$separatedMessageChannelSuffix"
+      val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+      channel.send(listOf(enabledArg)) {
         if (it is List<*>) {
           if (it.size > 1) {
             continuation.resumeWithException(FlutterError(it[0] as String, it[1] as String, it[2] as String?))

@@ -47,14 +47,7 @@ final wifiDirectControllerProvider = Provider<WifiDirectController?>((ref) {
 });
 
 /// Wi-Fi Direct state for the status card; null in other modes.
-final wifiDirectStatusProvider = StreamProvider<WifiDirectStatus?>((
-  ref,
-) async* {
+final wifiDirectStatusProvider = StreamProvider<WifiDirectStatus?>((ref) {
   final controller = ref.watch(wifiDirectControllerProvider);
-  if (controller == null) {
-    yield null;
-    return;
-  }
-  yield controller.current;
-  yield* controller.changes;
+  return controller == null ? Stream.value(null) : controller.watch();
 });

@@ -8,6 +8,8 @@ import com.resqmesh.resqmesh.bridge.FileHostApi
 import com.resqmesh.resqmesh.bridge.LanBridge
 import com.resqmesh.resqmesh.bridge.LanHostApi
 import com.resqmesh.resqmesh.bridge.NotificationBridge
+import com.resqmesh.resqmesh.bridge.BluetoothBridge
+import com.resqmesh.resqmesh.bridge.BluetoothHostApi
 import com.resqmesh.resqmesh.bridge.VoiceBridge
 import com.resqmesh.resqmesh.bridge.VoiceHostApi
 import com.resqmesh.resqmesh.bridge.WifiDirectBridge
@@ -39,6 +41,7 @@ class ResQMeshApp : Application() {
         BackgroundHostApi.setUp(messenger, BackgroundBridge(this))
         WifiDirectHostApi.setUp(messenger, WifiDirectBridge(this, messenger))
         VoiceHostApi.setUp(messenger, VoiceBridge(this, messenger))
+        BluetoothHostApi.setUp(messenger, BluetoothBridge(this, messenger))
         engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
         FlutterEngineCache.getInstance().put(ENGINE_ID, engine)
     }

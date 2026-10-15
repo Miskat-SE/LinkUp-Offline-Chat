@@ -23,6 +23,7 @@ abstract final class StoreKeys {
   static const stayReachable = 'settings.stayReachable';
   static const stayReachableOffered = 'settings.stayReachableOffered';
   static const wifiDirectAsked = 'settings.wifiDirectAsked';
+  static const bluetoothAsked = 'settings.bluetoothAsked';
 
   static const all = {
     deviceId,
@@ -35,6 +36,7 @@ abstract final class StoreKeys {
     stayReachable,
     stayReachableOffered,
     wifiDirectAsked,
+    bluetoothAsked,
   };
 }
 

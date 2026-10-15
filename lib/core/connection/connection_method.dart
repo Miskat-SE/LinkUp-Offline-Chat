@@ -11,8 +11,9 @@ enum ConnectionMethod {
   /// themselves, and the LAN code runs over it (P13, ADR-0023).
   wifiDirect(available: true),
 
-  /// Bluetooth, for when Wi-Fi is off entirely (P14).
-  bluetooth(available: false);
+  /// Bluetooth LE to find phones and L2CAP channels to carry the usual
+  /// connections, for when Wi-Fi is off entirely (P14).
+  bluetooth(available: true);
 
   const ConnectionMethod({required this.available});
 

@@ -37,7 +37,7 @@ void main() {
     expect(store.getString(StoreKeys.username), 'Yusuf');
 
     expect(find.text('How do you want to connect?'), findsOneWidget);
-    expect(find.text('Coming soon'), findsOneWidget); // Bluetooth
+    expect(find.text('Coming soon'), findsNothing); // every method works
     await tester.tap(find.text('Phone hotspot'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Start'));
@@ -48,17 +48,22 @@ void main() {
     expect(store.getString(StoreKeys.connectionMethod), 'hotspot');
   });
 
-  testWidgets('methods marked Coming soon cannot be chosen', (tester) async {
+  testWidgets('Bluetooth can be chosen', (tester) async {
     final store = MemoryKeyValueStore({StoreKeys.username: 'Yusuf'});
-    await launchApp(tester, store);
+    await launchApp(tester, store, settle: false);
+    await pumpFor(tester, const Duration(seconds: 1));
 
+    await Scrollable.ensureVisible(
+      tester.element(find.text('Bluetooth')),
+      alignment: 0.5,
+    );
+    await pumpFor(tester, const Duration(milliseconds: 300));
     await tester.tap(find.text('Bluetooth'));
-    await tester.pumpAndSettle();
+    await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.tap(find.text('Start'));
-    await tester.pumpAndSettle();
-
-    // The default (Wi-Fi network) stays selected.
-    expect(store.getString(StoreKeys.connectionMethod), 'wifiRouter');
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(store.getString(StoreKeys.connectionMethod), 'bluetooth');
+    await closeApp(tester);
   });
 
   testWidgets('a device with a name only has to pick a connection method', (

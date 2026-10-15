@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/connection/connection_method.dart';
 import 'package:resqmesh/core/connection/connection_providers.dart';
 import 'package:resqmesh/core/identity/identity_providers.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
+import 'package:resqmesh/core/network/connection/bluetooth_transport.dart';
+import 'package:resqmesh/core/network/connection/byte_link.dart';
 import 'package:resqmesh/core/network/connection/connection_manager.dart';
+import 'package:resqmesh/core/network/connection/peer_connection.dart';
 import 'package:resqmesh/core/network/connection/peer_links.dart';
 import 'package:resqmesh/core/network/connection/register_handler.dart';
 import 'package:resqmesh/core/network/discovery/datagram_transport.dart';
@@ -40,7 +44,8 @@ final discoveryEngineProvider = Provider<DiscoveryEngine>((ref) {
       announce:
           method == ConnectionMethod.wifiRouter ||
           method == ConnectionMethod.hotspot ||
-          method == ConnectionMethod.wifiDirect,
+          method == ConnectionMethod.wifiDirect ||
+          method == ConnectionMethod.bluetooth,
       appVersion: ref.read(appInfoProvider).value?.wireVersion ?? '',
     );
   }
@@ -72,12 +77,20 @@ final discoveryProvider = StreamProvider<DiscoverySnapshot>((ref) async* {
 /// Creates the TCP side; tests replace it.
 typedef PeerLinksFactory = PeerLinks Function(
   SelfInfo Function() self,
-  AppLogger logger,
-);
+  AppLogger logger, {
+  LinkTransport? transport,
+});
 
 final peerLinksFactoryProvider = Provider<PeerLinksFactory>(
   (ref) =>
-      (self, logger) => ConnectionManager(self: self, logger: logger),
+      (self, logger, {transport}) => ConnectionManager(
+        self: self,
+        logger: logger,
+        transport: transport,
+        timing: transport == null
+            ? const ConnectionTiming()
+            : ConnectionTiming.bluetooth,
+      ),
 );
 
 /// Control connections to every discovered device (P3), kept in step with
@@ -86,7 +99,17 @@ final peerLinksFactoryProvider = Provider<PeerLinksFactory>(
 final peerLinksProvider = Provider<PeerLinks>((ref) {
   final engine = ref.watch(discoveryEngineProvider);
   final logger = ref.watch(appLoggerProvider);
-  final links = ref.watch(peerLinksFactoryProvider)(() => engine.self, logger);
+  // Bluetooth (P14): the same connections over L2CAP channels, to the
+  // phones Bluetooth LE finds; Wi-Fi discovery doesn't feed them.
+  final bluetooth = ref.watch(bluetoothControllerProvider);
+  final transport = bluetooth == null
+      ? null
+      : BluetoothTransport(ref.read(bluetoothProvider));
+  final links = ref.watch(peerLinksFactoryProvider)(
+    () => engine.self,
+    logger,
+    transport: transport,
+  );
   final register = RegisterHandler(
     links: links,
     self: () => engine.self,
@@ -95,11 +118,30 @@ final peerLinksProvider = Provider<PeerLinks>((ref) {
   )..start();
 
   void announcePort(int? port) {
-    if (port != null) engine.setTcpPort(port);
+    if (bluetooth != null) {
+      bluetooth.setChannel(port);
+    } else if (port != null) {
+      engine.setTcpPort(port);
+    }
   }
 
   NetworkSnapshot? lastNetwork;
+  final btEndpoints = bluetooth?.endpoints.listen(links.updateEndpoints);
+  // The Bluetooth server can only open once permission is given and
+  // Bluetooth is on, often after the first try: open it again then.
+  var reopening = false;
+  final btReady = bluetooth?.watch().listen((_) {
+    if (!bluetooth.ready || bluetooth.channel != null || reopening) return;
+    reopening = true;
+    unawaited(
+      links
+          .resetNetwork()
+          .then(announcePort)
+          .whenComplete(() => reopening = false),
+    );
+  });
   final subscription = engine.snapshots.listen((snapshot) {
+    if (bluetooth != null) return;
     if (lastNetwork != null && lastNetwork != snapshot.network) {
       unawaited(links.resetNetwork().then(announcePort));
     }
@@ -121,8 +163,10 @@ final peerLinksProvider = Provider<PeerLinks>((ref) {
     })
     ..onDispose(() {
       unawaited(subscription.cancel());
+      unawaited(btEndpoints?.cancel());
+      unawaited(btReady?.cancel());
       unawaited(register.stop());
-      unawaited(links.stop());
+      unawaited(links.stop().then((_) => transport?.dispose()));
     });
   unawaited(links.start().then(announcePort));
   return links;
@@ -139,5 +183,6 @@ final nearbyProvider = Provider<NearbySnapshot>(
   (ref) => NearbySnapshot.combine(
     ref.watch(discoveryProvider).value ?? DiscoverySnapshot.initial,
     ref.watch(linksProvider).value ?? LinksSnapshot.initial,
+    overBluetooth: ref.watch(usesBluetoothProvider),
   ),
 );

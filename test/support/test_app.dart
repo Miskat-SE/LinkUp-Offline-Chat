@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/app.dart';
 import 'package:resqmesh/app/restartable_app.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/connection/wifi_direct_providers.dart';
 import 'package:resqmesh/core/identity/identity_repository.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
@@ -21,6 +22,7 @@ import 'package:resqmesh/features/file_transfer/data/file_picker_service.dart';
 import 'package:resqmesh/features/file_transfer/data/file_transfer_providers.dart';
 
 import 'fake_background_service.dart';
+import 'fake_bluetooth.dart';
 import 'fake_file_actions.dart';
 import 'fake_file_picker.dart';
 import 'fake_network_monitor.dart';
@@ -52,6 +54,7 @@ Future<void> launchApp(
   FakeBackgroundService? background,
   FakeWifiDirect? wifiDirect,
   FakeVoice? voice,
+  FakeBluetooth? bluetooth,
   Directory? supportDirectory,
   bool settle = true,
 }) async {
@@ -107,6 +110,7 @@ Future<void> launchApp(
           filePickerProvider.overrideWithValue(picker ?? FakeFilePicker()),
           wifiDirectProvider.overrideWithValue(wifiDirect ?? FakeWifiDirect()),
           voiceProvider.overrideWithValue(voice ?? FakeVoice()),
+          bluetoothProvider.overrideWithValue(bluetooth ?? FakeBluetooth()),
           backgroundServiceProvider.overrideWithValue(
             background ?? FakeBackgroundService(),
           ),
@@ -114,7 +118,7 @@ Future<void> launchApp(
             notifications ?? FakeNotifications(),
           ),
           peerLinksFactoryProvider.overrideWithValue(
-            (self, logger) => links ?? FakePeerLinks(),
+            (self, logger, {transport}) => links ?? FakePeerLinks(),
           ),
         ],
         child: const ResQMeshApp(),

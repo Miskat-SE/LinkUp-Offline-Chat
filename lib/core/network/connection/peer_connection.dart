@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
+import 'package:resqmesh/core/network/connection/byte_link.dart';
 import 'package:resqmesh/core/network/inbound_limits.dart';
 import 'package:resqmesh/core/network/protocol/frame_codec.dart';
 import 'package:resqmesh/core/network/protocol/packet.dart';
@@ -22,6 +22,13 @@ final class ConnectionTiming {
     this.reconnectMax = const Duration(seconds: 30),
     this.dialGrace = const Duration(seconds: 3),
   });
+
+  /// Bluetooth (P14): opening a channel and the first bytes take longer.
+  static const bluetooth = ConnectionTiming(
+    connectTimeout: Duration(seconds: 20),
+    helloTimeout: Duration(seconds: 15),
+    reconnectBase: Duration(seconds: 2),
+  );
 
   final Duration connectTimeout;
 
@@ -63,28 +70,26 @@ final class HandshakeException implements Exception {
 /// PING/PONG come out of [packets].
 final class PeerConnection {
   PeerConnection._(
-    this._socket,
+    this._link,
     this.direction,
     this._selfId,
     this._selfName,
     this._expectedPeerId,
     this._timing,
     this._logger,
-  ) : address = _socket.remoteAddress.address {
-    _subscription = _socket.listen(
+  ) : address = _link.address {
+    _subscription = _link.input.listen(
       _onData,
       onError: (Object _) => close('socket error'),
       onDone: () => close('closed by peer'),
       cancelOnError: true,
     );
-    // Errors from writing to a dead socket surface here, not at add().
-    unawaited(_socket.done.catchError((Object _) {}));
   }
 
   /// Sends [hello] and waits for the other side's HELLO. Throws
-  /// [HandshakeException] on timeout or a bad HELLO; the socket is closed.
+  /// [HandshakeException] on timeout or a bad HELLO; the link is closed.
   static Future<PeerConnection> open({
-    required Socket socket,
+    required ByteLink link,
     required ConnectionDirection direction,
     required HelloPacket hello,
     required ConnectionTiming timing,
@@ -92,7 +97,7 @@ final class PeerConnection {
     String? expectedPeerId,
   }) async {
     final connection = PeerConnection._(
-      socket,
+      link,
       direction,
       hello.header.senderId,
       hello.header.senderName,
@@ -113,7 +118,7 @@ final class PeerConnection {
     return connection;
   }
 
-  final Socket _socket;
+  final ByteLink _link;
   final ConnectionDirection direction;
   final String _selfId;
   final String _selfName;
@@ -168,9 +173,7 @@ final class PeerConnection {
 
   void send(Packet packet) {
     if (isClosed) return;
-    _socket.add(
-      FrameCodec.encode(FrameKind.control, PacketCodec.encode(packet)),
-    );
+    _link.add(FrameCodec.encode(FrameKind.control, PacketCodec.encode(packet)));
   }
 
   void close(String reason) {
@@ -178,7 +181,7 @@ final class PeerConnection {
     _closed.complete(reason);
     _keepAlive?.cancel();
     unawaited(_subscription.cancel());
-    _socket.destroy();
+    _link.destroy();
     unawaited(_packets.close());
     if (!_hello.isCompleted) {
       _hello.completeError(HandshakeException(reason));
@@ -314,13 +317,3 @@ final class PeerConnection {
     receiverId: peerId,
   );
 }
-
-/// Opens a TCP connection; replaceable in tests.
-typedef SocketConnector = Future<Socket> Function(
-  String address,
-  int port,
-  Duration timeout,
-);
-
-Future<Socket> connectSocket(String address, int port, Duration timeout) =>
-    Socket.connect(address, port, timeout: timeout);

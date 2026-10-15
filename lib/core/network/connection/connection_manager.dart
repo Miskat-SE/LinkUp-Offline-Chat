@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:clock/clock.dart';
 import 'package:resqmesh/core/constants/protocol_constants.dart';
 import 'package:resqmesh/core/logging/app_logger.dart';
+import 'package:resqmesh/core/network/connection/byte_link.dart';
 import 'package:resqmesh/core/network/connection/peer_connection.dart';
 import 'package:resqmesh/core/network/connection/peer_links.dart';
 import 'package:resqmesh/core/network/discovery/discovery_engine.dart';
@@ -22,20 +23,29 @@ final class ConnectionManager implements PeerLinks {
   ConnectionManager({
     required this._self,
     required this._logger,
-    this._preferredPort = ProtocolConstants.tcpPort,
+    int preferredPort = ProtocolConstants.tcpPort,
     this._timing = const ConnectionTiming(),
-    this._connect = connectSocket,
+    SocketConnector connect = connectSocket,
     InternetAddress? bindAddress,
+    LinkTransport? transport,
     this._maxLinks = 32,
     this._maxPending = 8,
-  }) : _bindAddress = bindAddress ?? InternetAddress.anyIPv4;
+  }) : _preferredPort = preferredPort {
+    _transport =
+        transport ??
+        TcpTransport(
+          preferredPort: preferredPort,
+          bindAddress: bindAddress,
+          connector: connect,
+          onBindError: _error,
+        );
+  }
 
   final SelfInfo Function() _self;
   final AppLogger _logger;
   final int _preferredPort;
   final ConnectionTiming _timing;
-  final SocketConnector _connect;
-  final InternetAddress _bindAddress;
+  late final LinkTransport _transport;
   final int _maxLinks;
 
   /// Connections still in their HELLO handshake (P9.3): a slow or silent
@@ -50,8 +60,8 @@ final class ConnectionManager implements PeerLinks {
   );
   int _refused = 0;
 
-  ServerSocket? _server;
-  StreamSubscription<Socket>? _serverSubscription;
+  /// Where others reach this phone: a TCP port or a Bluetooth channel.
+  int? _port;
   Timer? _tick;
   bool _running = false;
 
@@ -86,7 +96,7 @@ final class ConnectionManager implements PeerLinks {
 
   @override
   Future<int?> start() async {
-    if (_running) return _server?.port;
+    if (_running) return _port;
     _running = true;
     _tick = Timer.periodic(const Duration(seconds: 1), (_) => _dialDue());
     return _listen();
@@ -148,47 +158,32 @@ final class ConnectionManager implements PeerLinks {
   // ----------------------------------------------------------------- server
 
   Future<int?> _listen() async {
-    ServerSocket? server;
-    for (final port in {_preferredPort, 0}) {
-      try {
-        server = await ServerSocket.bind(_bindAddress, port);
-        break;
-      } on SocketException catch (e) {
-        _error('TCP bind $port failed: ${e.osError?.message ?? e.message}');
-      }
+    final port = _port = await _transport.listen(
+      (link) => unawaited(_accept(link)),
+    );
+    if (port != null) {
+      _logger.info(LogTag.network, 'Listening for connections', {'port': port});
     }
-    _server = server;
-    if (server == null) {
-      _emit();
-      return null;
-    }
-    _logger.info(LogTag.network, 'Listening for connections', {
-      'port': server.port,
-    });
-    _serverSubscription = server.listen(_accept);
     _emit();
-    return server.port;
+    return port;
   }
 
   Future<void> _closeAll(String reason) async {
-    unawaited(_serverSubscription?.cancel());
-    _serverSubscription = null;
-    await _server?.close();
-    _server = null;
+    await _transport.close();
+    _port = null;
     for (final link in _links.values.toList()) {
       link.close(reason);
     }
     _links.clear();
   }
 
-  Future<void> _accept(Socket socket) async {
+  Future<void> _accept(ByteLink socket) async {
     final self = _self();
     if (!_running || !self.canAnnounce || _links.length >= _maxLinks) {
       socket.destroy();
       return;
     }
-    if (_pending >= _maxPending ||
-        !_accepts.allow(socket.remoteAddress.address)) {
+    if (_pending >= _maxPending || !_accepts.allow(socket.address)) {
       _refused++;
       socket.destroy();
       _emit();
@@ -197,7 +192,7 @@ final class ConnectionManager implements PeerLinks {
     _pending++;
     try {
       final link = await PeerConnection.open(
-        socket: socket,
+        link: socket,
         direction: ConnectionDirection.inbound,
         hello: _hello(self),
         timing: _timing,
@@ -219,7 +214,7 @@ final class ConnectionManager implements PeerLinks {
   void _dialDue() {
     if (!_running) return;
     final self = _self();
-    if (!self.canAnnounce || _server == null) return;
+    if (!self.canAnnounce || _port == null) return;
     final now = clock.now();
     for (final endpoint in _endpoints) {
       final id = endpoint.deviceId;
@@ -242,13 +237,13 @@ final class ConnectionManager implements PeerLinks {
     try {
       // PeerConnection owns the socket and closes it.
       // ignore: close_sinks
-      final socket = await _connect(
+      final socket = await _transport.connect(
         endpoint.address,
         endpoint.port,
         _timing.connectTimeout,
       );
       final link = await PeerConnection.open(
-        socket: socket,
+        link: socket,
         direction: ConnectionDirection.outbound,
         hello: _hello(self),
         timing: _timing,
@@ -257,14 +252,22 @@ final class ConnectionManager implements PeerLinks {
       );
       _register(link);
     } on Object catch (e) {
-      if (e is! SocketException && e is! HandshakeException) rethrow;
+      if (e is! SocketException &&
+          e is! HandshakeException &&
+          e is! LinkException) {
+        rethrow;
+      }
       _dialFailures++;
       final backoff = _backoff.putIfAbsent(id, () => _Backoff(_timing));
       backoff.failed(clock.now());
       _error(
         'Connect to ${id.substring(0, 4)} at ${endpoint.address} failed '
         '(${backoff.failures}x): '
-        '${e is HandshakeException ? e.reason : (e as SocketException).message}',
+        '${switch (e) {
+          HandshakeException(:final reason) => reason,
+          LinkException(:final message) => message,
+          _ => (e as SocketException).message,
+        }}',
       );
     } finally {
       _dialling.remove(id);
@@ -322,7 +325,7 @@ final class ConnectionManager implements PeerLinks {
   HelloPacket _hello(SelfInfo self) => HelloPacket(
     PacketHeader.create(senderId: self.deviceId, senderName: self.name!),
     Announcement(
-      tcpPort: _server?.port ?? _preferredPort,
+      tcpPort: _port ?? _preferredPort,
       filePort: _filePort,
       appVersion: self.appVersion,
       nameClaimedAt: self.nameClaimedAt!,
@@ -340,7 +343,7 @@ final class ConnectionManager implements PeerLinks {
   void _emit() {
     final endpointIds = {for (final e in _endpoints) e.deviceId};
     _current = LinksSnapshot(
-      listeningPort: _server?.port,
+      listeningPort: _port,
       links: {
         for (final link in _links.values)
           link.peerId: LinkInfo(

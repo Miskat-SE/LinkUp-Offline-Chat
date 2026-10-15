@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:resqmesh/app/theme/tokens.dart';
+import 'package:resqmesh/core/connection/bluetooth_controller.dart';
+import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/connection/connection_method.dart';
 import 'package:resqmesh/core/connection/wifi_direct_controller.dart';
 import 'package:resqmesh/core/connection/wifi_direct_providers.dart';
@@ -35,17 +37,39 @@ class ConnectionStatusCard extends ConsumerWidget {
         ? ref.watch(wifiDirectStatusProvider).value
         : null;
     final controller = direct ? ref.watch(wifiDirectControllerProvider) : null;
-    final action = switch (wifiDirect?.phase) {
-      WifiDirectPhase.needsPermission => (
-        'Allow',
-        () => unawaited(controller?.requestPermission()),
-      ),
-      WifiDirectPhase.locationOff => (
-        'Turn on Location',
-        () => unawaited(controller?.openLocationSettings()),
-      ),
-      _ => null,
-    };
+    // Bluetooth (P14) too.
+    final bt = method == ConnectionMethod.bluetooth;
+    final bluetooth = bt && nearby.status != NearbyStatus.connected
+        ? ref.watch(bluetoothStatusProvider).value
+        : null;
+    final btController = bt ? ref.watch(bluetoothControllerProvider) : null;
+    final action =
+        switch (wifiDirect?.phase) {
+          WifiDirectPhase.needsPermission => (
+            'Allow',
+            () => unawaited(controller?.requestPermission()),
+          ),
+          WifiDirectPhase.locationOff => (
+            'Turn on Location',
+            () => unawaited(controller?.openLocationSettings()),
+          ),
+          _ => null,
+        } ??
+        switch (bluetooth?.phase) {
+          BluetoothPhase.needsPermission => (
+            'Allow',
+            () => unawaited(btController?.requestPermission()),
+          ),
+          BluetoothPhase.locationOff => (
+            'Turn on Location',
+            () => unawaited(btController?.openLocationSettings()),
+          ),
+          BluetoothPhase.off => (
+            'Turn on Bluetooth',
+            () => unawaited(btController?.requestEnable()),
+          ),
+          _ => null,
+        };
     final onCard = scheme.onPrimaryContainer;
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -97,19 +121,29 @@ class ConnectionStatusCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            _StatusLine(method: method, nearby: nearby, wifiDirect: wifiDirect),
-            if (wifiDirect?.phase == WifiDirectPhase.locationOff) ...[
+            _StatusLine(
+              method: method,
+              nearby: nearby,
+              wifiDirect: wifiDirect,
+              bluetooth: bluetooth,
+            ),
+            if (wifiDirect?.phase == WifiDirectPhase.locationOff ||
+                bluetooth?.phase == BluetoothPhase.locationOff) ...[
               const SizedBox(height: AppSpacing.md),
-              const _Hint(
-                title: 'Android 12 and older need Location for Wi-Fi Direct.',
-                lines: ['${Brand.name} never uses or stores your location.'],
+              _Hint(
+                title: bt
+                    ? 'Android 11 and older need Location for Bluetooth.'
+                    : 'Android 12 and older need Location for Wi-Fi Direct.',
+                lines: const [
+                  '${Brand.name} never uses or stores your location.',
+                ],
               ),
             ],
             if (action != null) ...[
               const SizedBox(height: AppSpacing.md),
               FilledButton(onPressed: action.$2, child: Text(action.$1)),
             ],
-            if (direct)
+            if (direct || bt)
               const SizedBox.shrink()
             else if (nearby.status == NearbyStatus.unreachable) ...[
               const SizedBox(height: AppSpacing.md),
@@ -147,11 +181,13 @@ class _StatusLine extends StatelessWidget {
     required this.method,
     required this.nearby,
     this.wifiDirect,
+    this.bluetooth,
   });
 
   final ConnectionMethod method;
   final NearbySnapshot nearby;
   final WifiDirectStatus? wifiDirect;
+  final BluetoothStatus? bluetooth;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +196,30 @@ class _StatusLine extends StatelessWidget {
     final count = nearby.connectedCount;
     const waiting = Color(0xFFF29900);
     final direct = wifiDirect;
-    final (Color dot, String text) = direct != null
+    final blue = bluetooth;
+    final (Color dot, String text) = blue != null
+        ? switch (blue.phase) {
+            BluetoothPhase.unsupported => (
+              scheme.error,
+              "This phone doesn't support Bluetooth LE",
+            ),
+            BluetoothPhase.off => (scheme.error, 'Bluetooth is off'),
+            BluetoothPhase.needsPermission => (
+              scheme.error,
+              '${Brand.name} needs permission to find nearby phones',
+            ),
+            BluetoothPhase.locationOff => (
+              scheme.error,
+              'Turn on Location to find nearby phones',
+            ),
+            BluetoothPhase.searching => (
+              waiting,
+              blue.nearby == 0
+                  ? 'Looking for phones nearby…'
+                  : 'Found ${blue.nearby} nearby, connecting…',
+            ),
+          }
+        : direct != null
         ? switch (direct.phase) {
             WifiDirectPhase.unsupported => (
               scheme.error,
@@ -204,7 +263,9 @@ class _StatusLine extends StatelessWidget {
         : switch (nearby.status) {
             NearbyStatus.connected => (
               const Color(0xFF2E9E4F),
-              'Local network connected · $count nearby',
+              method == ConnectionMethod.bluetooth
+                  ? 'Connected by Bluetooth · $count nearby'
+                  : 'Local network connected · $count nearby',
             ),
             NearbyStatus.searching => (waiting, 'Searching for devices…'),
             NearbyStatus.unreachable => (
