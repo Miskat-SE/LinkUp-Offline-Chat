@@ -4,6 +4,8 @@ import 'package:resqmesh/core/platform/bluetooth.dart';
 import 'package:resqmesh/core/storage/key_value_store.dart';
 
 import '../../support/fake_bluetooth.dart';
+import '../../support/fake_peer_links.dart';
+import '../../support/fake_transfer_backend.dart';
 import '../../support/memory_key_value_store.dart';
 import '../../support/other_phone.dart';
 import '../../support/test_app.dart';
@@ -86,6 +88,42 @@ void main() {
     await pumpFor(tester, const Duration(seconds: 1));
     expect(find.text('Looking for phones nearby…'), findsOneWidget);
     expect(bt.advertising, isNotNull);
+    await closeApp(tester);
+  });
+
+  testWidgets('file channel opens once allowed, and again after Bluetooth '
+      'is turned off and on', (tester) async {
+    final bt = FakeBluetooth()
+      ..permissionState = BtPermission.denied
+      ..grantOnRequest = false;
+    // Like the Bluetooth engine: no file channel without permission.
+    final transfers = FakeTransferBackend()..port = null;
+    final links = FakePeerLinks();
+    await launchApp(
+      tester,
+      await bluetoothPhone(),
+      bluetooth: bt,
+      transfers: transfers,
+      links: links,
+      settle: false,
+    );
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(links.filePort, isNull);
+
+    bt.grantOnRequest = true;
+    transfers.port = 0x83;
+    await tester.tap(find.widgetWithText(FilledButton, 'Allow'));
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(transfers.resets, 1);
+    expect(links.filePort, 0x83, reason: 'others can now send files');
+
+    transfers.port = 0x85;
+    bt.setEnabled(false);
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    bt.setEnabled(true);
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(transfers.resets, 2);
+    expect(links.filePort, 0x85);
     await closeApp(tester);
   });
 }

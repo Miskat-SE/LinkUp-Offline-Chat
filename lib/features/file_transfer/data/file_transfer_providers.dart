@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/bluetooth_controller.dart';
 import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/network/connection/bluetooth_transport.dart';
 import 'package:resqmesh/core/network/lan_providers.dart';
@@ -51,17 +52,35 @@ final transferServiceProvider = Provider<TransferService>((ref) {
     freeSpace: files.freeBytes,
     logger: ref.watch(appLoggerProvider),
   );
-  // Follow the engine: a name set or changed, and network changes.
+  // Follow the engine: a name set or changed, and network changes (Wi-Fi
+  // only: they don't touch Bluetooth channels).
+  final bluetooth = ref.watch(bluetoothControllerProvider);
   NetworkSnapshot? lastNetwork;
   final subscription = engine.snapshots.listen((snapshot) {
     unawaited(service.identityChanged());
-    if (lastNetwork != null && lastNetwork != snapshot.network) {
+    if (bluetooth == null &&
+        lastNetwork != null &&
+        lastNetwork != snapshot.network) {
       unawaited(service.networkChanged());
     }
     lastNetwork = snapshot.network;
   });
+  // Bluetooth (P14): the file channel can only open once permission is
+  // given and Bluetooth is on, and turning Bluetooth off closes it: open it
+  // again then, as the control server does.
+  var lost = false;
+  var reopening = false;
+  final btReady = bluetooth?.watch().listen((status) {
+    if (status.phase == BluetoothPhase.off) lost = true;
+    if (!bluetooth.ready || reopening) return;
+    if (!lost && service.filePort != null) return;
+    lost = false;
+    reopening = true;
+    unawaited(service.networkChanged().whenComplete(() => reopening = false));
+  });
   ref.onDispose(() {
     unawaited(subscription.cancel());
+    unawaited(btReady?.cancel());
     unawaited(service.stop());
   });
   unawaited(service.start());

@@ -117,6 +117,7 @@ Wi-Fi Direct needs real phones; the emulator can only show *Looking for phones n
 3. Keep the phones within a few metres, LinkUp open. Expected within about 30 s: *Found 1 nearby, connecting…*, then *Connected by Bluetooth · 1 nearby*. No pairing dialog should appear.
 4. Then: messages both ways, Everyone with a third phone, a photo, a voice message, and one file of 20–50 MB (the sheet should warn it takes minutes; note the actual time).
 5. If they don't connect, send Developer options screenshots from both phones, with models and Android versions.
+6. If a file stays at *Sending…* or 0% for more than a minute, export the logs from Developer options on both phones (lines tagged `FILE` show *Listening for files* with the channel).
 
 ## 3. Real-device matrix
 

@@ -15,6 +15,9 @@ final class FakeTransferBackend implements TransferBackend {
   TransferIdentity? identity;
   int resets = 0;
 
+  /// The file port start() and reset() report; null when it can't open.
+  int? port = 28762;
+
   /// SHA-256 returned for any file.
   String hash = 'a' * 64;
 
@@ -29,13 +32,13 @@ final class FakeTransferBackend implements TransferBackend {
   @override
   Future<int?> start(TransferIdentity self) async {
     identity = self;
-    return 28762;
+    return port;
   }
 
   @override
   Future<int?> reset() async {
     resets++;
-    return 28762;
+    return port;
   }
 
   @override

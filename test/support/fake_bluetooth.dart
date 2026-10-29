@@ -37,6 +37,8 @@ final class FakeBluetooth implements Bluetooth {
   void see(BtFound peer) => _found.add(peer);
   void setEnabled(bool on) {
     enabled = on;
+    // Like Android: turning Bluetooth off closes every server.
+    if (!on) air._servers.removeWhere((_, phone) => phone == this);
     _enabled.add(on);
   }
 
@@ -127,6 +129,10 @@ final class FakeBluetooth implements Bluetooth {
     if (other == null) return;
     air._pairs.remove(other);
     final (phone, id) = other;
-    scheduleMicrotask(() => phone._links.add(BtLinkClosed(id)));
+    // Both sides hear of it, like the bridge.
+    scheduleMicrotask(() {
+      _links.add(BtLinkClosed(linkId));
+      phone._links.add(BtLinkClosed(id));
+    });
   }
 }

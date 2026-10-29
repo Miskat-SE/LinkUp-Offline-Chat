@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resqmesh/core/bootstrap/core_services.dart';
+import 'package:resqmesh/core/connection/bluetooth_controller.dart';
 import 'package:resqmesh/core/connection/bluetooth_providers.dart';
 import 'package:resqmesh/core/connection/connection_method.dart';
 import 'package:resqmesh/core/connection/connection_providers.dart';
@@ -128,10 +129,15 @@ final peerLinksProvider = Provider<PeerLinks>((ref) {
   NetworkSnapshot? lastNetwork;
   final btEndpoints = bluetooth?.endpoints.listen(links.updateEndpoints);
   // The Bluetooth server can only open once permission is given and
-  // Bluetooth is on, often after the first try: open it again then.
+  // Bluetooth is on, often after the first try, and turning Bluetooth off
+  // closes it: open it again then.
+  var lost = false;
   var reopening = false;
-  final btReady = bluetooth?.watch().listen((_) {
-    if (!bluetooth.ready || bluetooth.channel != null || reopening) return;
+  final btReady = bluetooth?.watch().listen((status) {
+    if (status.phase == BluetoothPhase.off) lost = true;
+    if (!bluetooth.ready || reopening) return;
+    if (!lost && bluetooth.channel != null) return;
+    lost = false;
     reopening = true;
     unawaited(
       links

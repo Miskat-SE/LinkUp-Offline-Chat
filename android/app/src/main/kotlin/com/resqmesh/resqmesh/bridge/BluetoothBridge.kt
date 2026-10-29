@@ -232,13 +232,15 @@ class BluetoothBridge(
     override suspend fun send(linkId: Long, bytes: ByteArray) {
         val link = links[linkId] ?: return
         // Queued in order on the link's writer; completes once written, so
-        // Dart can hold back a large file (backpressure).
+        // Dart can hold back a large file (backpressure). write() blocks
+        // while the channel is full; no flush(): on a Bluetooth socket it
+        // polls every 10 ms until the radio has sent everything, which
+        // stalls each chunk.
         suspendCancellableCoroutine { continuation ->
             try {
                 link.writer.execute {
                     try {
                         link.socket.outputStream.write(bytes)
-                        link.socket.outputStream.flush()
                     } catch (e: IOException) {
                         link.close()
                     }
@@ -275,11 +277,9 @@ class BluetoothBridge(
             } catch (e: IOException) {
                 // Closed or broken.
             }
-            // Closed from Dart: Dart already knows. Otherwise tell it.
-            links.remove(id)?.let {
-                it.close()
-                deliver { flutterApi.onLinkClosed(id) }
-            }
+            links.remove(id)?.close()
+            // Also when Dart closed it: every transport forgets the link.
+            deliver { flutterApi.onLinkClosed(id) }
         }, "LinkUpBtRead$id").start()
     }
 

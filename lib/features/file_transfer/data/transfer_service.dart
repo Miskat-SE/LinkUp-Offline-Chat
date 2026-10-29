@@ -94,7 +94,12 @@ final class TransferService {
   Set<String> _connected = {};
   Timer? _retryTimer;
   bool _backendStarted = false;
+  int? _filePort;
   Future<void> _queue = Future.value();
+
+  /// The file port (or Bluetooth channel) others send to; null until it
+  /// could be opened.
+  int? get filePort => _filePort;
 
   /// Outgoing files whose preparation finished: their MESSAGE can go out.
   Stream<String> get ready => _ready.stream;
@@ -144,7 +149,7 @@ final class TransferService {
       return;
     }
     _backendStarted = true;
-    final port = await _backend.start(identity);
+    final port = _filePort = await _backend.start(identity);
     _logger.info(LogTag.file, 'Listening for files', {'port': port});
     _links.setFilePort(port);
   }
@@ -153,7 +158,8 @@ final class TransferService {
   /// the file port is bound again.
   Future<void> networkChanged() async {
     if (!_backendStarted) return;
-    final port = await _backend.reset();
+    final port = _filePort = await _backend.reset();
+    _logger.info(LogTag.file, 'Listening for files again', {'port': port});
     _links.setFilePort(port);
   }
 
