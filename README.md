@@ -4,7 +4,7 @@
 
 Offline messaging and file sharing for Android phones on the same Wi-Fi network. No internet, no cloud, no accounts: phones find each other on the local network and talk directly.
 
-> **Status: v1.0.0-rc1 plus P13–P15 (build 20).** Phones on the same Wi-Fi, a hotspot or Wi-Fi Direct find each other with no internet, and chat one to one with sent, delivered and read ticks, or message *Everyone* nearby with "Delivered to 2 of 3" and a seen count. Messages can be replied to (swipe), forwarded, deleted for everyone, and @mention people in Everyone. They share photos (also straight from the camera), voice messages and files of any type up to 4 GB, with pause, resume and a SHA-256 check. Transfers keep going with the screen off, and *Stay reachable* keeps LinkUp reachable while it is closed. Chats and files stay on the phone; anything sent to someone offline goes when they come back. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) and [`TESTING.md`](TESTING.md).
+> **Version 1 (P0–P15, the MSc final defence scope): done.** Phones on the same Wi-Fi, a hotspot or Wi-Fi Direct find each other with no internet, and chat one to one with sent, delivered and read ticks, or message *Everyone* nearby with "Delivered to 2 of 3" and a seen count. Messages can be replied to (swipe), forwarded, deleted for everyone, and @mention people in Everyone. They share photos (also straight from the camera), voice messages and files of any type up to 4 GB, with pause, resume and a SHA-256 check. Transfers keep going with the screen off, and *Stay reachable* keeps LinkUp reachable while it is closed. Chats and files stay on the phone; anything sent to someone offline goes when they come back. See [`PROJECT_PLAN.md`](PROJECT_PLAN.md) and [`TESTING.md`](TESTING.md).
 
 ## Documents
 
@@ -94,7 +94,7 @@ Some routers, especially guest networks and hotel or office Wi-Fi, block phones 
 - *Everyone* reaches only the people online when you send; there are no replies inside the Everyone thread.
 - *Delete for everyone* removes the message inside LinkUp on every phone; copies someone already saved to Downloads or shared to another app stay.
 - Voice messages are up to 10 minutes.
-- Bluetooth is new and still being tested on phones: about 10 m, and files are slow (roughly 80 KB/s), so the app warns before large ones.
-- Wi-Fi Direct is new and still being tested on phones; one group at a time (about 50 m). Bluetooth is *Coming soon* (P14).
+- Bluetooth reaches about 10 m, and files are slow (roughly 80 KB/s), so the app warns before large ones.
+- Wi-Fi Direct works with one group at a time (about 50 m), on Android 10 or newer.
 - Messages and files are not encrypted on the local network (see *Security and privacy*).
 - Android only. iOS, desktop and web are out of scope.

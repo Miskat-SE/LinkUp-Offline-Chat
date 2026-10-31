@@ -110,6 +110,8 @@ Wi-Fi Direct needs real phones; the emulator can only show *Looking for phones n
 4. Then run R1–R5 (text and files both ways), R12 (Wi-Fi Direct turned off mid-transfer, then back) and R15 with a third phone.
 5. If it doesn't connect: Settings → About → tap *Version* 7 times → Developer options → **Wi-Fi Direct** shows the state, phones seen, phones joined and whether this phone is in a group. Note those on both phones, plus the Android versions and models.
 
+**Results:** 30 Oct 2026, build 24 on the user's phones: **passed** (groups form by themselves; text and files both ways).
+
 ## 2c. Bluetooth on two or more phones (P14.4)
 
 1. Install the same build on each phone (Android 10 or newer). Turn **Bluetooth on**; Wi-Fi can be off. On Android 10–11, turn Location on too.
@@ -118,6 +120,8 @@ Wi-Fi Direct needs real phones; the emulator can only show *Looking for phones n
 4. Then: messages both ways, Everyone with a third phone, a photo, a voice message, and one file of 20–50 MB (the sheet should warn it takes minutes; note the actual time).
 5. If they don't connect, send Developer options screenshots from both phones, with models and Android versions.
 6. If a file stays at *Sending…* or 0% for more than a minute, export the logs from Developer options on both phones (lines tagged `FILE` show *Listening for files* with the channel).
+
+**Results:** build 23: messages passed, files stuck at 0% (fixed in build 24). 30 Oct 2026, build 24 on the user's phones: **passed** (messages and files).
 
 ## 3. Real-device matrix
 

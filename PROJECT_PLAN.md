@@ -1,4 +1,4 @@
-# ResQMesh — Project Plan
+# ResQMesh — Project Plan · Version 1 (P0–P15)
 
 **Offline messaging and file sharing over a local Wi-Fi network**
 Flutter Android app · works with the router's internet switched off · no cloud, no accounts
@@ -18,23 +18,31 @@ References written as *spec §n* point to the numbered sections of the build spe
 
 ## Status
 
-> Living section. Update every Monday.
+Version 1 (P0–P15) is the MSc final defence scope.
 
-| | |
-|---|---|
-| Week | **2 of 20** (8–14 Oct 2026) |
-| Phase | **P9 done: feature complete, `v0.9.0-beta`** · P7 3-phone test, P8 real-phone checks, 2 GB soak (P6.12) and mid-term slides (P6.13) open · P0 inventory and review still open |
-| Next milestone | M1 · Plan reviewed, discovery spike done, app foundation (21 Oct) |
-| Health | Ahead of schedule: P1–P9 (planned for Weeks 3–14) passed their code gates in Week 2. Text chat was confirmed by the user on **two real phones** on a router with the internet unplugged (9 Oct). Files: 1 GB Mac → emulator and 300 MB emulator → Mac with checksums verified and memory flat; images sent several times both ways on the two real phones (user, 10 Oct); **the 2 GB two-phone soak (M4) is still to do**. |
-| Blockers | None recorded |
+✅ done · 🔄 partly done · ⏳ pending
 
-**This week**
-- [ ] Review this plan and the open questions (§16) with the supervisor
-- [x] Vet and pin the packages (P0.2); record the results in §5.1
-- [ ] Fill in the testbed inventory (§13.4): at least 2 phones, 3 for broadcast tests
-- [ ] Install the P1 build on a phone: first launch asks for a name, relaunch skips it (P1 exit)
-- [x] Draft `PROTOCOL.md` v0.1 from §7
-- [ ] Discovery spike: 2 phones find each other and exchange one TCP message on a router with the internet unplugged (P0.5)
+**Version 1 overall: 90%** `▓▓▓▓▓▓▓▓▓░`: all features built and phone-tested; defence items left
+
+| | Phase | Done | Progress | Left |
+|---|---|---|---|---|
+| 🔄 | P0 Plan, decisions, discovery spike | 3/7 | 43% | Supervisor review, platform facts, spike, testbed list |
+| ✅ | P1 Foundation, theme, onboarding | 8/8 | 100% | |
+| ✅ | P2 LAN discovery | 10/10 | 100% | |
+| ✅ | P3 TCP connections | 6/6 | 100% | |
+| ✅ | P4 Text messaging | 5/5 | 100% | |
+| ✅ | P5 SQLite storage | 6/6 | 100% | |
+| 🔄 | P6 File transfer | 11/13 | 85% | 2 GB soak test on phones; mid-term slides |
+| ✅ | P7 Everyone and selected people | 5/5 | 100% | |
+| 🔄 | P8 Background receiving | 5/6 | 83% | Real phones' battery savers |
+| ✅ | P9 Security hardening | 7/7 | 100% | |
+| ✅ | P10 Automated tests | 5/5 | 100% | |
+| ✅ | P11 UI polish | 6/6 | 100% | |
+| 🔄 | P12 Release build | 5/6 | 83% | Full real-device matrix |
+| ✅ | P13 Wi-Fi Direct | 4/4 | 100% | |
+| ✅ | P14 Bluetooth | 4/4 | 100% | |
+| ✅ | P15 Chat features | 7/7 | 100% | |
+| ⏳ | W Wrap-up: v1.0.0 tag, report, defence demo | 0/3 | 0% | All three |
 
 **How to keep this file current**
 - Tick task boxes as you go, and put the task ID in commit messages (§15.3).
@@ -987,16 +995,16 @@ Repositories are interfaces from P4 on. P5 replaced the in-memory version with d
 - [x] **U.5** Reduce-motion support fixed (zero-duration page and size animations crashed)
 
 #### P13 · Wi-Fi Direct (after v1.0, about 2–3 weeks)
-- [ ] **P13.1** Spike on 2 phones: discover, invite, form a group, open TCP between group owner and client *(built into the app instead of a throwaway spike: Settings → Developer options → Wi-Fi Direct shows each step; to run on the testbed phones, TESTING.md §2b)*
+- [x] **P13.1** Spike on 2 phones: discover, invite, form a group, open TCP between group owner and client *(built into the app instead of a throwaway spike: Settings → Developer options → Wi-Fi Direct shows each step; to run on the testbed phones, TESTING.md §2b)*
 - [x] **P13.2** Permissions flow (`NEARBY_WIFI_DEVICES` / location ≤ 32) shown only when Wi-Fi Direct is chosen *(asked once on choosing it; then an Allow / Turn on Location button on the status card)*
 - [x] **P13.3** Run the existing control and data connections over the P2P group; group-owner negotiation; reconnect *(ADR-0023: groups form by themselves through service discovery, lowest ID hosts, joins without dialogs on Android 10+; the group is reported as a `wifiDirect` interface and the LAN stack runs unchanged; not bound to Wi-Fi in this mode)*
-- [ ] **P13.4** Device tests (§13.2 rows R1–R5, R12, R15 over Wi-Fi Direct)
+- [x] **P13.4** Device tests (§13.2 rows R1–R5, R12, R15 over Wi-Fi Direct)
 
 #### P14 · Bluetooth (after P13, about 3–4 weeks)
 - [x] **P14.1** Spike: BLE + L2CAP versus classic RFCOMM on the testbed phones (D21) *(decided with the user: BLE + insecure L2CAP, no pairing; ADR-0024. Phone results in P14.4)*
 - [x] **P14.2** Permissions flow (`BLUETOOTH_*`) shown only when Bluetooth is chosen
 - [x] **P14.3** Bluetooth discovery and stream behind the same packet layer; framing unchanged *(`ByteLink`/`LinkTransport` under connections and file transfer)*
-- [ ] **P14.4** File limits and warnings for slow links; device tests *(warning in the send sheet done; phone tests with the user, TESTING.md §2c)*
+- [x] **P14.4** File limits and warnings for slow links; device tests *(warning in the send sheet; phone tests passed with build 24, 30 Oct)*
 
 #### P15 · Chat features from user testing (requested 11 Oct 2026, about 2 weeks)
 Reply (long-press) and per-person delivery already exist; these build on them. Suggested order: quick wins first, voice last.
@@ -1240,3 +1248,4 @@ Run on the release APK with at least 2 phones (3 for R15), with the router's int
 | 2.7 | 11 Oct 2026 | P13 fix after the first phone test: a host formed its group before the other phone had found it, and a group owner can't be discovered. Groups now form only between phones that have seen each other; credentials are worked out from the host's ID, so joining needs no discovery (ADR-0023 revised). Wi-Fi Direct needs Android 10+. |
 | 2.8 | 15 Oct 2026 | P14 code done (ADR-0024): Bluetooth LE finds phones and insecure L2CAP channels carry the same connections and file transfers (no pairing, Android 10+), through a new `ByteLink`/`LinkTransport` layer. Slow-link warning for files. Phone tests (P14.4) with the user. |
 | 2.9 | 30 Oct 2026 | P14 fix after the first phone test (build 23: messages worked, files stuck at 0%): the file channel opened only at start, usually before Bluetooth was allowed or turned on, so it never opened. It now opens again once Bluetooth is ready and after Bluetooth is turned off and on (the control channel too); Wi-Fi changes no longer reset Bluetooth transfers; the bridge no longer waits after every 16 KB write. |
+| 3.0 | 30 Oct 2026 | Phone tests passed with build 24: Wi-Fi Direct (P13.1, P13.4), Bluetooth with files (P14.4) and P15. Every version 1 feature is built and phone-tested; the wrap-up (v1.0.0 tag, report, defence demo) and the open device checks remain. |
